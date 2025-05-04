@@ -1,9 +1,12 @@
 {
     "epochs": 1000,
     "lr": 1e-3,
-    "save_path": "model.pth",
+    "save_path": "models/model.pth",
+    "config_path": "config/hjb_config.json",
     "n_paths": 1000,
     "batch_size": 256,
+    "n_simulations": 5,
+    "sim_batch_size": 5,
     "device": "cuda",
     "train": true,
     "load_if_exists": true,

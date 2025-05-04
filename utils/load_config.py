@@ -1,6 +1,6 @@
 import json
 
-def load_model_config(path="config/hjb_config.json"):
+def load_model_config(path):
     with open(path, "r") as f:
         cfg = json.load(f)
     cfg["dt"] = cfg["T"] / cfg["N"]
