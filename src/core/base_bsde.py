@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import numpy as np
 import time
 from abc import ABC, abstractmethod
 
@@ -29,17 +30,19 @@ class QNetwork(nn.Module):
 
 
 class BaseDeepBSDE(nn.Module, ABC):
-    def __init__(self, run_cfg, model_cfg):
+    def __init__(self, args, model_cfg):
         super().__init__()
-        self.device = run_cfg["device"]
+        self.device = args.device
+        self.batch_size = args.batch_size
         self.y0 = torch.tensor([model_cfg["y0"]], device=self.device)
         self.dim = model_cfg["dim"]
+        self.dim_W = model_cfg["dim_W"]
+        self.T = model_cfg["T"]
+        self.N = model_cfg["N"]
+        self.dt = model_cfg["dt"]
         self.Y0 = nn.Parameter(torch.tensor([[0.0]], device=self.device))
         self.z_net = ZNetwork(self.dim).to(self.device)
         self.q_net = QNetwork(self.dim).to(self.device)
-        self.batch_size = run_cfg["batch_size"]
-        self.N = model_cfg["N"]
-        self.dt = model_cfg["dt"]
         self.lowest_loss = float("inf")
 
     @abstractmethod
@@ -71,8 +74,7 @@ class BaseDeepBSDE(nn.Module, ABC):
             z = self.z_net(t, y)
             q = self.q_net(t, y)
             f = self.generator(y, q)
-            dW_dim = self.sigma(t, y).shape[-1]
-            dW = torch.randn(batch_size, dW_dim, device=self.device) * self.dt**0.5
+            dW = torch.randn(batch_size, self.dim_W, device=self.device) * self.dt**0.5
             y = self.forward_dynamics(y, q, dW, t, self.dt)
             Y_next = Y - f * self.dt + (z * dW).sum(dim=1, keepdim=True)
             with torch.no_grad():
@@ -122,3 +124,55 @@ class BaseDeepBSDE(nn.Module, ABC):
 
         return losses
 
+    def simulate_paths(self, n_paths=1000, batch_size=256, seed=42, y0_single=None):
+        torch.manual_seed(seed)
+        self.eval()
+
+        all_q, all_Y, all_y = [], [], []
+        terminal_stats = {"X": [], "D": [], "B": [], "I": []}
+
+        for _ in range(n_paths // batch_size):
+            y = y0_single.repeat(batch_size, 1) if y0_single is not None else self.y0.repeat(batch_size, 1)
+            t = torch.zeros(batch_size, 1, device=self.device)
+            Y = self.Y0.repeat(batch_size, 1)
+
+            q_traj, Y_traj, y_traj = [], [], []
+
+            for _ in range(self.N):
+                t_input = t.clone()
+                q = self.q_net(t_input, y).squeeze(-1)
+                z = self.z_net(t_input, y)
+                f = self.generator(y, q.unsqueeze(-1))
+                dW = torch.randn(batch_size, self.dim_W, device=self.device) * self.dt**0.5
+
+                y = self.forward_dynamics(y, q.unsqueeze(-1), dW, t, self.dt)
+                Y = Y - f * self.dt + (z * dW).sum(dim=1, keepdim=True)
+                t += self.dt
+
+                q_traj.append(q.detach().cpu().numpy())
+                Y_traj.append(Y.detach().cpu().numpy())
+                y_traj.append(y.detach().cpu().numpy())
+
+            all_q.append(np.stack(q_traj))
+            all_Y.append(np.stack(Y_traj))
+            all_y.append(np.stack(y_traj))
+
+            X, D, B = y[:, 0], y[:, 2], y[:, 3]
+            I = X - D + self.xi
+
+            terminal_stats["X"].append(X.detach().cpu())
+            terminal_stats["D"].append(D.detach().cpu())
+            terminal_stats["B"].append(B.detach().cpu())
+            terminal_stats["I"].append(I.detach().cpu())
+
+        timesteps = np.linspace(0, self.T, self.N)
+
+        return timesteps, {
+            "q": np.concatenate(all_q, axis=1),
+            "Y": np.concatenate(all_Y, axis=1),
+            "final_y": np.concatenate(all_y, axis=1),
+            "X_T": torch.cat(terminal_stats["X"]).squeeze().numpy(),
+            "D_T": torch.cat(terminal_stats["D"]).squeeze().numpy(),
+            "B_T": torch.cat(terminal_stats["B"]).squeeze().numpy(),
+            "I_T": torch.cat(terminal_stats["I"]).squeeze().numpy()
+        }
