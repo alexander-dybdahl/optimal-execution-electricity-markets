@@ -71,7 +71,8 @@ class BaseDeepBSDE(nn.Module, ABC):
             dW = torch.randn(batch_size, 3, device=device) * dt**0.5
             y = self.forward_dynamics(y, q, dW, t, dt)
             Y_next = Y - f * dt + (z * dW).sum(dim=1, keepdim=True)
-            residual = Y_next.detach() - Y + f * dt - (z * dW).sum(dim=1, keepdim=True)
+            with torch.no_grad():
+                residual = Y_next.detach() - (Y - f * dt + (z * dW).sum(dim=1, keepdim=True))
             total_residual_loss += torch.mean(residual**2)
             Y = Y_next
             t += dt
@@ -97,6 +98,7 @@ class BaseDeepBSDE(nn.Module, ABC):
             if epoch % 50 == 0:
                 if verbose:
                     print(f"[Epoch {epoch:<4}] Loss = {loss.item():.6f}")
+                    print(f"[Memory] Allocated: {torch.cuda.memory_allocated() / 1e6:.2f}MB")
 
                 if loss.item() < lowest_loss:
                     lowest_loss = loss.item()

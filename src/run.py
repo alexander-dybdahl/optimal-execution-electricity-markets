@@ -1,4 +1,4 @@
-from core.hjb_bsde import HJMDeepBSDE
+from model.hjb_bsde import HJMDeepBSDE
 from simulation.simulator import simulate_all
 from helpers.plots import plot_all_diagnostics
 from config import y0, xi, batch_size, T, N
