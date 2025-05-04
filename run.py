@@ -3,7 +3,7 @@ from argparse import ArgumentParser
 from utils.load_config import load_model_config, load_run_config
 from utils.plots import plot_all_diagnostics
 from utils.tools import str2bool
-from models.hjb_bsde import HJBDeepBSDE
+from models.hjb_bsde import HJBDeepBSDE, SimpleHJBDeepBSDE
 
 def main():
     run_cfg = load_run_config()
@@ -25,7 +25,8 @@ def main():
 
     model_cfg = load_model_config(args.model_config)
 
-    model = HJBDeepBSDE(args, model_cfg)
+    # model = HJBDeepBSDE(args, model_cfg)
+    model = SimpleHJBDeepBSDE(args, model_cfg)
 
     if args.load_if_exists:
         try:
