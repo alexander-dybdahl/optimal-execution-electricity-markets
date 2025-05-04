@@ -1,10 +1,25 @@
 import torch
 import numpy as np
 
-from config import dt, T, N, dim, dim_w, mu_P, gamma, rho, sigma_P, sigma_D, sigma_B, xi, device
+from helpers.load_config import load_config
 from model.hjb import generator
+from model.diffusions import sigma_P, sigma_D, sigma_B
 
-def simulate_all(model, n_paths=1000, batch_size=256, y0=None, y0_single=None, seed=42):
+cfg = load_config()
+
+T = cfg["T"]
+N = cfg["N"]
+dt = cfg["dt"]
+gamma = cfg["gamma"]
+device = cfg["device"]
+y0 = cfg["y0"]
+dim = cfg["dim"]
+dim_w = cfg["dim_w"]
+rho = cfg["rho"]
+xi = cfg["xi"]
+mu_P = cfg["mu_P"]
+
+def simulate_all(model, n_paths=1000, batch_size=256, y0_single=None, seed=42):
     torch.manual_seed(seed)
     model.eval()
 

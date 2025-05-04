@@ -1,7 +1,23 @@
 import torch
-from config import sigma_P, sigma_D, sigma_B, T, rho, gamma, mu_P
+from helpers.load_config import load_config
+from model.diffusions import sigma_P, sigma_D, sigma_B
 from model.hjb import generator, terminal_cost
 from core.base_bsde import BaseDeepBSDE
+
+cfg = load_config()
+
+T = cfg["T"]
+N = cfg["N"]
+dt = cfg["dt"]
+gamma = cfg["gamma"]
+device = cfg["device"]
+y0 = cfg["y0"]
+dim = cfg["dim"]
+dim_w = cfg["dim_w"]
+rho = cfg["rho"]
+xi = cfg["xi"]
+mu_P = cfg["mu_P"]
+eta = cfg["eta"]
 
 class HJMDeepBSDE(BaseDeepBSDE):
     def __init__(self, y0, xi, batch_size):

@@ -1,0 +1,16 @@
+{
+    "T": 1.0,
+    "N": 40,
+    "dim": 4,
+    "dim_w": 3,
+    "batch_size": 256,
+    "mu_P": 0.0,
+    "gamma": 0.2,
+    "eta": 0.1,
+    "rho": -0.5,
+    "xi": 0.0,
+    "initial_state": [0.0, 0.0, 0.0, 0.0],
+    "c_prod_base": 45.0,
+    "device": "cuda"
+  }
+  

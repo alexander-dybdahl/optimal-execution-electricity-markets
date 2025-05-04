@@ -1,7 +1,19 @@
 import torch
 import torch.nn as nn
+import time
 from abc import ABC, abstractmethod
-from config import dt, N, dim, device
+
+from helpers.load_config import load_config
+
+cfg = load_config()
+
+T = cfg["T"]
+N = cfg["N"]
+dt = cfg["dt"]
+gamma = cfg["gamma"]
+device = cfg["device"]
+y0 = cfg["y0"]
+dim = cfg["dim"]
 
 class ZNetwork(nn.Module):
     def __init__(self):
@@ -38,6 +50,7 @@ class BaseDeepBSDE(nn.Module, ABC):
         self.q_net = QNetwork().to(device)
         self.batch_size = batch_size
         self.xi = xi
+        self.lowest_loss = float("inf")
 
     @abstractmethod
     def generator(self, y, q): pass
@@ -82,23 +95,16 @@ class BaseDeepBSDE(nn.Module, ABC):
         terminal_loss = torch.mean((Y - terminal)**2)
         return terminal_loss + total_residual_loss
 
-    def train_model(self, epochs=1000, lr=1e-3, save_path="model.pth", verbose=True, load_if_exists=True):
+    def train_model(self, epochs=1000, lr=1e-3, save_path="model.pth"):
         self.device = next(self.parameters()).device
         optimizer = torch.optim.Adam(self.parameters(), lr=lr)
-        lowest_loss = float("inf")
         losses = []
-
-        if load_if_exists:
-            try:
-                self.load_state_dict(torch.load(save_path, map_location=self.device))
-                print("Model loaded successfully.")
-            except FileNotFoundError:
-                print("No model found, starting training from scratch.")
 
         self.train()
 
         header_printed = False
-
+    
+        start_time = time.time()
         for epoch in range(epochs):
             optimizer.zero_grad()
             loss = self()
@@ -108,19 +114,21 @@ class BaseDeepBSDE(nn.Module, ABC):
             losses.append(loss.item())
 
             if epoch % 50 == 0 or epoch == epochs - 1:
+                elapsed = time.time() - start_time
                 if not header_printed:
-                    print(f"{'Epoch':>8} | {'Loss':>12} | {'Memory [MB]':>12} | {'Status'}")
-                    print("-" * 52)
+                    print(f"{'Epoch':>8} | {'Loss':>12} | {'Memory [MB]':>12} | {'Time [s]':>10} | {'Status'}")
+                    print("-" * 70)
                     header_printed = True
 
                 mem_mb = torch.cuda.memory_allocated() / 1e6
                 status = ""
-                if loss.item() < lowest_loss:
-                    lowest_loss = loss.item()
+                if loss.item() < self.lowest_loss:
+                    self.lowest_loss = loss.item()
                     torch.save(self.state_dict(), save_path)
-                    status = f"Model saved ↓"
+                    status = "Model saved ↓"
 
-                print(f"{epoch:8} | {loss.item():12.6f} | {mem_mb:12.2f} | {status}")
+                print(f"{epoch:8} | {loss.item():12.6f} | {mem_mb:12.2f} | {elapsed:10.2f} | {status}")
+                start_time = time.time()  # Reset timer for next block
 
         return losses
 

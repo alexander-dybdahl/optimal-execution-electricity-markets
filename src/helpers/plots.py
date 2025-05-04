@@ -25,7 +25,7 @@ def plot_all_diagnostics(results, timesteps):
     ci_q = 1.96 * std_q / np.sqrt(n_paths)
     axs[0, 0].plot(timesteps, mean_q, label="Mean $q(t)$")
     axs[0, 0].fill_between(timesteps, mean_q - ci_q, mean_q + ci_q, alpha=0.3, label="95% CI")
-    axs[0, 0].set_title("Optimal Trading Rate $q(t)$")
+    axs[0, 0].set_title("Optimal Trading Rate $q(t)$", pad=10)
     axs[0, 0].set_xlabel("Time $t$")
     axs[0, 0].set_ylabel("$q(t)$")
     axs[0, 0].grid(True)
@@ -34,7 +34,7 @@ def plot_all_diagnostics(results, timesteps):
     # Subplot 2: Value function over time
     for i in range(Y_vals.shape[1]):  # Iterate over all trajectories
         axs[0, 1].plot(timesteps, Y_vals[:, i, 0], alpha=0.1, color="blue")
-    axs[0, 1].set_title("Cost-to-Go $Y(t)$ (Value Function)")
+    axs[0, 1].set_title("Cost-to-Go $Y(t)$ (Value Function)", pad=10)
     axs[0, 1].set_xlabel("Time $t$")
     axs[0, 1].set_ylabel("$Y(t)$")
     axs[0, 1].grid(True)
@@ -53,13 +53,13 @@ def plot_all_diagnostics(results, timesteps):
     axs[1, 0].scatter(B_T, I_T, alpha=0.3, s=10)
     axs[1, 0].set_xlabel("Terminal Imbalance Price $B(T)$")
     axs[1, 0].set_ylabel("Imbalance $I(T)$")
-    axs[1, 0].set_title("Imbalance $I(T)$ vs. Imbalance Price $B(T)$")
+    axs[1, 0].set_title("Imbalance $I(T)$ vs. Imbalance Price $B(T)$", pad=10)
     axs[1, 0].grid(True)
 
     # Subplot 4: X(T) vs D(T)
     axs[1, 1].scatter(D_T, X_T, alpha=0.3, s=10)
     corr = np.corrcoef(X_T, D_T)[0, 1]
-    axs[1, 1].set_title(f"$X(T)$ vs. $D(T)$ (Corr = {corr:.3f})")
+    axs[1, 1].set_title(f"$X(T)$ vs. $D(T)$ (Corr = {corr:.3f})", pad=10)
     axs[1, 1].set_xlabel("$D(T)$ (Residual Demand)")
     axs[1, 1].set_ylabel("$X(T)$ (Cumulative Position)")
     axs[1, 1].grid(True)
@@ -80,11 +80,11 @@ def plot_all_diagnostics(results, timesteps):
         #                            mean_states[:, i] - ci_states[:, i],
         #                            mean_states[:, i] + ci_states[:, i],
         #                            alpha=0.3, label="95% CI")
-        axs[2, i % 2].set_title(labels[i])
+        axs[2, i % 2].set_title(labels[i], pad=10)
         axs[2, i % 2].set_xlabel("Time $t$")
         axs[2, i % 2].set_ylabel(labels[i])
         axs[2, i % 2].grid(True)
         axs[2, i % 2].legend()
 
-    plt.tight_layout()
+    # plt.tight_layout()
     plt.show()
