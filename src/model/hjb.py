@@ -23,4 +23,4 @@ def terminal_cost(y, xi):
     I = X - D + xi
     I_plus = torch.clamp(I, min=0.0)
     I_minus = torch.clamp(-I, min=0.0)
-    return -c_prod(xi) + I_plus * B - I_minus * B
+    return 100 * abs(I) #-c_prod(xi) + I_plus * B - I_minus * B

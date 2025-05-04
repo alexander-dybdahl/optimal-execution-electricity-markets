@@ -68,7 +68,8 @@ class BaseDeepBSDE(nn.Module, ABC):
             z = self.z_net(t, y)
             q = self.q_net(t, y)
             f = self.generator(y, q)
-            dW = torch.randn(batch_size, 3, device=device) * dt**0.5
+            dW_dim = self.sigma(t, y).shape[-1]
+            dW = torch.randn(batch_size, dW_dim, device=device) * dt**0.5
             y = self.forward_dynamics(y, q, dW, t, dt)
             Y_next = Y - f * dt + (z * dW).sum(dim=1, keepdim=True)
             with torch.no_grad():
@@ -81,11 +82,22 @@ class BaseDeepBSDE(nn.Module, ABC):
         terminal_loss = torch.mean((Y - terminal)**2)
         return terminal_loss + total_residual_loss
 
-    def train_model(self, epochs=1000, lr=1e-3, save_path="model.pth", verbose=True):
-        self.train()
+    def train_model(self, epochs=1000, lr=1e-3, save_path="model.pth", verbose=True, load_if_exists=True):
+        self.device = next(self.parameters()).device
         optimizer = torch.optim.Adam(self.parameters(), lr=lr)
         lowest_loss = float("inf")
         losses = []
+
+        if load_if_exists:
+            try:
+                self.load_state_dict(torch.load(save_path, map_location=self.device))
+                print("Model loaded successfully.")
+            except FileNotFoundError:
+                print("No model found, starting training from scratch.")
+
+        self.train()
+
+        header_printed = False
 
         for epoch in range(epochs):
             optimizer.zero_grad()
@@ -95,15 +107,20 @@ class BaseDeepBSDE(nn.Module, ABC):
 
             losses.append(loss.item())
 
-            if epoch % 50 == 0:
-                if verbose:
-                    print(f"[Epoch {epoch:<4}] Loss = {loss.item():.6f}")
-                    print(f"[Memory] Allocated: {torch.cuda.memory_allocated() / 1e6:.2f}MB")
+            if epoch % 50 == 0 or epoch == epochs - 1:
+                if not header_printed:
+                    print(f"{'Epoch':>8} | {'Loss':>12} | {'Memory [MB]':>12} | {'Status'}")
+                    print("-" * 52)
+                    header_printed = True
 
+                mem_mb = torch.cuda.memory_allocated() / 1e6
+                status = ""
                 if loss.item() < lowest_loss:
                     lowest_loss = loss.item()
                     torch.save(self.state_dict(), save_path)
-                    if verbose:
-                        print(f"Model saved (loss: {lowest_loss:.6f})")
+                    status = f"Model saved ↓"
+
+                print(f"{epoch:8} | {loss.item():12.6f} | {mem_mb:12.2f} | {status}")
 
         return losses
+
