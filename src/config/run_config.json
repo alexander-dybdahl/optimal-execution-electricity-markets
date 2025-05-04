@@ -1,0 +1,13 @@
+{
+    "epochs": 1000,
+    "lr": 1e-3,
+    "save_path": "model.pth",
+    "n_paths": 10,
+    "batch_size": 256,
+    "sim_batch_size": 5,
+    "train": true,
+    "load_if_exists": true,
+    "verbose": true,
+    "device": "cuda"
+  }
+  

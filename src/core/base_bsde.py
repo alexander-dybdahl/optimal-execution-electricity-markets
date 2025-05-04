@@ -3,20 +3,8 @@ import torch.nn as nn
 import time
 from abc import ABC, abstractmethod
 
-from helpers.load_config import load_config
-
-cfg = load_config()
-
-T = cfg["T"]
-N = cfg["N"]
-dt = cfg["dt"]
-gamma = cfg["gamma"]
-device = cfg["device"]
-y0 = cfg["y0"]
-dim = cfg["dim"]
-
 class ZNetwork(nn.Module):
-    def __init__(self):
+    def __init__(self, dim):
         super().__init__()
         self.net = nn.Sequential(
             nn.Linear(dim + 1, 64),
@@ -27,9 +15,8 @@ class ZNetwork(nn.Module):
     def forward(self, t, y):
         return self.net(torch.cat([t, y], dim=1))
 
-
 class QNetwork(nn.Module):
-    def __init__(self):
+    def __init__(self, dim):
         super().__init__()
         self.net = nn.Sequential(
             nn.Linear(dim + 1, 64),
@@ -42,14 +29,17 @@ class QNetwork(nn.Module):
 
 
 class BaseDeepBSDE(nn.Module, ABC):
-    def __init__(self, y0, xi, batch_size):
+    def __init__(self, run_cfg, model_cfg):
         super().__init__()
-        self.y0 = y0.to(device)
-        self.Y0 = nn.Parameter(torch.tensor([[0.0]], device=device))
-        self.z_net = ZNetwork().to(device)
-        self.q_net = QNetwork().to(device)
-        self.batch_size = batch_size
-        self.xi = xi
+        self.device = run_cfg["device"]
+        self.y0 = torch.tensor([model_cfg["y0"]], device=self.device)
+        self.dim = model_cfg["dim"]
+        self.Y0 = nn.Parameter(torch.tensor([[0.0]], device=self.device))
+        self.z_net = ZNetwork(self.dim).to(self.device)
+        self.q_net = QNetwork(self.dim).to(self.device)
+        self.batch_size = run_cfg["batch_size"]
+        self.N = model_cfg["N"]
+        self.dt = model_cfg["dt"]
         self.lowest_loss = float("inf")
 
     @abstractmethod
@@ -72,30 +62,30 @@ class BaseDeepBSDE(nn.Module, ABC):
 
     def forward(self):
         batch_size = self.batch_size
-        y = self.y0.repeat(batch_size, 1).to(device)
-        t = torch.zeros(batch_size, 1, device=device)
+        y = self.y0.repeat(batch_size, 1).to(self.device)
+        t = torch.zeros(batch_size, 1, device=self.device)
         Y = self.Y0.repeat(batch_size, 1)
         total_residual_loss = 0.0
 
-        for _ in range(N):
+        for _ in range(self.N):
             z = self.z_net(t, y)
             q = self.q_net(t, y)
             f = self.generator(y, q)
             dW_dim = self.sigma(t, y).shape[-1]
-            dW = torch.randn(batch_size, dW_dim, device=device) * dt**0.5
-            y = self.forward_dynamics(y, q, dW, t, dt)
-            Y_next = Y - f * dt + (z * dW).sum(dim=1, keepdim=True)
+            dW = torch.randn(batch_size, dW_dim, device=self.device) * self.dt**0.5
+            y = self.forward_dynamics(y, q, dW, t, self.dt)
+            Y_next = Y - f * self.dt + (z * dW).sum(dim=1, keepdim=True)
             with torch.no_grad():
-                residual = Y_next.detach() - (Y - f * dt + (z * dW).sum(dim=1, keepdim=True))
+                residual = Y_next.detach() - (Y - f * self.dt + (z * dW).sum(dim=1, keepdim=True))
             total_residual_loss += torch.mean(residual**2)
             Y = Y_next
-            t += dt
+            t += self.dt
 
         terminal = self.terminal_cost(y)
         terminal_loss = torch.mean((Y - terminal)**2)
         return terminal_loss + total_residual_loss
 
-    def train_model(self, epochs=1000, lr=1e-3, save_path="model.pth"):
+    def train_model(self, epochs=1000, lr=1e-3, save_path="model.pth", verbose=True):
         self.device = next(self.parameters()).device
         optimizer = torch.optim.Adam(self.parameters(), lr=lr)
         losses = []
@@ -113,7 +103,7 @@ class BaseDeepBSDE(nn.Module, ABC):
 
             losses.append(loss.item())
 
-            if epoch % 50 == 0 or epoch == epochs - 1:
+            if (epoch % 50 == 0 or epoch == epochs - 1) and verbose:
                 elapsed = time.time() - start_time
                 if not header_printed:
                     print(f"{'Epoch':>8} | {'Loss':>12} | {'Memory [MB]':>12} | {'Time [s]':>10} | {'Status'}")
