@@ -2,7 +2,7 @@ import torch
 import numpy as np
 from core.base_bsde import BaseDeepBSDE
 
-class HJBDeepBSDE(BaseDeepBSDE):
+class HJB(BaseDeepBSDE):
     def __init__(self, args, model_cfg):
         super().__init__(args, model_cfg)
         self.xi = torch.tensor(model_cfg["xi"], device=self.device)
@@ -43,7 +43,7 @@ class HJBDeepBSDE(BaseDeepBSDE):
         I = X - D + self.xi
         I_plus = torch.clamp(I, min=0.0)
         I_minus = torch.clamp(-I, min=0.0)
-        return 100 * abs(I)
+        return I_plus * B - I_minus * B
 
     def mu(self, t, y, q):
         dX = q
@@ -60,3 +60,56 @@ class HJBDeepBSDE(BaseDeepBSDE):
         sigma_tensor[:, 2, 1] = (1 - self.rho**2) ** 0.5 * self.sigma_D(t).squeeze()
         sigma_tensor[:, 3, 2] = self.sigma_B(t).squeeze()
         return sigma_tensor
+    
+    def simulate_paths(self, n_paths=1000, batch_size=256, seed=42, y0_single=None):
+        torch.manual_seed(seed)
+        self.eval()
+
+        all_q, all_Y, all_y = [], [], []
+        terminal_stats = {"X": [], "D": [], "B": [], "I": []}
+
+        for _ in range(n_paths // batch_size):
+            y = y0_single.repeat(batch_size, 1) if y0_single is not None else self.y0.repeat(batch_size, 1)
+            t = torch.zeros(batch_size, 1, device=self.device)
+            Y = self.Y0.repeat(batch_size, 1)
+
+            q_traj, Y_traj, y_traj = [], [], []
+
+            for _ in range(self.N):
+                t_input = t.clone()
+                q = self.q_net(t_input, y).squeeze(-1)
+                z = self.z_net(t_input, y)
+                f = self.generator(y, q.unsqueeze(-1))
+                dW = torch.randn(batch_size, self.dim_W, device=self.device) * self.dt**0.5
+
+                y = self.forward_dynamics(y, q.unsqueeze(-1), dW, t, self.dt)
+                Y = Y - f * self.dt + (z * dW).sum(dim=1, keepdim=True)
+                t += self.dt
+
+                q_traj.append(q.detach().cpu().numpy())
+                Y_traj.append(Y.detach().cpu().numpy())
+                y_traj.append(y.detach().cpu().numpy())
+
+            all_q.append(np.stack(q_traj))
+            all_Y.append(np.stack(Y_traj))
+            all_y.append(np.stack(y_traj))
+
+            X, D, B = y[:, 0], y[:, 2], y[:, 3]
+            I = X - D + self.xi
+
+            terminal_stats["X"].append(X.detach().cpu())
+            terminal_stats["D"].append(D.detach().cpu())
+            terminal_stats["B"].append(B.detach().cpu())
+            terminal_stats["I"].append(I.detach().cpu())
+
+        timesteps = np.linspace(0, self.T, self.N)
+
+        return timesteps, {
+            "q": np.concatenate(all_q, axis=1),
+            "Y": np.concatenate(all_Y, axis=1),
+            "final_y": np.concatenate(all_y, axis=1),
+            "X_T": torch.cat(terminal_stats["X"]).squeeze().numpy(),
+            "D_T": torch.cat(terminal_stats["D"]).squeeze().numpy(),
+            "B_T": torch.cat(terminal_stats["B"]).squeeze().numpy(),
+            "I_T": torch.cat(terminal_stats["I"]).squeeze().numpy()
+        }
