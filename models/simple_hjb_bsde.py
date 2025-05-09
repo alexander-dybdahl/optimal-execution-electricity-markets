@@ -2,6 +2,7 @@ import torch
 import numpy as np
 from core.base_bsde import BaseDeepBSDE
 import matplotlib.pyplot as plt
+import matplotlib.cm as cm
 
 class SimpleHJB(BaseDeepBSDE):
     def __init__(self, args, model_cfg):
@@ -75,10 +76,9 @@ class SimpleHJB(BaseDeepBSDE):
 
     def optimal_control_analytic(self, t, x):
         """Optimal q(t, x) = -K(t) * x"""
-        t_np = t.detach().cpu().numpy()
-        K_t = self.K_analytic(t_np)
-        K_tensor = torch.tensor(K_t, dtype=torch.float32, device=self.device).unsqueeze(1)
-        return -K_tensor * x
+        t_np = t.detach().cpu().numpy().squeeze()           # shape: (T,)
+        K_t = self.K_analytic(t_np).reshape(-1, 1)           # shape: (T, 1)
+        return -torch.tensor(K_t, device=self.device, dtype=x.dtype) * x  # shape: (T, N_paths)
 
     def plot_approx_vs_analytic(self, results, timesteps):
         approx_q = results["q"]              # shape: (T, N_paths)
@@ -94,19 +94,26 @@ class SimpleHJB(BaseDeepBSDE):
         fig, axs = plt.subplots(2, 2, figsize=(14, 10))
 
         # --- Subplot 1: Learned q(t) paths ---
-        for i in range(approx_q.shape[1]):
-            axs[0, 0].plot(timesteps, approx_q[:, i], alpha=0.4)
-        axs[0, 0].set_title("Learned Control $q(t)$")
-        axs[0, 0].set_xlabel("Time $t$")
-        axs[0, 0].set_ylabel("q(t)")
-        axs[0, 0].grid(True)
+        colors = cm.get_cmap("tab10", approx_q.shape[1])  # Get a colormap with enough distinct colors
 
-        # --- Subplot 2: Analytical q*(t) paths ---
-        for i in range(true_q.shape[1]):
-            axs[0, 1].plot(timesteps, true_q[:, i], linestyle="--", alpha=0.4)
-        axs[0, 1].set_title("Analytical Optimal Control $q^*(t)$")
+        for i in range(approx_q.shape[1]):
+            color = colors(i)
+            axs[0, 0].plot(timesteps, approx_q[:, i], color=color, alpha=0.6, label=f"Learned {i+1}")
+            axs[0, 0].plot(timesteps, true_q[:, i], linestyle="--", color=color, alpha=0.9, label=f"Analytical {i+1}")
+
+        axs[0, 0].set_title("Control $q(t)$: Learned vs Analytical")
+        axs[0, 0].set_xlabel("Time $t$")
+        axs[0, 0].set_ylabel("$q(t)$")
+        axs[0, 0].grid(True)
+        axs[0, 0].legend(ncol=2, fontsize=8)
+
+        # --- Subplot 2: Absolute Difference ---
+        diff = (approx_q.squeeze(-1) - true_q)  # (T, N_paths)
+        for i in range(diff.shape[1]):
+            axs[0, 1].plot(timesteps, diff[:, i], label=f"Diff Path {i+1}")
+        axs[0, 1].set_title("Difference: Learned $-$ Analytical")
         axs[0, 1].set_xlabel("Time $t$")
-        axs[0, 1].set_ylabel("q*(t)")
+        axs[0, 1].set_ylabel("$q(t) - q^*(t)$")
         axs[0, 1].grid(True)
 
         # --- Subplot 3: x(t) paths ---
