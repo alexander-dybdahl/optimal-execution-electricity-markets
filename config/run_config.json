@@ -1,8 +1,8 @@
 {
     "epochs": 1000,
     "lr": 1e-3,
-    "save_path": "models/saved/hjb_model.pth",
-    "config_path": "config/hjb_config.json",
+    "save_path": "models/saved/simple_hjb_model.pth",
+    "config_path": "config/simple_hjb_config.json",
     "n_paths": 1000,
     "batch_size": 256,
     "n_simulations": 5,

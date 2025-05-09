@@ -19,16 +19,16 @@ class HJB(BaseDeepBSDE):
         return self.gamma * q
 
     def phi(self, q):
-        return self.eta * q ** 2
+        return self.eta * q
 
     def sigma_P(self, t):
-        return self.vol_P * t / self.T
+        return self.vol_P * torch.ones_like(t, device=self.device)
 
     def sigma_D(self, t):
-        return self.vol_D * (self.T - t) / self.T
+        return self.vol_D * torch.ones_like(t, device=self.device) # (self.T - t) / self.T
 
     def sigma_B(self, t):
-        return self.vol_B * (self.T - t) / self.T
+        return self.vol_B * torch.ones_like(t, device=self.device) # (self.T - t) / self.T
 
     def generator(self, y, q):
         P = y[:, 1:2]

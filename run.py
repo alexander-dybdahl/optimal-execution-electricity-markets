@@ -7,7 +7,7 @@ from models.hjb_bsde import HJB
 from models.simple_hjb_bsde import SimpleHJB
 
 def main():
-    run_cfg = load_run_config()
+    run_cfg = load_run_config(path="config/run_config.json")
     parser = ArgumentParser()
     parser.add_argument("--epochs", type=int, default=run_cfg["epochs"], help="Number of training epochs")
     parser.add_argument("--lr", type=float, default=run_cfg["lr"], help="Learning rate for the optimizer")
@@ -26,8 +26,8 @@ def main():
 
     model_cfg = load_model_config(args.model_config)
 
-    model = HJB(args, model_cfg)
-    # model = SimpleHJB(args, model_cfg)
+    # model = HJB(args, model_cfg)
+    model = SimpleHJB(args, model_cfg)
 
     if args.load_if_exists:
         try:
@@ -40,7 +40,7 @@ def main():
         model.train_model(epochs=args.epochs, lr=args.lr, save_path=args.save_path, verbose=args.verbose)
 
     timesteps, results = model.simulate_paths(n_paths=args.n_simulations, batch_size=args.sim_batch_size)
-    plot_all_diagnostics(results, timesteps)
+    model.plot_approx_vs_analytic(results, timesteps)
 
 if __name__ == "__main__":
     main()

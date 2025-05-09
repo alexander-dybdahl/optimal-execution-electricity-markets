@@ -122,4 +122,9 @@ class BaseDeepBSDE(nn.Module, ABC):
                 print(f"{epoch:8} | {loss.item():12.6f} | {mem_mb:12.2f} | {elapsed:10.2f} | {status}")
                 start_time = time.time()  # Reset timer for next block
 
+        if verbose:
+            print("-" * 70)
+            print(f"Training completed. Lowest loss: {self.lowest_loss:.6f}. Total time: {time.time() - start_time:.2f} seconds")
+            print(f"Model saved to {save_path}")
+
         return losses
