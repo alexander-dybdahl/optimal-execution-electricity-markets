@@ -87,7 +87,7 @@ class BaseDeepBSDE(nn.Module, ABC):
         terminal_loss = torch.mean((Y - terminal)**2)
         return terminal_loss + total_residual_loss
 
-    def train_model(self, epochs=1000, lr=1e-3, save_path="models/saved/model.pth", verbose=True):
+    def train_model(self, epochs=1000, lr=1e-3, save_path="models/saved/model.pth", verbose=True, plot=True):
         self.device = next(self.parameters()).device
         optimizer = torch.optim.Adam(self.parameters(), lr=lr)
         losses = []
@@ -96,6 +96,7 @@ class BaseDeepBSDE(nn.Module, ABC):
 
         header_printed = False
     
+        init_time = time.time()
         start_time = time.time()
         for epoch in range(epochs):
             optimizer.zero_grad()
@@ -124,7 +125,17 @@ class BaseDeepBSDE(nn.Module, ABC):
 
         if verbose:
             print("-" * 70)
-            print(f"Training completed. Lowest loss: {self.lowest_loss:.6f}. Total time: {time.time() - start_time:.2f} seconds")
+            print(f"Training completed. Lowest loss: {self.lowest_loss:.6f}. Total time: {time.time() - init_time:.2f} seconds")
             print(f"Model saved to {save_path}")
+
+        if plot:
+            import matplotlib.pyplot as plt
+            plt.plot(losses, label="Loss")
+            plt.xlabel("Epoch")
+            plt.ylabel("Loss")
+            plt.title("Training Loss")
+            plt.legend()
+            plt.grid()
+            plt.show()
 
         return losses

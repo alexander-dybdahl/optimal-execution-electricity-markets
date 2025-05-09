@@ -19,7 +19,7 @@ class SimpleHJB(BaseDeepBSDE):
         return self.G * x_T**2
 
     def mu(self, t, y, q):
-        return q  # dx = q dt
+        return q
 
     def sigma(self, t, y):
         batch_size = y.shape[0]
@@ -70,26 +70,39 @@ class SimpleHJB(BaseDeepBSDE):
     def K_analytic(self, t):
         """Analytical solution to Riccati equation"""
         G = self.G
-        numerator = 1 + G * np.tanh(self.T - t)
-        denominator = G + np.tanh(self.T - t)
-        return numerator / denominator  # scalar
+        A = ((G + 1) / (G - 1)) * np.exp(2 * (self.T - t))
+        return (A + 1) / (A - 1)
 
     def optimal_control_analytic(self, t, x):
         """Optimal q(t, x) = -K(t) * x"""
-        t_np = t.detach().cpu().numpy().squeeze()           # shape: (T,)
-        K_t = self.K_analytic(t_np).reshape(-1, 1)           # shape: (T, 1)
-        return -torch.tensor(K_t, device=self.device, dtype=x.dtype) * x  # shape: (T, N_paths)
+        K_t = self.K_analytic(t).reshape(-1, 1)           # shape: (T, 1)
+        return -K_t * x  # shape: (T, N_paths)
+
+    def phi_analytic(self, t):
+        """Analytical phi(t) from backward integral of K"""
+        sigma = self.sigma_x
+        G = self.G
+        def A(s): return (G + 1) / (G - 1) * np.exp(2 * (self.T - s))
+        A_t = A(t)
+        A_T = A(self.T)
+        log_expr = (A_t / A_T) * ((A_T - 1)**2 / (A_t - 1)**2)
+        phi = 0.5 * sigma**2 * np.log(log_expr)
+        return phi
+
+    def optimal_cost_analytic(self, t, x):
+        """Analytical cost-to-go Y(t) = phi(t) + K(t) * x^2"""
+        K_t = self.K_analytic(t).reshape(-1, 1)  # (T, 1)
+        phi_t = self.phi_analytic(t).reshape(-1, 1)  # (T, 1)
+        return phi_t + K_t * x**2  # shape (T, N)
 
     def plot_approx_vs_analytic(self, results, timesteps):
         approx_q = results["q"]              # shape: (T, N_paths)
         x_vals = results["final_y"][:, :, 0] # shape: (T, N_paths)
         Y_vals = results["Y"]                # shape: (T, N_paths, 1)
 
-        t_tensor = torch.tensor(timesteps, dtype=torch.float32).unsqueeze(1).to(self.device)  # shape: (T, 1)
-        x_tensor = torch.tensor(x_vals, dtype=torch.float32).to(self.device)                  # shape: (T, N)
-
         with torch.no_grad():
-            true_q = self.optimal_control_analytic(t_tensor, x_tensor).cpu().numpy()          # shape: (T, N)
+            true_q = self.optimal_control_analytic(timesteps, x_vals)          # shape: (T, N)
+            true_Y = self.optimal_cost_analytic(timesteps, x_vals)             # shape (T, N)
 
         fig, axs = plt.subplots(2, 2, figsize=(14, 10))
 
@@ -97,9 +110,8 @@ class SimpleHJB(BaseDeepBSDE):
         colors = cm.get_cmap("tab10", approx_q.shape[1])  # Get a colormap with enough distinct colors
 
         for i in range(approx_q.shape[1]):
-            color = colors(i)
-            axs[0, 0].plot(timesteps, approx_q[:, i], color=color, alpha=0.6, label=f"Learned {i+1}")
-            axs[0, 0].plot(timesteps, true_q[:, i], linestyle="--", color=color, alpha=0.9, label=f"Analytical {i+1}")
+            axs[0, 0].plot(timesteps, approx_q[:, i], color=colors(i), alpha=0.6, label=f"Learned {i+1}")
+            axs[0, 0].plot(timesteps, true_q[:, i], linestyle="--", color=colors(i), label=f"Analytical {i+1}")
 
         axs[0, 0].set_title("Control $q(t)$: Learned vs Analytical")
         axs[0, 0].set_xlabel("Time $t$")
@@ -116,21 +128,24 @@ class SimpleHJB(BaseDeepBSDE):
         axs[0, 1].set_ylabel("$q(t) - q^*(t)$")
         axs[0, 1].grid(True)
 
-        # --- Subplot 3: x(t) paths ---
-        for i in range(x_vals.shape[1]):
-            axs[1, 0].plot(timesteps, x_vals[:, i], alpha=0.4)
-        axs[1, 0].set_title("State $x(t)$")
-        axs[1, 0].set_xlabel("Time $t$")
-        axs[1, 0].set_ylabel("x(t)")
-        axs[1, 0].grid(True)
-
-        # --- Subplot 4: Y(t) paths ---
+        # --- Subplot 3: Y(t) paths ---
         for i in range(Y_vals.shape[1]):
-            axs[1, 1].plot(timesteps, Y_vals[:, i, 0], alpha=0.3)
-        axs[1, 1].set_title("Cost-to-Go $Y(t)$")
+            axs[1, 0].plot(timesteps, Y_vals[:, i, 0], color=colors(i), alpha=0.6, label=f"Learned {i+1}")
+            axs[1, 0].plot(timesteps, true_Y[:, i], linestyle="--", color=colors(i), label=f"Analytical {i+1}")
+        axs[1, 0].set_title("Cost-to-Go $Y(t)$")
+        axs[1, 0].set_xlabel("Time $t$")
+        axs[1, 0].set_ylabel("Y(t)")
+        axs[1, 0].grid(True)
+        axs[1, 0].legend(ncol=2, fontsize=8)
+
+        # --- Subplot 4: x(t) paths ---
+        for i in range(x_vals.shape[1]):
+            axs[1, 1].plot(timesteps, x_vals[:, i])
+        axs[1, 1].set_title("State $x(t)$")
         axs[1, 1].set_xlabel("Time $t$")
-        axs[1, 1].set_ylabel("Y(t)")
+        axs[1, 1].set_ylabel("x(t)")
         axs[1, 1].grid(True)
+
 
         plt.tight_layout()
         plt.show()

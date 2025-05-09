@@ -1,15 +1,15 @@
 {
-    "epochs": 1000,
-    "lr": 1e-3,
-    "save_path": "models/saved/simple_hjb_model.pth",
-    "config_path": "config/simple_hjb_config.json",
-    "n_paths": 1000,
-    "batch_size": 256,
-    "n_simulations": 2,
-    "sim_batch_size": 2,
-    "device": "cuda",
-    "train": true,
-    "load_if_exists": true,
-    "verbose": true
-  }
-  
+  "epochs": 1000,
+  "lr": 1e-3,
+  "save_path": "models/saved/simple_hjb_model.pth",
+  "config_path": "config/simple_hjb_config.json",
+  "n_paths": 1000,
+  "batch_size": 256,
+  "n_simulations": 3,
+  "sim_batch_size": 3,
+  "device": "cuda",
+  "train": true,
+  "load_if_exists": true,
+  "verbose": true
+}
+

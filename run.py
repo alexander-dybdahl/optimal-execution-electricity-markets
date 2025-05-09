@@ -37,7 +37,7 @@ def main():
             print("No model found, starting training from scratch.")
 
     if args.train:
-        model.train_model(epochs=args.epochs, lr=args.lr, save_path=args.save_path, verbose=args.verbose)
+        model.train_model(epochs=args.epochs, lr=args.lr, save_path=args.save_path, verbose=args.verbose, plot=False)
 
     timesteps, results = model.simulate_paths(n_paths=args.n_simulations, batch_size=args.sim_batch_size)
     model.plot_approx_vs_analytic(results, timesteps)
