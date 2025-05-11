@@ -45,7 +45,16 @@ class SimpleHJB(FBSNN):
                 q = self.q_net(t_input, y)  # (batch, 1)
                 dW = torch.randn(batch_size, self.dim_W, device=self.device) * self.dt**0.5
                 y = self.forward_dynamics(y, q, dW, t, self.dt)
-                Y, dY = self.Y_net(t, y)  # (batch, 1)
+                Y = self.Y_net(t, y)  # (batch, 1)
+                dY = torch.autograd.grad(
+                    outputs=Y,
+                    inputs=y,
+                    grad_outputs=torch.ones_like(Y),
+                    # allow_unused=True,
+                    create_graph=True,
+                    retain_graph=True
+                )[0]
+                
                 σ = self.sigma(t, y)
                 z = torch.bmm(σ, dY.unsqueeze(-1)).squeeze(-1)
                 f = self.generator(y, q)

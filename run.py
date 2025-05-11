@@ -19,6 +19,8 @@ def main():
     parser.add_argument("--sim_batch_size", type=int, default=run_cfg["sim_batch_size"], help="Batch size for simulation")
     parser.add_argument("--device", type=str, default=run_cfg["device"], help="Device to use for training (cpu or cuda)")
     parser.add_argument("--model_config", type=str, default=run_cfg["config_path"], help="Path to the model configuration file")
+    parser.add_argument("--architecture", type=str, default=run_cfg["architecture"], help="Neural network architecture to use")
+    parser.add_argument("--activation", type=str, default=run_cfg["activation"], help="Activation function to use")
     parser.add_argument("--verbose", type=str2bool, nargs='?', const=True, default=run_cfg["verbose"], help="Print training progress")    
     parser.add_argument("--load_if_exists", type=str2bool, nargs='?', const=True, default=run_cfg["load_if_exists"], help="Load model if it exists")
     parser.add_argument("--train", type=str2bool, nargs='?', const=True, default=run_cfg["train"], help="Train the model")

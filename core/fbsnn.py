@@ -3,6 +3,7 @@ import torch.nn as nn
 import matplotlib.pyplot as plt
 import time
 from abc import ABC, abstractmethod
+from core.nnets import Sine, FCnet, Resnet
 
 class YNetwork(nn.Module):
     def __init__(self, dim):
@@ -52,9 +53,27 @@ class FBSNN(nn.Module, ABC):
         self.T = model_cfg["T"]
         self.N = model_cfg["N"]
         self.dt = model_cfg["dt"]
-        # self.Y0 = nn.Parameter(torch.tensor([[0.0]], device=self.device))
-        self.Y_net = YNetwork(1).to(self.device)
-        self.q_net = QNetwork(self.dim).to(self.device)
+
+        if args.activation == "Sine":
+            self.activation = Sine()
+        elif args.activation == "ReLU":
+            self.activation = nn.ReLU()
+
+        if args.architecture == "Default":
+            self.Y_net = YNetwork(1).to(self.device)
+            self.q_net = QNetwork(self.dim).to(self.device)
+        elif args.architecture == "FC":
+            self.Y_net = FCnet(layers=[2]+model_cfg["Y_layers"], activation=self.activation).to(self.device)
+            self.q_net = FCnet(layers=[self.dim+1]+model_cfg["q_layers"], activation=self.activation).to(self.device)
+        elif args.architecture == "NAISnet":
+            self.Y_net = Resnet(layers=[2]+model_cfg["Y_layers"], activation=self.activation, stable=True).to(self.device)
+            self.q_net = Resnet(layers=[self.dim+1]+model_cfg["q_layers"], activation=self.activation, stable=True).to(self.device)
+        elif args.architecture == "Resnet":
+            self.Y_net = Resnet(layers=[2]+model_cfg["Y_layers"], activation=self.activation, stable=False).to(self.device)
+            self.q_net = Resnet(layers=[self.dim+1]+model_cfg["q_layers"], activation=self.activation, stable=False).to(self.device)
+        else:
+            raise ValueError(f"Unknown architecture: {args.architecture}")
+
         self.lowest_loss = float("inf")
 
     @abstractmethod
@@ -77,9 +96,18 @@ class FBSNN(nn.Module, ABC):
 
     def forward(self):
         batch_size = self.batch_size
-        t = torch.zeros(batch_size, 1, device=self.device, requires_grad=True)
+        t = torch.zeros(batch_size, 1, device=self.device)
         y0 = self.y0.repeat(batch_size, 1).to(self.device)
-        Y0, dY0 = self.Y_net(t, y0)
+        Y0 = self.Y_net(t, y0)
+
+        dY0 = torch.autograd.grad(
+            outputs=Y0,
+            inputs=y0,
+            grad_outputs=torch.ones_like(Y0),
+            # allow_unused=True,
+            create_graph=True,
+            retain_graph=True
+        )[0]
 
         total_residual_loss = 0.0
 
@@ -94,7 +122,15 @@ class FBSNN(nn.Module, ABC):
 
             t = t + self.dt
 
-            Y1, dY1 = self.Y_net(t, y1)
+            Y1 = self.Y_net(t, y1)
+            dY1 = torch.autograd.grad(
+                outputs=Y1,
+                inputs=y1,
+                grad_outputs=torch.ones_like(Y0),
+                # allow_unused=True,
+                create_graph=True,
+                retain_graph=True
+            )[0]
             
             f = self.generator(y0, q0)
             Y1_tilde = Y0 - f * self.dt + (z0 * dW).sum(dim=1, keepdim=True)

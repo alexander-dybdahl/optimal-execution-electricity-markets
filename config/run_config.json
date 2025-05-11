@@ -1,7 +1,7 @@
 {
   "epochs": 1000,
   "lr": 1e-4,
-  "save_path": "models/saved/simple_hjb_model_goat.pth",
+  "save_path": "models/saved/simple_hjb_model_naisnet_relu.pth",
   "config_path": "config/simple_hjb_config.json",
   "n_paths": 1000,
   "batch_size": 256,
@@ -10,5 +10,7 @@
   "device": "cpu",
   "train": true,
   "load_if_exists": true,
-  "verbose": true
+  "verbose": true,
+  "architecture": "FC",
+  "activation": "ReLU"
 }
