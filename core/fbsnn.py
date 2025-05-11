@@ -4,17 +4,29 @@ import matplotlib.pyplot as plt
 import time
 from abc import ABC, abstractmethod
 
-class ZNetwork(nn.Module):
+class YNetwork(nn.Module):
     def __init__(self, dim):
         super().__init__()
         self.net = nn.Sequential(
             nn.Linear(dim + 1, 64),
             nn.ReLU(), nn.Linear(64, 64),
-            nn.ReLU(), nn.Linear(64, 3)
+            nn.ReLU(), nn.Linear(64, 1)
         )
 
     def forward(self, t, y):
-        return self.net(torch.cat([t, y], dim=1))
+
+        inp = torch.cat([t, y], dim=1)
+        u = self.net(inp)
+
+        du = torch.autograd.grad(
+            outputs=u,
+            inputs=y,
+            grad_outputs=torch.ones_like(u),
+            create_graph=True,
+            retain_graph=True
+        )[0]
+
+        return u, du
 
 class QNetwork(nn.Module):
     def __init__(self, dim):
@@ -28,19 +40,20 @@ class QNetwork(nn.Module):
     def forward(self, t, y):
         return self.net(torch.cat([t, y], dim=1))
 
-class BaseDeepBSDE(nn.Module, ABC):
+class FBSNN(nn.Module, ABC):
     def __init__(self, args, model_cfg):
         super().__init__()
         self.device = args.device
         self.batch_size = args.batch_size
-        self.y0 = torch.tensor([model_cfg["y0"]], device=self.device)
+        self.t0 = 0.0
+        self.y0 = torch.tensor([model_cfg["y0"]], device=self.device, requires_grad=True)
         self.dim = model_cfg["dim"]
         self.dim_W = model_cfg["dim_W"]
         self.T = model_cfg["T"]
         self.N = model_cfg["N"]
         self.dt = model_cfg["dt"]
-        self.Y0 = nn.Parameter(torch.tensor([[0.0]], device=self.device))
-        self.z_net = ZNetwork(self.dim).to(self.device)
+        # self.Y0 = nn.Parameter(torch.tensor([[0.0]], device=self.device))
+        self.Y_net = YNetwork(1).to(self.device)
         self.q_net = QNetwork(self.dim).to(self.device)
         self.lowest_loss = float("inf")
 
@@ -64,26 +77,37 @@ class BaseDeepBSDE(nn.Module, ABC):
 
     def forward(self):
         batch_size = self.batch_size
-        y = self.y0.repeat(batch_size, 1).to(self.device)
-        t = torch.zeros(batch_size, 1, device=self.device)
-        Y = self.Y0.repeat(batch_size, 1)
+        t = torch.zeros(batch_size, 1, device=self.device, requires_grad=True)
+        y0 = self.y0.repeat(batch_size, 1).to(self.device)
+        Y0, dY0 = self.Y_net(t, y0)
+
         total_residual_loss = 0.0
 
         for _ in range(self.N):
-            z = self.z_net(t, y)
-            q = self.q_net(t, y)
-            f = self.generator(y, q)
+            
+            q0 = self.q_net(t, y0)
             dW = torch.randn(batch_size, self.dim_W, device=self.device) * self.dt**0.5
-            dZ = torch.randn(batch_size, self.dim_W, device=self.device) * self.dt**0.5
-            y = self.forward_dynamics(y, q, dW, t, self.dt)
-            Y_next = Y - f * self.dt + (z * dW).sum(dim=1, keepdim=True)
-            residual = Y_next - (Y - f * self.dt + (z * dZ).sum(dim=1, keepdim=True))
-            total_residual_loss += torch.mean(residual**2)
-            Y = Y_next
-            t += self.dt
+            y1 = self.forward_dynamics(y0, q0, dW, t, self.dt)
+            
+            σ0 = self.sigma(t, y0)
+            z0 = torch.bmm(σ0, dY0.unsqueeze(-1)).squeeze(-1)
 
-        terminal = self.terminal_cost(y)
-        terminal_loss = torch.mean((Y - terminal)**2)
+            t = t + self.dt
+
+            Y1, dY1 = self.Y_net(t, y1)
+            
+            f = self.generator(y0, q0)
+            Y1_tilde = Y0 - f * self.dt + (z0 * dW).sum(dim=1, keepdim=True)
+
+            residual = Y1 - Y1_tilde
+            total_residual_loss += torch.mean(residual**2)
+            
+            y0 = y1
+            Y0 = Y1
+            dY0 = dY1
+
+        terminal = self.terminal_cost(y1)
+        terminal_loss = torch.mean((Y1 - terminal)**2)
         return terminal_loss + total_residual_loss
 
     def train_model(self, epochs=1000, lr=1e-3, save_path="models/saved/model.pth", verbose=True, plot=True):

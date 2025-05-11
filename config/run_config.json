@@ -1,15 +1,14 @@
 {
   "epochs": 1000,
   "lr": 1e-4,
-  "save_path": "models/saved/simple_hjb_model.pth",
+  "save_path": "models/saved/simple_hjb_model_goat.pth",
   "config_path": "config/simple_hjb_config.json",
   "n_paths": 1000,
   "batch_size": 256,
   "n_simulations": 5,
   "sim_batch_size": 5,
-  "device": "cuda",
+  "device": "cpu",
   "train": true,
   "load_if_exists": true,
   "verbose": true
 }
-

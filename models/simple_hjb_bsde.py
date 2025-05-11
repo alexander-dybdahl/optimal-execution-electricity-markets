@@ -1,10 +1,11 @@
 import torch
 import numpy as np
 from core.base_bsde import BaseDeepBSDE
+from core.fbsnn import FBSNN
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 
-class SimpleHJB(BaseDeepBSDE):
+class SimpleHJB(FBSNN):
     def __init__(self, args, model_cfg):
         super().__init__(args, model_cfg)
         self.sigma_x = model_cfg["sigma"]
@@ -36,19 +37,19 @@ class SimpleHJB(BaseDeepBSDE):
         for _ in range(n_paths // batch_size):
             y = y0_single.repeat(batch_size, 1) if y0_single is not None else self.y0.repeat(batch_size, 1)
             t = torch.zeros(batch_size, 1, device=self.device)
-            Y = self.Y0.repeat(batch_size, 1)
-
+            
             q_traj, Y_traj, y_traj = [], [], []
 
             for i in range(self.N):
                 t_input = t.clone()  # (batch, 1)
                 q = self.q_net(t_input, y)  # (batch, 1)
-                z = self.z_net(t_input, y)  # (batch, dim_W)
-                f = self.generator(y, q)
-
                 dW = torch.randn(batch_size, self.dim_W, device=self.device) * self.dt**0.5
                 y = self.forward_dynamics(y, q, dW, t, self.dt)
-                Y = Y - f * self.dt + (z * dW).sum(dim=1, keepdim=True)
+                Y, dY = self.Y_net(t, y)  # (batch, 1)
+                σ = self.sigma(t, y)
+                z = torch.bmm(σ, dY.unsqueeze(-1)).squeeze(-1)
+                f = self.generator(y, q)
+
                 t += self.dt
 
                 q_traj.append(q.detach().cpu().numpy())
