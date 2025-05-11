@@ -5,29 +5,6 @@ import time
 from abc import ABC, abstractmethod
 from core.nnets import Sine, FCnet, Resnet
 
-class YNetwork(nn.Module):
-    def __init__(self, dim):
-        super().__init__()
-        self.net = nn.Sequential(
-            nn.Linear(dim + 1, 64),
-            nn.ReLU(), nn.Linear(64, 64),
-            nn.ReLU(), nn.Linear(64, 1)
-        )
-
-    def forward(self, t, y):
-
-        inp = torch.cat([t, y], dim=1)
-        u = self.net(inp)
-
-        du = torch.autograd.grad(
-            outputs=u,
-            inputs=y,
-            grad_outputs=torch.ones_like(u),
-            create_graph=True,
-            retain_graph=True
-        )[0]
-
-        return u, du
 
 class QNetwork(nn.Module):
     def __init__(self, dim):
@@ -60,8 +37,8 @@ class FBSNN(nn.Module, ABC):
             self.activation = nn.ReLU()
 
         if args.architecture == "Default":
-            self.Y_net = YNetwork(1).to(self.device)
-            self.q_net = QNetwork(self.dim).to(self.device)
+            self.Y_net = FCnet(layers=[2]+[64, 64, 64, 64, 1], activation=self.activation).to(self.device)
+            self.q_net = FCnet(layers=[self.dim+1]+[64, 64, 64, 64, 1], activation=self.activation).to(self.device)
         elif args.architecture == "FC":
             self.Y_net = FCnet(layers=[2]+model_cfg["Y_layers"], activation=self.activation).to(self.device)
             self.q_net = FCnet(layers=[self.dim+1]+model_cfg["q_layers"], activation=self.activation).to(self.device)
