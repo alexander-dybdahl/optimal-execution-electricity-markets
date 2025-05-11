@@ -1,3 +1,4 @@
+import numpy as np
 import torch
 from argparse import ArgumentParser
 from utils.load_config import load_model_config, load_run_config
@@ -39,7 +40,7 @@ def main():
     if args.train:
         model.train_model(epochs=args.epochs, lr=args.lr, save_path=args.save_path, verbose=args.verbose, plot=False)
 
-    timesteps, results = model.simulate_paths(n_paths=args.n_simulations, batch_size=args.sim_batch_size)
+    timesteps, results = model.simulate_paths(n_paths=args.n_simulations, batch_size=args.sim_batch_size, seed=np.random.randint(0, 1000))
     model.plot_approx_vs_analytic(results, timesteps)
 
 if __name__ == "__main__":

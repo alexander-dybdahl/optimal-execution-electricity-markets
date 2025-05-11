@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-import numpy as np
+import matplotlib.pyplot as plt
 import time
 from abc import ABC, abstractmethod
 
@@ -75,10 +75,10 @@ class BaseDeepBSDE(nn.Module, ABC):
             q = self.q_net(t, y)
             f = self.generator(y, q)
             dW = torch.randn(batch_size, self.dim_W, device=self.device) * self.dt**0.5
+            dZ = torch.randn(batch_size, self.dim_W, device=self.device) * self.dt**0.5
             y = self.forward_dynamics(y, q, dW, t, self.dt)
             Y_next = Y - f * self.dt + (z * dW).sum(dim=1, keepdim=True)
-            with torch.no_grad():
-                residual = Y_next.detach() - (Y - f * self.dt + (z * dW).sum(dim=1, keepdim=True))
+            residual = Y_next - (Y - f * self.dt + (z * dZ).sum(dim=1, keepdim=True))
             total_residual_loss += torch.mean(residual**2)
             Y = Y_next
             t += self.dt
@@ -129,7 +129,6 @@ class BaseDeepBSDE(nn.Module, ABC):
             print(f"Model saved to {save_path}")
 
         if plot:
-            import matplotlib.pyplot as plt
             plt.plot(losses, label="Loss")
             plt.xlabel("Epoch")
             plt.ylabel("Loss")

@@ -86,7 +86,7 @@ class SimpleHJB(BaseDeepBSDE):
         A_t = A(t)
         A_T = A(self.T)
         log_expr = (A_t / A_T) * ((A_T - 1)**2 / (A_t - 1)**2)
-        phi = 0.5 * sigma**2 * np.log(log_expr)
+        phi = -0.5 * sigma**2 * np.log(log_expr)
         return phi
 
     def optimal_cost_analytic(self, t, x):
