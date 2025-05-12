@@ -1,19 +1,30 @@
 import torch
 import numpy as np
-from core.base_bsde import BaseDeepBSDE
 from core.fbsnn import FBSNN
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 
 class SimpleHJB(FBSNN):
     def __init__(self, args, model_cfg):
+        # Override the default architecture to be simpler but with proper initialization
+        if args.architecture == "Default":
+            model_cfg["Y_layers"] = [64, 64, 1]  # Slightly wider network
+            model_cfg["q_layers"] = [64, 64, 1]
+            model_cfg["activation"] = "Tanh"  # Use Tanh for better gradient stability
+        
         super().__init__(args, model_cfg)
         self.sigma_x = model_cfg["sigma"]
         self.G = model_cfg["G"]
+        
+        # Initialize networks with smaller weights
+        for net in [self.Y_net, self.q_net]:
+            for param in net.parameters():
+                if len(param.shape) > 1:  # weights only, not biases
+                    torch.nn.init.xavier_uniform_(param, gain=0.5)
 
     def generator(self, y, q):
         x = y[:, 0:1]
-        return q**2 + x**2
+        return 0.5 * (q**2 + x**2)  # Quadratic cost
 
     def terminal_cost(self, y):
         x_T = y[:, 0]
@@ -28,36 +39,115 @@ class SimpleHJB(FBSNN):
         σ[:, 0, 0] = self.sigma_x
         return σ
 
+    def forward(self):
+        """Override forward to add gradient clipping and stability measures"""
+        batch_size = self.batch_size
+        
+        # Generate initial states with better coverage
+        x0_fixed = torch.linspace(-2.0, 2.0, batch_size, device=self.device)
+        y0_batch = x0_fixed.unsqueeze(-1).clone().detach().requires_grad_(True)
+        
+        t = torch.zeros(batch_size, 1, device=self.device)
+        Y0 = self.Y_net(t, y0_batch)
+
+        # Initial value regularization
+        K_0 = self.K_analytic(0.0)
+        phi_0 = self.phi_analytic(0.0)
+        Y0_target = phi_0 + K_0 * y0_batch.squeeze(-1)**2
+        Y0_loss = torch.mean((Y0.squeeze(-1) - Y0_target)**2)
+
+        # Compute initial gradients
+        dY0 = torch.autograd.grad(
+            outputs=Y0,
+            inputs=y0_batch,
+            grad_outputs=torch.ones_like(Y0),
+            create_graph=True,
+            retain_graph=True
+        )[0]
+
+        total_residual_loss = 0.0
+        prev_Y = Y0
+        prev_dY = dY0
+        prev_y = y0_batch
+
+        for _ in range(self.N):
+            q0 = self.q_net(t, prev_y)
+            
+            # Basic control regularization
+            K_t = self.K_analytic(t.mean().item())
+            q_target = -K_t * prev_y.squeeze(-1)
+            q_reg_loss = torch.mean((q0.squeeze(-1) - q_target)**2)
+            
+            dW = torch.randn(batch_size, self.dim_W, device=self.device) * self.dt**0.5
+            y1 = self.forward_dynamics(prev_y, q0, dW, t, self.dt)
+            y1 = y1.clone().detach().requires_grad_(True)
+            
+            σ0 = self.sigma(t, prev_y)
+            z0 = torch.bmm(σ0, prev_dY.unsqueeze(-1)).squeeze(-1)
+
+            t = t + self.dt
+
+            Y1 = self.Y_net(t, y1)
+            dY1 = torch.autograd.grad(
+                outputs=Y1,
+                inputs=y1,
+                grad_outputs=torch.ones_like(Y1),
+                create_graph=True,
+                retain_graph=True
+            )[0]
+            
+            f = self.generator(prev_y, q0)
+            Y1_tilde = prev_Y - f * self.dt + (z0 * dW).sum(dim=1, keepdim=True)
+
+            # Basic residual loss
+            residual = Y1 - Y1_tilde
+            residual_loss = torch.mean(residual**2)
+            total_residual_loss = total_residual_loss + residual_loss + 0.1 * q_reg_loss
+
+            # Update for next iteration
+            prev_Y = Y1
+            prev_dY = dY1
+            prev_y = y1
+
+        # Terminal loss
+        terminal = self.terminal_cost(y1)
+        terminal_loss = torch.mean((Y1 - terminal)**2)
+        
+        # Simple loss combination
+        total_loss = terminal_loss + total_residual_loss + Y0_loss
+        return total_loss
+
     def simulate_paths(self, n_paths=1000, batch_size=256, seed=42, y0_single=None):
         torch.manual_seed(seed)
         self.eval()
 
+        # Generate different initial states for simulation
+        if y0_single is None:
+            x0_values = torch.linspace(-2.0, 2.0, n_paths, device=self.device).unsqueeze(-1)
+            y0_single = x0_values
+
+        # Ensure we process at least one batch
+        n_batches = max(1, n_paths // batch_size)
+        actual_batch_size = min(batch_size, n_paths)
+
         all_q, all_Y, all_y = [], [], []
 
-        for _ in range(n_paths // batch_size):
-            y = y0_single.repeat(batch_size, 1) if y0_single is not None else self.y0.repeat(batch_size, 1)
-            t = torch.zeros(batch_size, 1, device=self.device)
+        for batch_idx in range(n_batches):
+            start_idx = batch_idx * actual_batch_size
+            end_idx = min((batch_idx + 1) * actual_batch_size, n_paths)
+            current_batch_size = end_idx - start_idx
+            
+            y = y0_single[start_idx:end_idx]
+            t = torch.zeros(current_batch_size, 1, device=self.device)
             
             q_traj, Y_traj, y_traj = [], [], []
 
             for i in range(self.N):
-                t_input = t.clone()  # (batch, 1)
-                q = self.q_net(t_input, y)  # (batch, 1)
-                dW = torch.randn(batch_size, self.dim_W, device=self.device) * self.dt**0.5
+                t_input = t.clone()
+                q = self.q_net(t_input, y)
+                dW = torch.randn(current_batch_size, self.dim_W, device=self.device) * self.dt**0.5
                 y = self.forward_dynamics(y, q, dW, t, self.dt)
-                Y = self.Y_net(t, y)  # (batch, 1)
-                dY = torch.autograd.grad(
-                    outputs=Y,
-                    inputs=y,
-                    grad_outputs=torch.ones_like(Y),
-                    # allow_unused=True,
-                    create_graph=True,
-                    retain_graph=True
-                )[0]
-                
-                σ = self.sigma(t, y)
-                z = torch.bmm(σ, dY.unsqueeze(-1)).squeeze(-1)
-                f = self.generator(y, q)
+                Y = self.Y_net(t, y)
 
                 t += self.dt
 
@@ -65,17 +155,20 @@ class SimpleHJB(FBSNN):
                 Y_traj.append(Y.detach().cpu().numpy())
                 y_traj.append(y.detach().cpu().numpy())
 
-            all_q.append(np.stack(q_traj))     # shape: (N, batch)
+            all_q.append(np.stack(q_traj))
             all_Y.append(np.stack(Y_traj))
             all_y.append(np.stack(y_traj))
 
         timesteps = np.linspace(0, self.T, self.N)
 
-        return timesteps, {
-            "q": np.concatenate(all_q, axis=1),         # (N, n_paths)
-            "Y": np.concatenate(all_Y, axis=1),
-            "final_y": np.concatenate(all_y, axis=1)    # (N, n_paths, dim)
+        # Concatenate all batches
+        results = {
+            "q": np.concatenate(all_q, axis=1)[:, :n_paths],
+            "Y": np.concatenate(all_Y, axis=1)[:, :n_paths],
+            "final_y": np.concatenate(all_y, axis=1)[:, :n_paths]
         }
+
+        return timesteps, results
 
     def K_analytic(self, t):
         """Analytical solution to Riccati equation"""

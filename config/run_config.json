@@ -1,16 +1,18 @@
 {
-  "epochs": 1000,
+  "epochs": 20000,
   "lr": 1e-4,
   "save_path": "models/saved/simple_hjb_model_naisnet_relu.pth",
-  "config_path": "config/simple_hjb_config.json",
+  "config_path": "config/model_config.json",
   "n_paths": 1000,
-  "batch_size": 256,
+  "batch_size": 128,
   "n_simulations": 5,
-  "sim_batch_size": 5,
+  "sim_batch_size": 256,
   "device": "cpu",
   "train": true,
-  "load_if_exists": true,
+  "load_if_exists": false,
   "verbose": true,
-  "architecture": "FC",
+  "architecture": "Default",
   "activation": "ReLU"
 }
+
+

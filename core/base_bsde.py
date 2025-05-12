@@ -64,7 +64,8 @@ class BaseDeepBSDE(nn.Module, ABC):
 
     def forward(self):
         batch_size = self.batch_size
-        y = self.y0.repeat(batch_size, 1).to(self.device)
+        # Generate different starting points for each batch by adding small random noise to y0
+        y = self.y0 + torch.randn(batch_size, 1, device=self.device) * 0.1
         t = torch.zeros(batch_size, 1, device=self.device)
         Y = self.Y0.repeat(batch_size, 1)
         total_residual_loss = 0.0

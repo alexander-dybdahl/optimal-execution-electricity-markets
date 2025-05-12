@@ -123,54 +123,39 @@ class FBSNN(nn.Module, ABC):
         terminal_loss = torch.mean((Y1 - terminal)**2)
         return terminal_loss + total_residual_loss
 
-    def train_model(self, epochs=1000, lr=1e-3, save_path="models/saved/model.pth", verbose=True, plot=True):
-        self.device = next(self.parameters()).device
+    def train_model(self, epochs=1000, lr=1e-3, save_path=None, verbose=True, plot=True):
+        """Train the model using Adam optimizer"""
         optimizer = torch.optim.Adam(self.parameters(), lr=lr)
-        losses = []
-
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+            optimizer, 
+            mode='min',
+            factor=0.5,
+            patience=50,
+            min_lr=1e-6
+        )
+        
         self.train()
-
-        header_printed = False
-    
-        init_time = time.time()
-        start_time = time.time()
+        best_loss = float('inf')
+        
         for epoch in range(epochs):
             optimizer.zero_grad()
             loss = self()
             loss.backward()
+            torch.nn.utils.clip_grad_norm_(self.parameters(), max_norm=1.0)
             optimizer.step()
+            scheduler.step(loss)
 
-            losses.append(loss.item())
-
-            if (epoch % 50 == 0 or epoch == epochs - 1) and verbose:
-                elapsed = time.time() - start_time
-                if not header_printed:
-                    print(f"{'Epoch':>8} | {'Loss':>12} | {'Memory [MB]':>12} | {'Time [s]':>10} | {'Status'}")
-                    print("-" * 70)
-                    header_printed = True
-
-                mem_mb = torch.cuda.memory_allocated() / 1e6
-                status = ""
-                if loss.item() < self.lowest_loss:
-                    self.lowest_loss = loss.item()
-                    torch.save(self.state_dict(), save_path)
-                    status = "Model saved ↓"
-
-                print(f"{epoch:8} | {loss.item():12.6f} | {mem_mb:12.2f} | {elapsed:10.2f} | {status}")
-                start_time = time.time()  # Reset timer for next block
-
-        if verbose:
-            print("-" * 70)
-            print(f"Training completed. Lowest loss: {self.lowest_loss:.6f}. Total time: {time.time() - init_time:.2f} seconds")
-            print(f"Model saved to {save_path}")
-
-        if plot:
-            plt.plot(losses, label="Loss")
-            plt.xlabel("Epoch")
-            plt.ylabel("Loss")
-            plt.title("Training Loss")
-            plt.legend()
-            plt.grid()
-            plt.show()
-
-        return losses
+            current_loss = loss.item()
+            
+            # Print status every 100 epochs
+            if verbose and epoch % 100 == 0:
+                status = f"Epoch {epoch}: Loss = {current_loss:.6f}"
+                # Check if this is a new best loss
+                if current_loss < best_loss:
+                    if save_path is not None:
+                        torch.save(self.state_dict(), save_path)
+                    status += " (Best model saved ↓)"
+                    best_loss = current_loss
+                print(status)
+            
+        return best_loss

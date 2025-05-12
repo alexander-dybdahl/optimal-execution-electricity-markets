@@ -34,8 +34,13 @@ def main():
 
     if args.load_if_exists:
         try:
-            model.load_state_dict(torch.load(run_cfg["save_path"], map_location=run_cfg["device"]))
-            print("Model loaded successfully.")
+            checkpoint = torch.load(run_cfg["save_path"], map_location=run_cfg["device"])
+            try:
+                model.load_state_dict(checkpoint)
+                print("Model loaded successfully.")
+            except RuntimeError as e:
+                print("Architecture mismatch, starting training from scratch.")
+                print(f"Error: {str(e)}")
         except FileNotFoundError:
             print("No model found, starting training from scratch.")
 
