@@ -40,26 +40,38 @@ class SimpleHJB(FBSNN):
             
             q_traj, Y_traj, y_traj = [], [], []
 
+            q = self.q_net(t, y)
+            Y = self.Y_net(t, y)
+            dY = torch.autograd.grad(
+                outputs=Y,
+                inputs=y,
+                grad_outputs=torch.ones_like(Y),
+                create_graph=False,
+                retain_graph=False
+            )[0]
+            σ = self.sigma(t, y)
+            z = torch.bmm(σ, dY.unsqueeze(-1)).squeeze(-1)
+
+            q_traj.append(q.detach().cpu().numpy())
+            Y_traj.append(Y.detach().cpu().numpy())
+            y_traj.append(y.detach().cpu().numpy())
+
             for i in range(self.N):
-                t_input = t.clone()  # (batch, 1)
-                q = self.q_net(t_input, y)  # (batch, 1)
                 dW = torch.randn(batch_size, self.dim_W, device=self.device) * self.dt**0.5
                 y = self.forward_dynamics(y, q, dW, t, self.dt)
+                t += self.dt
+                
+                q = self.q_net(t, y)  # (batch, 1)
                 Y = self.Y_net(t, y)  # (batch, 1)
                 dY = torch.autograd.grad(
                     outputs=Y,
                     inputs=y,
                     grad_outputs=torch.ones_like(Y),
-                    # allow_unused=True,
-                    create_graph=True,
-                    retain_graph=True
+                    create_graph=False,
+                    retain_graph=False
                 )[0]
-                
                 σ = self.sigma(t, y)
                 z = torch.bmm(σ, dY.unsqueeze(-1)).squeeze(-1)
-                f = self.generator(y, q)
-
-                t += self.dt
 
                 q_traj.append(q.detach().cpu().numpy())
                 Y_traj.append(Y.detach().cpu().numpy())
@@ -69,12 +81,12 @@ class SimpleHJB(FBSNN):
             all_Y.append(np.stack(Y_traj))
             all_y.append(np.stack(y_traj))
 
-        timesteps = np.linspace(0, self.T, self.N)
+        timesteps = np.linspace(0, self.T, self.N + 1)
 
         return timesteps, {
             "q": np.concatenate(all_q, axis=1),         # (N, n_paths)
             "Y": np.concatenate(all_Y, axis=1),
-            "final_y": np.concatenate(all_y, axis=1)    # (N, n_paths, dim)
+            "y": np.concatenate(all_y, axis=1)    # (N, n_paths, dim)
         }
 
     def K_analytic(self, t):
@@ -106,13 +118,13 @@ class SimpleHJB(FBSNN):
         return phi_t + K_t * x**2  # shape (T, N)
 
     def plot_approx_vs_analytic(self, results, timesteps):
-        approx_q = results["q"]              # shape: (T, N_paths)
-        x_vals = results["final_y"][:, :, 0] # shape: (T, N_paths)
-        Y_vals = results["Y"]                # shape: (T, N_paths, 1)
+        approx_q = results["q"]              # shape: (T + 1, N_paths)
+        x_vals = results["y"][:, :, 0] # shape: (T + 1, N_paths)
+        Y_vals = results["Y"]                # shape: (T + 1, N_paths, 1)
 
         with torch.no_grad():
-            true_q = self.optimal_control_analytic(timesteps, x_vals)          # shape: (T, N)
-            true_Y = self.optimal_cost_analytic(timesteps, x_vals)             # shape (T, N)
+            true_q = self.optimal_control_analytic(timesteps, x_vals)          # shape: (T + 1, N)
+            true_Y = self.optimal_cost_analytic(timesteps, x_vals)             # shape (T + 1, N)
 
         fig, axs = plt.subplots(2, 2, figsize=(14, 10))
 
