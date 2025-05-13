@@ -18,6 +18,12 @@ class FBSNN(nn.Module, ABC):
         self.T = model_cfg["T"]
         self.N = model_cfg["N"]
         self.dt = model_cfg["dt"]
+        self.save = args.save
+        self.save_n = args.save_n
+        self.total_Y_loss = None
+        self.total_q_loss = None
+        self.terminal_loss = None
+        self.terminal_gradient_loss = None
 
         if args.activation == "Sine":
             self.activation = Sine()
@@ -73,7 +79,8 @@ class FBSNN(nn.Module, ABC):
             retain_graph=True
         )[0]
 
-        total_residual_loss = 0.0
+        total_Y_loss = 0.0
+        total_q_loss = 0.0
 
         for _ in range(self.N):
             
@@ -96,11 +103,12 @@ class FBSNN(nn.Module, ABC):
             )[0]
             
             f = self.generator(y0, q0)
+            
+            Y1_tilde = Y0 - f * self.dt + (Z0 * dW).sum(dim=1, keepdim=True)
+            total_Y_loss += torch.mean(torch.pow(Y1 - Y1_tilde, 2))
 
-            Y1_tilde = Y0 - f * self.dt + (Z0 * dW)
-
-            residual = Y1 - Y1_tilde
-            total_residual_loss += torch.mean(torch.pow(residual, 2))
+            f_tilde = (Y0 - Y1 + (Z0 * dW).sum(dim=1, keepdim=True)) / self.dt
+            total_q_loss += torch.mean(torch.pow(f - f_tilde.detach(), 2))
             
             y0 = y1
             Y0 = Y1
@@ -118,9 +126,14 @@ class FBSNN(nn.Module, ABC):
         )[0]
         terminal_gradient_loss = torch.mean(torch.pow(dY1 - terminal_gradient, 2))
 
-        return total_residual_loss + terminal_loss + terminal_gradient_loss
+        self.total_Y_loss = total_Y_loss.detach().item()
+        self.total_q_loss = total_q_loss.detach().item()
+        self.terminal_loss = terminal_loss.detach().item()
+        self.terminal_gradient_loss = terminal_gradient_loss.detach().item()
 
-    def train_model(self, epochs=1000, lr=1e-3, save_path="models/saved/model.pth", verbose=True, plot=True, save_best_only=True):
+        return total_Y_loss + total_q_loss + terminal_loss + terminal_gradient_loss
+
+    def train_model(self, epochs=1000, lr=1e-3, save_path="models/saved/model", verbose=True, plot=True):
         self.device = next(self.parameters()).device
         optimizer = torch.optim.Adam(self.parameters(), lr=lr)
         losses = []
@@ -142,28 +155,35 @@ class FBSNN(nn.Module, ABC):
             if (epoch % 50 == 0 or epoch == epochs - 1) and verbose:
                 elapsed = time.time() - start_time
                 if not header_printed:
-                    print(f"{'Epoch':>8} | {'Loss':>12} | {'Memory [MB]':>12} | {'Time [s]':>10} | {'Status'}")
-                    print("-" * 70)
+                    print(f"{'Epoch':>8} | {'Total loss':>12} | {'Y loss':>12} | {'q loss':>12} | {'T. loss':>12} | {'T.G. loss':>12} | {'Memory [MB]':>12} | {'Time [s]':>10} | {'Status'}")
+                    print("-" * 120)
                     header_printed = True
 
                 mem_mb = torch.cuda.memory_allocated() / 1e6
+                
                 status = ""
-                if save_best_only:
-                    if loss.item() < self.lowest_loss:
-                        self.lowest_loss = loss.item()
-                        torch.save(self.state_dict(), save_path)
-                        status = "Model saved ↓"
-                else:
-                    torch.save(self.state_dict(), save_path)
-                    status = "Model saved ↓"
 
-                print(f"{epoch:8} | {loss.item():12.6f} | {mem_mb:12.2f} | {elapsed:10.2f} | {status}")
+                if "every" in self.save and epoch % self.save_n == 0:
+                    torch.save(self.state_dict(), save_path + ".pth")
+                    status = f"Model saved ↓"
+
+                if "best" in self.save and loss.item() < self.lowest_loss:
+                    self.lowest_loss = loss.item()
+                    torch.save(self.state_dict(), save_path + "_best.pth")
+                    status = "Model saved ↓ (best)"
+
+                print(f"{epoch:8} | {loss.item():12.6f} | {self.total_Y_loss:12.6f} | {self.total_q_loss:12.6f} | {self.terminal_loss:12.6f} | {self.terminal_gradient_loss:12.6f} | {mem_mb:12.2f} | {elapsed:10.2f} | {status}")
                 start_time = time.time()  # Reset timer for next block
+
+        if "last" in self.save:
+            torch.save(self.state_dict(), save_path + ".pth")
+            status = f"Model saved ↓"
+            print(f"{epoch:8} | {loss.item():12.6f} | {self.total_Y_loss:12.6f} | {self.total_q_loss:12.6f} | {self.terminal_loss:12.6f} | {self.terminal_gradient_loss:12.6f} | {mem_mb:12.2f} | {elapsed:10.2f} | {status}")
 
         if verbose:
             print("-" * 70)
             print(f"Training completed. Lowest loss: {self.lowest_loss:.6f}. Total time: {time.time() - init_time:.2f} seconds")
-            print(f"Model saved to {save_path}")
+            print(f"Model saved to {save_path}.pth")
 
         if plot:
             plt.plot(losses, label="Loss")

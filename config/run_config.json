@@ -1,7 +1,7 @@
 {
   "epochs": 1000,
   "lr": 1e-4,
-  "save_path": "models/saved/simple_hjb_model_naisnet_relu_grad_loss.pth",
+  "save_path": "models/saved/simple_hjb_model_naisnet_relu_grad_loss_q_loss_partly_detached",
   "config_path": "config/simple_hjb_config.json",
   "n_paths": 1000,
   "batch_size": 256,
@@ -11,7 +11,8 @@
   "train": true,
   "load_if_exists": true,
   "verbose": true,
-  "save_best_only": true,
+  "save": ["best", "every", "last"],
+  "save_n": 50,
   "architecture": "NAISnet",
   "activation": "ReLU"
 }

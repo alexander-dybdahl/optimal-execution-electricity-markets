@@ -22,7 +22,8 @@ def main():
     parser.add_argument("--architecture", type=str, default=run_cfg["architecture"], help="Neural network architecture to use")
     parser.add_argument("--activation", type=str, default=run_cfg["activation"], help="Activation function to use")
     parser.add_argument("--verbose", type=str2bool, nargs='?', const=True, default=run_cfg["verbose"], help="Print training progress")    
-    parser.add_argument("--save_best_only", type=str2bool, nargs='?', const=True, default=run_cfg["save_best_only"], help="Save only when the models have the lowest loss")    
+    parser.add_argument("--save", nargs="+", default=run_cfg["save"], help="Model saving strategy: choose from 'best', 'every'")
+    parser.add_argument("--save_n", type=int, default=run_cfg["save_n"], help="If 'every' is selected, save every n epochs")
     parser.add_argument("--load_if_exists", type=str2bool, nargs='?', const=True, default=run_cfg["load_if_exists"], help="Load model if it exists")
     parser.add_argument("--train", type=str2bool, nargs='?', const=True, default=run_cfg["train"], help="Train the model")
 
@@ -35,13 +36,13 @@ def main():
 
     if args.load_if_exists:
         try:
-            model.load_state_dict(torch.load(run_cfg["save_path"], map_location=run_cfg["device"]))
+            model.load_state_dict(torch.load(run_cfg["save_path"] + ".pth", map_location=run_cfg["device"]))
             print("Model loaded successfully.")
         except FileNotFoundError:
             print("No model found, starting training from scratch.")
 
     if args.train:
-        model.train_model(epochs=args.epochs, lr=args.lr, save_path=args.save_path, verbose=args.verbose, plot=False, save_best_only=args.save_best_only)
+        model.train_model(epochs=args.epochs, lr=args.lr, save_path=args.save_path, verbose=args.verbose, plot=False)
 
     timesteps, results = model.simulate_paths(n_paths=args.n_simulations, batch_size=args.sim_batch_size, seed=np.random.randint(0, 1000))
     model.plot_approx_vs_analytic(results, timesteps)
