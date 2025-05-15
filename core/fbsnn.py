@@ -75,7 +75,8 @@ class FBSNN(nn.Module, ABC):
     def forward_fc(self):
         batch_size = self.batch_size
         t = torch.zeros(batch_size, 1, device=self.device)
-        y0 = self.y0.repeat(batch_size, 1).to(self.device)
+        # y0 = self.y0.repeat(batch_size, 1).to(self.device)
+        y0 = torch.normal(0.0, 5, size=(batch_size, self.dim), device=self.device).requires_grad_()
         Y0 = self.Y_net(t, y0)
 
         dY0 = torch.autograd.grad(
@@ -215,9 +216,21 @@ class FBSNN(nn.Module, ABC):
 
         return total_Y_loss + terminal_loss + terminal_gradient_loss
 
-    def train_model(self, epochs=1000, lr=1e-3, save_path="models/saved/model", verbose=True, plot=True):
+    def train_model(self, epochs=1000, lr=1e-3, save_path="models/saved/model", verbose=True, plot=True, adaptive=True):
         self.device = next(self.parameters()).device
         optimizer = torch.optim.Adam(self.parameters(), lr=lr)
+
+        # Adaptive learning rate scheduler
+        if adaptive:
+            scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+                optimizer, mode='min', factor=0.5, patience=20
+            )
+        else:
+            # Fixed learning rate scheduler
+            scheduler = torch.optim.lr_scheduler.StepLR(
+                optimizer, step_size=100, gamma=0.5
+            )
+
         losses = []
 
         self.train()
@@ -233,16 +246,17 @@ class FBSNN(nn.Module, ABC):
             optimizer.step()
 
             losses.append(loss.item())
+            scheduler.step(loss.item())
 
             if (epoch % 50 == 0 or epoch == epochs - 1) and verbose:
                 elapsed = time.time() - start_time
                 if not header_printed:
-                    print(f"{'Epoch':>8} | {'Total loss':>12} | {'Y loss':>12} | {'T. loss':>12} | {'T.G. loss':>12} | {'Memory [MB]':>12} | {'Time [s]':>10} | {'Status'}")
+                    print(f"{'Epoch':>8} | {'Total loss':>12} | {'Y loss':>12} | {'T. loss':>12} | {'T.G. loss':>12} | {'LR':>10} | {'Memory [MB]':>12} | {'Time [s]':>10} | {'Status'}")
                     print("-" * 120)
                     header_printed = True
 
                 mem_mb = torch.cuda.memory_allocated() / 1e6
-                
+                current_lr = optimizer.param_groups[0]['lr']
                 status = ""
 
                 if "every" in self.save and epoch % self.save_n == 0:
@@ -254,13 +268,13 @@ class FBSNN(nn.Module, ABC):
                     torch.save(self.state_dict(), save_path + "_best.pth")
                     status = "Model saved ↓ (best)"
 
-                print(f"{epoch:8} | {loss.item():12.6f} | {self.total_Y_loss:12.6f} | {self.terminal_loss:12.6f} | {self.terminal_gradient_loss:12.6f} | {mem_mb:12.2f} | {elapsed:10.2f} | {status}")
+                print(f"{epoch:8} | {loss.item():12.6f} | {self.total_Y_loss:12.6f} | {self.terminal_loss:12.6f} | {self.terminal_gradient_loss:12.6f} | {current_lr:10.2e} | {mem_mb:12.2f} | {elapsed:10.2f} | {status}")
                 start_time = time.time()  # Reset timer for next block
 
         if "last" in self.save:
             torch.save(self.state_dict(), save_path + ".pth")
             status = f"Model saved ↓"
-            print(f"{epoch:8} | {loss.item():12.6f} | {self.total_Y_loss:12.6f} | {self.terminal_loss:12.6f} | {self.terminal_gradient_loss:12.6f} | {mem_mb:12.2f} | {elapsed:10.2f} | {status}")
+            print(f"{epoch:8} | {loss.item():12.6f} | {self.total_Y_loss:12.6f} | {self.terminal_loss:12.6f} | {self.terminal_gradient_loss:12.6f} | {current_lr:10.2e} | {mem_mb:12.2f} | {elapsed:10.2f} | {status}")
 
         if verbose:
             print("-" * 70)

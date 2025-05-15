@@ -1,12 +1,12 @@
 {
   "epochs": 1000,
-  "lr": 1e-4,
+  "lr": 1e-3,
   "save_path": "models/saved/simple_hjb_model_fc_analytical_q",
   "config_path": "config/simple_hjb_config.json",
   "n_paths": 1000,
   "batch_size": 256,
-  "n_simulations": 1,
-  "sim_batch_size": 1,
+  "n_simulations": 3,
+  "sim_batch_size": 3,
   "device": "cuda",
   "train": true,
   "load_if_exists": true,
@@ -16,5 +16,6 @@
   "save": ["best", "every", "last"],
   "save_n": 50,
   "architecture": "FC",
-  "activation": "ReLU"
+  "activation": "ReLU",
+  "adaptive": true
 }

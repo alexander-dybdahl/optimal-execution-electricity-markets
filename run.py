@@ -21,6 +21,7 @@ def main():
     parser.add_argument("--model_config", type=str, default=run_cfg["config_path"], help="Path to the model configuration file")
     parser.add_argument("--architecture", type=str, default=run_cfg["architecture"], help="Neural network architecture to use")
     parser.add_argument("--activation", type=str, default=run_cfg["activation"], help="Activation function to use")
+    parser.add_argument("--adaptive", type=str2bool, nargs='?', const=True, default=run_cfg["adaptive"], help="Use adaptive learning rate")
     parser.add_argument("--verbose", type=str2bool, nargs='?', const=True, default=run_cfg["verbose"], help="Print training progress")
     parser.add_argument("--plot", type=str2bool, nargs='?', const=True, default=run_cfg["plot"], help="Plot after training")
     parser.add_argument("--plot_loss", type=str2bool, nargs='?', const=True, default=run_cfg["plot_loss"], help="Plot loss after training")
@@ -44,7 +45,7 @@ def main():
             print("No model found, starting training from scratch.")
 
     if args.train:
-        model.train_model(epochs=args.epochs, lr=args.lr, save_path=args.save_path, verbose=args.verbose, plot=args.plot_loss)
+        model.train_model(epochs=args.epochs, lr=args.lr, save_path=args.save_path, verbose=args.verbose, plot=args.plot_loss, adaptive=args.adaptive)
 
     timesteps, results = model.simulate_paths(n_paths=args.n_simulations, batch_size=args.sim_batch_size, seed=np.random.randint(0, 1000))
     
