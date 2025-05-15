@@ -31,16 +31,12 @@ class FBSNN(nn.Module, ABC):
 
         if args.architecture == "Default":
             self.Y_net = FCnet(layers=[2]+[64, 64, 64, 64, 1], activation=self.activation).to(self.device)
-            self.q_net = FCnet(layers=[self.dim+1]+[64, 64, 64, 64, 1], activation=self.activation).to(self.device)
         elif args.architecture == "FC":
             self.Y_net = FCnet(layers=[2]+model_cfg["Y_layers"], activation=self.activation).to(self.device)
-            self.q_net = FCnet(layers=[self.dim+1]+model_cfg["q_layers"], activation=self.activation).to(self.device)
         elif args.architecture == "NAISnet":
             self.Y_net = Resnet(layers=[2]+model_cfg["Y_layers"], activation=self.activation, stable=True).to(self.device)
-            self.q_net = Resnet(layers=[self.dim+1]+model_cfg["q_layers"], activation=self.activation, stable=True).to(self.device)
         elif args.architecture == "Resnet":
             self.Y_net = Resnet(layers=[2]+model_cfg["Y_layers"], activation=self.activation, stable=False).to(self.device)
-            self.q_net = Resnet(layers=[self.dim+1]+model_cfg["q_layers"], activation=self.activation, stable=False).to(self.device)
         else:
             raise ValueError(f"Unknown architecture: {args.architecture}")
 

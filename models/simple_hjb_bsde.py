@@ -1,6 +1,5 @@
 import torch
 import numpy as np
-from core.base_bsde import BaseDeepBSDE
 from core.fbsnn import FBSNN
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
@@ -41,7 +40,6 @@ class SimpleHJB(FBSNN):
             q_traj, Y_traj, y_traj = [], [], []
 
             # Initial value function and its gradient
-            q = self.q_net(t, y)
             Y = self.Y_net(t, y)
             dY = torch.autograd.grad(
                 outputs=Y,
