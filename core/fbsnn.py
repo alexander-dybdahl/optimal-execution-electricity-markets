@@ -3,7 +3,7 @@ import torch.nn as nn
 import matplotlib.pyplot as plt
 import time
 from abc import ABC, abstractmethod
-from core.nnets import Sine, FCnet, Resnet
+from core.nnets import Sine, FCnet, Resnet, YLSTM
 
 
 class FBSNN(nn.Module, ABC):
@@ -37,6 +37,8 @@ class FBSNN(nn.Module, ABC):
             self.Y_net = Resnet(layers=[2]+model_cfg["Y_layers"], activation=self.activation, stable=True).to(self.device)
         elif args.architecture == "Resnet":
             self.Y_net = Resnet(layers=[2]+model_cfg["Y_layers"], activation=self.activation, stable=False).to(self.device)
+        elif args.architecture == "LSTM":
+            self.Y_net = YLSTM(input_dim=2, hidden_dim=64, output_dim=1).to(self.device)
         else:
             raise ValueError(f"Unknown architecture: {args.architecture}")
 

@@ -2,6 +2,17 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+class YLSTM(nn.Module):
+    def __init__(self, input_dim, hidden_dim, output_dim):
+        super(YLSTM, self).__init__()
+        self.lstm = nn.LSTM(input_dim, hidden_dim, batch_first=True)
+        self.output_layer = nn.Linear(hidden_dim, output_dim)
+
+    def forward(self, t_seq, y_seq):
+        inp = torch.cat([t_seq, y_seq], dim=2)
+        lstm_out, _ = self.lstm(inp)
+        return self.output_layer(lstm_out)
+
 class Sine(nn.Module):
     """This class defines the sine activation function as a nn.Module"""
     def __init__(self):
