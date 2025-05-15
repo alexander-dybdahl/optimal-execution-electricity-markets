@@ -21,7 +21,6 @@ class FBSNN(nn.Module, ABC):
         self.save = args.save
         self.save_n = args.save_n
         self.total_Y_loss = None
-        self.total_q_loss = None
         self.terminal_loss = None
         self.terminal_gradient_loss = None
 
@@ -80,19 +79,22 @@ class FBSNN(nn.Module, ABC):
         )[0]
 
         total_Y_loss = 0.0
-        total_q_loss = 0.0
 
         for _ in range(self.N):
-            
-            q0 = self.q_net(t, y0)
+        
+            # Compute sigma and Z = sigma * dY
+            σ0 = self.sigma(t, y0)                      # shape: (batch, 1, 1)
+            Z0 = torch.bmm(σ0, dY0.unsqueeze(-1)).squeeze(-1)  # shape: (batch, 1)
+
+            # Compute q analytically: q = -0.5 * Z / sigma_x^2
+            q0 = -0.5 * Z0 / (self.sigma_x ** 2)
+
+            # Simulate forward
             dW = torch.randn(batch_size, self.dim_W, device=self.device) * self.dt**0.5
             y1 = self.forward_dynamics(y0, q0, dW, t, self.dt)
-
-            σ0 = self.sigma(t, y0)
-            Z0 = torch.bmm(σ0, dY0.unsqueeze(-1)).squeeze(-1)
-
             t = t + self.dt
 
+            # Propagate value network and compute gradients
             Y1 = self.Y_net(t, y1)
             dY1 = torch.autograd.grad(
                 outputs=Y1,
@@ -107,9 +109,6 @@ class FBSNN(nn.Module, ABC):
             Y1_tilde = Y0 - f * self.dt + (Z0 * dW).sum(dim=1, keepdim=True)
             total_Y_loss += torch.mean(torch.pow(Y1 - Y1_tilde, 2))
 
-            f_tilde = (Y0 - Y1 + (Z0 * dW).sum(dim=1, keepdim=True)) / self.dt
-            total_q_loss += torch.mean(torch.pow(f - f_tilde.detach(), 2))
-            
             y0 = y1
             Y0 = Y1
             dY0 = dY1
@@ -127,11 +126,10 @@ class FBSNN(nn.Module, ABC):
         terminal_gradient_loss = torch.mean(torch.pow(dY1 - terminal_gradient, 2))
 
         self.total_Y_loss = total_Y_loss.detach().item()
-        self.total_q_loss = total_q_loss.detach().item()
         self.terminal_loss = terminal_loss.detach().item()
         self.terminal_gradient_loss = terminal_gradient_loss.detach().item()
 
-        return total_Y_loss + total_q_loss + terminal_loss + terminal_gradient_loss
+        return total_Y_loss + terminal_loss + terminal_gradient_loss
 
     def train_model(self, epochs=1000, lr=1e-3, save_path="models/saved/model", verbose=True, plot=True):
         self.device = next(self.parameters()).device
@@ -172,13 +170,13 @@ class FBSNN(nn.Module, ABC):
                     torch.save(self.state_dict(), save_path + "_best.pth")
                     status = "Model saved ↓ (best)"
 
-                print(f"{epoch:8} | {loss.item():12.6f} | {self.total_Y_loss:12.6f} | {self.total_q_loss:12.6f} | {self.terminal_loss:12.6f} | {self.terminal_gradient_loss:12.6f} | {mem_mb:12.2f} | {elapsed:10.2f} | {status}")
+                print(f"{epoch:8} | {loss.item():12.6f} | {self.total_Y_loss:12.6f} | {self.terminal_loss:12.6f} | {self.terminal_gradient_loss:12.6f} | {mem_mb:12.2f} | {elapsed:10.2f} | {status}")
                 start_time = time.time()  # Reset timer for next block
 
         if "last" in self.save:
             torch.save(self.state_dict(), save_path + ".pth")
             status = f"Model saved ↓"
-            print(f"{epoch:8} | {loss.item():12.6f} | {self.total_Y_loss:12.6f} | {self.total_q_loss:12.6f} | {self.terminal_loss:12.6f} | {self.terminal_gradient_loss:12.6f} | {mem_mb:12.2f} | {elapsed:10.2f} | {status}")
+            print(f"{epoch:8} | {loss.item():12.6f} | {self.total_Y_loss:12.6f} | {self.terminal_loss:12.6f} | {self.terminal_gradient_loss:12.6f} | {mem_mb:12.2f} | {elapsed:10.2f} | {status}")
 
         if verbose:
             print("-" * 70)

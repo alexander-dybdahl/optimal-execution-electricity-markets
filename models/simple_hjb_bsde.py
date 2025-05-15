@@ -40,6 +40,7 @@ class SimpleHJB(FBSNN):
             
             q_traj, Y_traj, y_traj = [], [], []
 
+            # Initial value function and its gradient
             q = self.q_net(t, y)
             Y = self.Y_net(t, y)
             dY = torch.autograd.grad(
@@ -49,8 +50,11 @@ class SimpleHJB(FBSNN):
                 create_graph=False,
                 retain_graph=False
             )[0]
-            σ = self.sigma(t, y)
-            z = torch.bmm(σ, dY.unsqueeze(-1)).squeeze(-1)
+
+            # Compute z and analytical q
+            σ = self.sigma(t, y)                            # (batch, 1, 1)
+            z = torch.bmm(σ, dY.unsqueeze(-1)).squeeze(-1)  # (batch, 1)
+            q = -0.5 * z / (self.sigma_x ** 2)              # analytical q
 
             q_traj.append(q.detach().cpu().numpy())
             Y_traj.append(Y.detach().cpu().numpy())
@@ -61,7 +65,6 @@ class SimpleHJB(FBSNN):
                 y = self.forward_dynamics(y, q, dW, t, self.dt)
                 t += self.dt
                 
-                q = self.q_net(t, y)  # (batch, 1)
                 Y = self.Y_net(t, y)  # (batch, 1)
                 dY = torch.autograd.grad(
                     outputs=Y,
@@ -70,8 +73,10 @@ class SimpleHJB(FBSNN):
                     create_graph=False,
                     retain_graph=False
                 )[0]
+
                 σ = self.sigma(t, y)
                 z = torch.bmm(σ, dY.unsqueeze(-1)).squeeze(-1)
+                q = -0.5 * z / (self.sigma_x ** 2)
 
                 q_traj.append(q.detach().cpu().numpy())
                 Y_traj.append(Y.detach().cpu().numpy())
