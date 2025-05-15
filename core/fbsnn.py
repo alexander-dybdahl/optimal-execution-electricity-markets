@@ -23,6 +23,7 @@ class FBSNN(nn.Module, ABC):
         self.total_Y_loss = None
         self.terminal_loss = None
         self.terminal_gradient_loss = None
+        self.architecture = args.architecture
 
         if args.activation == "Sine":
             self.activation = Sine()
@@ -51,6 +52,9 @@ class FBSNN(nn.Module, ABC):
     def terminal_cost(self, y): pass
 
     @abstractmethod
+    def terminal_cost_grad(self, y): pass
+
+    @abstractmethod
     def mu(self, t, y, q): pass  # shape: (batch, dim)
 
     @abstractmethod
@@ -63,6 +67,12 @@ class FBSNN(nn.Module, ABC):
         return y + μ * dt + diffusion         # shape: (batch, dim)
 
     def forward(self):
+        if self.architecture == "LSTM":
+            return self.forward_lstm()
+        else:
+            return self.forward_fc()
+
+    def forward_fc(self):
         batch_size = self.batch_size
         t = torch.zeros(batch_size, 1, device=self.device)
         y0 = self.y0.repeat(batch_size, 1).to(self.device)
@@ -85,7 +95,7 @@ class FBSNN(nn.Module, ABC):
             Z0 = torch.bmm(σ0, dY0.unsqueeze(-1)).squeeze(-1)  # shape: (batch, 1)
 
             # Compute q analytically: q = -0.5 * Z / sigma_x^2
-            q0 = -0.5 * Z0 / (self.sigma_x ** 2)
+            q0 = -0.5 * dY0
 
             # Simulate forward
             dW = torch.randn(batch_size, self.dim_W, device=self.device) * self.dt**0.5
@@ -114,14 +124,90 @@ class FBSNN(nn.Module, ABC):
         terminal = self.terminal_cost(y1)
         terminal_loss = torch.mean(torch.pow(Y1 - terminal, 2))
 
-        terminal_gradient = torch.autograd.grad(
-            outputs=terminal.unsqueeze(-1),
-            inputs=y1,
-            grad_outputs=torch.ones_like(terminal.unsqueeze(-1)),
+        terminal_gradient = self.terminal_cost_grad(y1)
+        terminal_gradient_loss = torch.mean(torch.pow(dY1 - terminal_gradient, 2))
+
+        self.total_Y_loss = total_Y_loss.detach().item()
+        self.terminal_loss = terminal_loss.detach().item()
+        self.terminal_gradient_loss = terminal_gradient_loss.detach().item()
+
+        return total_Y_loss + terminal_loss + terminal_gradient_loss
+
+    def forward_lstm(self):
+        batch_size = self.batch_size
+        t = torch.zeros(batch_size, 1, device=self.device)
+        y = self.y0.repeat(batch_size, 1).to(self.device).detach().clone().requires_grad_()
+
+        t_seq = [t]
+        y_seq = [y]
+        dW_seq = []
+        q_seq = []
+
+        # Simulate forward trajectory
+        for _ in range(self.N):
+            dW = torch.randn(batch_size, self.dim_W, device=self.device) * self.dt**0.5
+            σ = self.sigma(t, y)
+
+            # Temporarily disable CuDNN to allow second-order gradients
+            with torch.backends.cudnn.flags(enabled=False):
+                Y_seq_temp = self.Y_net(torch.stack(t_seq, dim=1), torch.stack(y_seq, dim=1))
+            dY = torch.autograd.grad(
+                outputs=Y_seq_temp[:, -1],
+                inputs=y,
+                grad_outputs=torch.ones_like(Y_seq_temp[:, -1]),
+                create_graph=True,
+                retain_graph=True
+            )[0]
+
+            q = -0.5 * dY
+
+            y = self.forward_dynamics(y, q, dW, t, self.dt).detach().clone().requires_grad_()
+            t = t + self.dt
+
+            t_seq.append(t)
+            y_seq.append(y)
+            dW_seq.append(dW)
+            q_seq.append(q)
+
+        t_seq_tensor = torch.stack(t_seq, dim=1)     # (batch, N+1, 1)
+        y_seq_tensor = torch.stack(y_seq, dim=1)     # (batch, N+1, dim)
+
+        with torch.backends.cudnn.flags(enabled=False):
+            Y_seq = self.Y_net(t_seq_tensor, y_seq_tensor)  # shape: (batch, N+1, 1)
+
+        total_Y_loss = 0.0
+        for n in range(self.N):
+            y_n = y_seq[n]
+            q_n = q_seq[n]
+            σ_n = self.sigma(t_seq_tensor[:, n], y_n)
+
+            dY_n = torch.autograd.grad(
+                outputs=Y_seq[:, n],
+                inputs=y_n,
+                grad_outputs=torch.ones_like(Y_seq[:, n]),
+                create_graph=True,
+                retain_graph=True
+            )[0]
+
+            z_n = torch.bmm(σ_n, dY_n.unsqueeze(-1)).squeeze(-1)
+            f_n = self.generator(y_n, q_n)
+
+            Y1_tilde = Y_seq[:, n] - f_n * self.dt + (z_n * dW_seq[n]).sum(dim=1, keepdim=True)
+            total_Y_loss += torch.mean((Y_seq[:, n + 1] - Y1_tilde) ** 2)
+
+        terminal = self.terminal_cost(y_seq[-1])
+        terminal_loss = torch.mean((Y_seq[:, -1] - terminal) ** 2)
+
+        dY_terminal = torch.autograd.grad(
+            outputs=Y_seq[:, -1],
+            inputs=y_seq[-1],
+            grad_outputs=torch.ones_like(Y_seq[:, -1]),
             create_graph=True,
             retain_graph=True
         )[0]
-        terminal_gradient_loss = torch.mean(torch.pow(dY1 - terminal_gradient, 2))
+
+        terminal_gradient = self.terminal_cost_grad(y_seq[-1])
+        terminal_gradient_loss = torch.mean((dY_terminal - terminal_gradient) ** 2)
 
         self.total_Y_loss = total_Y_loss.detach().item()
         self.terminal_loss = terminal_loss.detach().item()

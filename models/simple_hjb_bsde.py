@@ -18,6 +18,10 @@ class SimpleHJB(FBSNN):
         x_T = y[:, 0]
         return self.G * x_T**2
 
+    def terminal_cost_grad(self, y):
+        x_T = y[:, 0]
+        return 2 * self.G * x_T
+
     def mu(self, t, y, q):
         return q
 
@@ -52,7 +56,7 @@ class SimpleHJB(FBSNN):
             # Compute z and analytical q
             σ = self.sigma(t, y)                            # (batch, 1, 1)
             z = torch.bmm(σ, dY.unsqueeze(-1)).squeeze(-1)  # (batch, 1)
-            q = -0.5 * z / (self.sigma_x ** 2)              # analytical q
+            q = -0.5 * dY                                   # analytical q
 
             q_traj.append(q.detach().cpu().numpy())
             Y_traj.append(Y.detach().cpu().numpy())
@@ -74,7 +78,7 @@ class SimpleHJB(FBSNN):
 
                 σ = self.sigma(t, y)
                 z = torch.bmm(σ, dY.unsqueeze(-1)).squeeze(-1)
-                q = -0.5 * z / (self.sigma_x ** 2)
+                q = -0.5 * dY
 
                 q_traj.append(q.detach().cpu().numpy())
                 Y_traj.append(Y.detach().cpu().numpy())
@@ -110,8 +114,8 @@ class SimpleHJB(FBSNN):
         def A(s): return (G + 1) / (G - 1) * np.exp(2 * (self.T - s))
         A_t = A(t)
         A_T = A(self.T)
-        log_expr = (A_t / A_T) * ((A_T - 1)**2 / (A_t - 1)**2)
-        phi = -0.5 * sigma**2 * np.log(log_expr)
+        log_expr = (A_T / A_t) * ((A_t - 1)**2 / (A_T - 1)**2)
+        phi = 0.5 * sigma**2 * np.log(log_expr)
         return phi
 
     def optimal_cost_analytic(self, t, x):
