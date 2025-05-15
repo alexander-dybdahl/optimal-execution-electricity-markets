@@ -153,7 +153,7 @@ class FBSNN(nn.Module, ABC):
             if (epoch % 50 == 0 or epoch == epochs - 1) and verbose:
                 elapsed = time.time() - start_time
                 if not header_printed:
-                    print(f"{'Epoch':>8} | {'Total loss':>12} | {'Y loss':>12} | {'q loss':>12} | {'T. loss':>12} | {'T.G. loss':>12} | {'Memory [MB]':>12} | {'Time [s]':>10} | {'Status'}")
+                    print(f"{'Epoch':>8} | {'Total loss':>12} | {'Y loss':>12} | {'T. loss':>12} | {'T.G. loss':>12} | {'Memory [MB]':>12} | {'Time [s]':>10} | {'Status'}")
                     print("-" * 120)
                     header_printed = True
 
