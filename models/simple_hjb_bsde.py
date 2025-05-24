@@ -1,10 +1,10 @@
 import torch
 import numpy as np
-from core.base_bsde import BaseDeepBSDE
+from core.fbsnn import FBSNN
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 
-class SimpleHJB(BaseDeepBSDE):
+class SimpleHJB(FBSNN):
     def __init__(self, args, model_cfg):
         super().__init__(args, model_cfg)
         self.sigma_x = model_cfg["sigma"]
@@ -17,6 +17,10 @@ class SimpleHJB(BaseDeepBSDE):
     def terminal_cost(self, y):
         x_T = y[:, 0]
         return self.G * x_T**2
+
+    def terminal_cost_grad(self, y):
+        x_T = y[:, 0]
+        return 2 * self.G * x_T
 
     def mu(self, t, y, q):
         return q
@@ -33,23 +37,54 @@ class SimpleHJB(BaseDeepBSDE):
 
         all_q, all_Y, all_y = [], [], []
 
-        for _ in range(n_paths // batch_size):
+        for i in range(n_paths // batch_size):
             y = y0_single.repeat(batch_size, 1) if y0_single is not None else self.y0.repeat(batch_size, 1)
             t = torch.zeros(batch_size, 1, device=self.device)
-            Y = self.Y0.repeat(batch_size, 1)
-
+            
             q_traj, Y_traj, y_traj = [], [], []
 
-            for i in range(self.N):
-                t_input = t.clone()  # (batch, 1)
-                q = self.q_net(t_input, y)  # (batch, 1)
-                z = self.z_net(t_input, y)  # (batch, dim_W)
-                f = self.generator(y, q)
+            # Initial value function and its gradient
+            if self.architecture == "Multi":
+                Y = self.Y_nets[i](t, y)
+            else:
+                Y = self.Y_net(t, y)
+            dY = torch.autograd.grad(
+                outputs=Y,
+                inputs=y,
+                grad_outputs=torch.ones_like(Y),
+                create_graph=False,
+                retain_graph=False
+            )[0]
 
+            # Compute z and analytical q
+            # σ = self.sigma(t, y)                            # (batch, 1, 1)
+            # z = torch.bmm(σ, dY.unsqueeze(-1)).squeeze(-1)  # (batch, 1)
+            q = -0.5 * dY                                   # analytical q
+
+            q_traj.append(q.detach().cpu().numpy())
+            Y_traj.append(Y.detach().cpu().numpy())
+            y_traj.append(y.detach().cpu().numpy())
+
+            for i in range(self.N):
                 dW = torch.randn(batch_size, self.dim_W, device=self.device) * self.dt**0.5
                 y = self.forward_dynamics(y, q, dW, t, self.dt)
-                Y = Y - f * self.dt + (z * dW).sum(dim=1, keepdim=True)
                 t += self.dt
+                
+                if self.architecture == "Multi":
+                    Y = self.Y_nets[i](t, y)  # (batch, 1)
+                else:
+                    Y = self.Y_net(t, y)
+                dY = torch.autograd.grad(
+                    outputs=Y,
+                    inputs=y,
+                    grad_outputs=torch.ones_like(Y),
+                    create_graph=False,
+                    retain_graph=False
+                )[0]
+
+                # σ = self.sigma(t, y)
+                # z = torch.bmm(σ, dY.unsqueeze(-1)).squeeze(-1)
+                q = -0.5 * dY
 
                 q_traj.append(q.detach().cpu().numpy())
                 Y_traj.append(Y.detach().cpu().numpy())
@@ -59,12 +94,12 @@ class SimpleHJB(BaseDeepBSDE):
             all_Y.append(np.stack(Y_traj))
             all_y.append(np.stack(y_traj))
 
-        timesteps = np.linspace(0, self.T, self.N)
+        timesteps = np.linspace(0, self.T, self.N + 1)
 
         return timesteps, {
             "q": np.concatenate(all_q, axis=1),         # (N, n_paths)
             "Y": np.concatenate(all_Y, axis=1),
-            "final_y": np.concatenate(all_y, axis=1)    # (N, n_paths, dim)
+            "y": np.concatenate(all_y, axis=1)    # (N, n_paths, dim)
         }
 
     def K_analytic(self, t):
@@ -85,8 +120,8 @@ class SimpleHJB(BaseDeepBSDE):
         def A(s): return (G + 1) / (G - 1) * np.exp(2 * (self.T - s))
         A_t = A(t)
         A_T = A(self.T)
-        log_expr = (A_t / A_T) * ((A_T - 1)**2 / (A_t - 1)**2)
-        phi = -0.5 * sigma**2 * np.log(log_expr)
+        log_expr = (A_T / A_t) * ((A_t - 1)**2 / (A_T - 1)**2)
+        phi = 0.5 * sigma**2 * np.log(log_expr)
         return phi
 
     def optimal_cost_analytic(self, t, x):
@@ -96,13 +131,13 @@ class SimpleHJB(BaseDeepBSDE):
         return phi_t + K_t * x**2  # shape (T, N)
 
     def plot_approx_vs_analytic(self, results, timesteps):
-        approx_q = results["q"]              # shape: (T, N_paths)
-        x_vals = results["final_y"][:, :, 0] # shape: (T, N_paths)
-        Y_vals = results["Y"]                # shape: (T, N_paths, 1)
+        approx_q = results["q"]              # shape: (T + 1, N_paths)
+        x_vals = results["y"][:, :, 0] # shape: (T + 1, N_paths)
+        Y_vals = results["Y"]                # shape: (T + 1, N_paths, 1)
 
         with torch.no_grad():
-            true_q = self.optimal_control_analytic(timesteps, x_vals)          # shape: (T, N)
-            true_Y = self.optimal_cost_analytic(timesteps, x_vals)             # shape (T, N)
+            true_q = self.optimal_control_analytic(timesteps, x_vals)          # shape: (T + 1, N)
+            true_Y = self.optimal_cost_analytic(timesteps, x_vals)             # shape (T + 1, N)
 
         fig, axs = plt.subplots(2, 2, figsize=(14, 10))
 
@@ -149,3 +184,79 @@ class SimpleHJB(BaseDeepBSDE):
 
         plt.tight_layout()
         plt.show()
+
+    def forward_supervised(self):
+        batch_size = self.batch_size
+
+        t = torch.rand(batch_size, 1, device=self.device) * self.T
+        x = torch.randn(batch_size, 1, device=self.device, requires_grad=True)
+
+        with torch.no_grad():
+            K = torch.tensor(self.K_analytic(t.cpu().numpy()), device=self.device).float()
+            phi = torch.tensor(self.phi_analytic(t.cpu().numpy()), device=self.device).float()
+            V_target = phi + K * x**2
+            dV_target = 2 * K * x
+
+        V_pred = self.Y_net(t, x)
+        supervised_loss = torch.mean((V_pred - V_target)**2)
+
+        dV_pred = torch.autograd.grad(
+            outputs=V_pred,
+            inputs=x,
+            grad_outputs=torch.ones_like(V_pred),
+            create_graph=True
+        )[0]
+
+        gradient_loss = torch.mean((dV_pred - dV_target)**2)
+
+        total_loss = supervised_loss + gradient_loss  # λ = 1.0 implicitly
+
+        self.total_Y_loss = supervised_loss.item()
+        self.total_q_loss = gradient_loss.item()
+        self.terminal_loss = 0.0
+        self.terminal_gradient_loss = 0.0
+
+        return total_loss
+
+    def forward_supervised(self):
+        batch_size = self.batch_size
+        dt = self.dt
+
+        total_supervised_loss = 0.0
+        total_gradient_loss = 0.0
+
+        for n in range(self.N + 1):
+            t_n = torch.full((batch_size, 1), n * dt, device=self.device)
+            x = torch.randn(batch_size, 1, device=self.device, requires_grad=True)
+
+            with torch.no_grad():
+                K_n = torch.tensor(self.K_analytic(t_n.cpu().numpy()), device=self.device).float()
+                phi_n = torch.tensor(self.phi_analytic(t_n.cpu().numpy()), device=self.device).float()
+                V_target = phi_n + K_n * x**2
+                dV_target = 2 * K_n * x
+
+            # Predict using the n-th network
+            V_pred = self.Y_nets[n](t_n, x)
+
+            supervised_loss = torch.mean((V_pred - V_target)**2)
+
+            dV_pred = torch.autograd.grad(
+                outputs=V_pred,
+                inputs=x,
+                grad_outputs=torch.ones_like(V_pred),
+                create_graph=True
+            )[0]
+
+            gradient_loss = torch.mean((dV_pred - dV_target)**2)
+
+            total_supervised_loss += supervised_loss
+            total_gradient_loss += gradient_loss
+
+        total_loss = total_supervised_loss + total_gradient_loss
+
+        self.total_Y_loss = total_supervised_loss.item()
+        self.total_q_loss = total_gradient_loss.item()
+        self.terminal_loss = 0.0
+        self.terminal_gradient_loss = 0.0
+
+        return total_loss

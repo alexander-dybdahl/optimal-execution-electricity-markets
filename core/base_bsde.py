@@ -28,7 +28,6 @@ class QNetwork(nn.Module):
     def forward(self, t, y):
         return self.net(torch.cat([t, y], dim=1))
 
-
 class BaseDeepBSDE(nn.Module, ABC):
     def __init__(self, args, model_cfg):
         super().__init__()
@@ -42,7 +41,6 @@ class BaseDeepBSDE(nn.Module, ABC):
         self.dt = model_cfg["dt"]
         self.Y0 = nn.Parameter(torch.tensor([[0.0]], device=self.device))
         self.z_net = ZNetwork(self.dim).to(self.device)
-        self.q_net = QNetwork(self.dim).to(self.device)
         self.lowest_loss = float("inf")
 
     @abstractmethod
