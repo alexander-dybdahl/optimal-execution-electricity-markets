@@ -6,7 +6,7 @@
   "save_path": "models/saved/pinn",
   "config_path": "config/simple_hjb_config.json",
   "n_paths": 1024,
-  "batch_size": 256,
+  "batch_size": 512,
   "n_pinn": 256,
   "n_simulations": 10,
   "device": "cuda",

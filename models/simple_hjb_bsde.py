@@ -43,10 +43,7 @@ class SimpleHJB(FBSNN):
         q_traj, Y_traj, y_traj = [], [], []
 
         # Initial value function and its gradient
-        if self.architecture == "Multi":
-            Y = self.Y_nets[i](t, y)
-        else:
-            Y = self.Y_net(t, y)
+        Y = self.Y_net(t, y)
         dY = torch.autograd.grad(
             outputs=Y,
             inputs=y,
@@ -66,10 +63,7 @@ class SimpleHJB(FBSNN):
             y = self.forward_dynamics(y, q, dW, t, self.dt)
             t += self.dt
             
-            if self.architecture == "Multi":
-                Y = self.Y_nets[i](t, y)  # (batch, 1)
-            else:
-                Y = self.Y_net(t, y)
+            Y = self.Y_net(t, y)
             dY = torch.autograd.grad(
                 outputs=Y,
                 inputs=y,
