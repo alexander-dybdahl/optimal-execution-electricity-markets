@@ -11,6 +11,7 @@ class FBSNN(nn.Module, ABC):
         super().__init__()
         self.device = args.device
         self.batch_size = args.batch_size
+        self.architecture = args.architecture
         self.t0 = 0.0
         self.y0 = torch.tensor([model_cfg["y0"]], device=self.device, requires_grad=True)
         self.dim = model_cfg["dim"]
@@ -28,7 +29,6 @@ class FBSNN(nn.Module, ABC):
         self.λ_T = model_cfg["lambda_T"]
         self.λ_TG = model_cfg["lambda_TG"]
         self.λ_pinn = model_cfg["lambda_pinn"]
-        self.architecture = args.architecture
 
         if args.activation == "Sine":
             self.activation = Sine()
@@ -89,10 +89,10 @@ class FBSNN(nn.Module, ABC):
 
     def forward_fc(self):
         batch_size = self.batch_size
-        t = torch.zeros(batch_size, 1, device=self.device)
-        # t = torch.full((batch_size, 1), 0.0, device=self.device) + 1e-5 * torch.rand(batch_size, 1, device=self.device)
-        y0 = self.y0.repeat(batch_size, 1).to(self.device)
-        # y0 = self.y0 + 0.01 * torch.randn(batch_size, self.dim, device=self.device)
+        # t = torch.zeros(batch_size, 1, device=self.device)
+        t = torch.full((batch_size, 1), 0.0, device=self.device) + 1e-5 * torch.rand(batch_size, 1, device=self.device)
+        # y0 = self.y0.repeat(batch_size, 1).to(self.device)
+        y0 = self.y0 + 0.01 * torch.randn(batch_size, self.dim, device=self.device)
         Y0 = self.Y_net(t, y0)
 
         dY0 = torch.autograd.grad(
@@ -139,16 +139,18 @@ class FBSNN(nn.Module, ABC):
             Y0 = Y1
             dY0 = dY1
 
+        # -- Total Y loss --
+        self.total_Y_loss = self.λ_Y * total_Y_loss.detach().item()
+
         # -- Terminal Loss --
         terminal = self.terminal_cost(y1)
         terminal_loss = torch.mean(torch.pow(Y1 - terminal, 2))
+        self.terminal_loss = self.λ_T * terminal_loss.detach().item()
 
+        # -- Terminal Gradient Loss --
         terminal_gradient = self.terminal_cost_grad(y1)
         terminal_gradient_loss = torch.mean(torch.pow(dY1 - terminal_gradient, 2))
-
-        self.total_Y_loss = self.λ_Y * total_Y_loss.detach().item()
-        self.terminal_loss = self.λ_T * terminal_loss.detach().item()
-        self.terminal_gradient_loss = self.λ_TG * terminal_gradient_loss.detach().item() * 0
+        self.terminal_gradient_loss = self.λ_TG * terminal_gradient_loss.detach().item()
 
         # -- PINN HJB Residual Loss --
         n_pinn = 256  # Number of points to sample for PINN residual
@@ -357,7 +359,7 @@ class FBSNN(nn.Module, ABC):
         self.train()
 
         header_printed = False
-    
+        
         init_time = time.time()
         start_time = time.time()
         for epoch in range(epochs):
@@ -379,15 +381,14 @@ class FBSNN(nn.Module, ABC):
                 mem_mb = torch.cuda.memory_allocated() / 1e6
                 current_lr = optimizer.param_groups[0]['lr']
                 status = ""
-                config = f"_{self.architecture}_{self.activation.__class__.__name__}"
 
                 if "every" in self.save and epoch % self.save_n == 0:
-                    torch.save(self.state_dict(), save_path + config + ".pth")
+                    torch.save(self.state_dict(), save_path + ".pth")
                     status = f"Model saved ↓"
 
                 if "best" in self.save and loss.item() < self.lowest_loss:
                     self.lowest_loss = loss.item()
-                    torch.save(self.state_dict(), save_path + config + "_best.pth")
+                    torch.save(self.state_dict(), save_path + "_best.pth")
                     status = "Model saved ↓ (best)"
 
                 print(f"{epoch:8} | {loss.item():12.6f} | {self.total_Y_loss:12.6f} | {self.terminal_loss:12.6f} | {self.terminal_gradient_loss:12.6f} | {self.pinn_loss:12.6f} | {current_lr:10.2e} | {mem_mb:12.2f} | {elapsed:10.2f} | {status}")

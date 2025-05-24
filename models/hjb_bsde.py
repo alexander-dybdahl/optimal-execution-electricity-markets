@@ -1,8 +1,8 @@
 import torch
 import numpy as np
-from core.base_bsde import BaseDeepBSDE
+from core.fbsnn import FBSNN
 
-class HJB(BaseDeepBSDE):
+class HJB(FBSNN):
     def __init__(self, args, model_cfg):
         super().__init__(args, model_cfg)
         self.xi = torch.tensor(model_cfg["xi"], device=self.device)

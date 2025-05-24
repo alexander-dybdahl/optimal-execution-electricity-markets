@@ -157,11 +157,12 @@ class SimpleHJB(FBSNN):
         # --- Subplot 2: Absolute Difference ---
         diff = (approx_q.squeeze(-1) - true_q)  # (T, N_paths)
         for i in range(diff.shape[1]):
-            axs[0, 1].plot(timesteps, diff[:, i], label=f"Diff Path {i+1}")
+            axs[0, 1].plot(timesteps, diff[:, i], color=colors(i), alpha=0.6, label=f"Diff Path {i+1}")
         axs[0, 1].set_title("Difference: Learned $-$ Analytical")
         axs[0, 1].set_xlabel("Time $t$")
         axs[0, 1].set_ylabel("$q(t) - q^*(t)$")
         axs[0, 1].grid(True)
+        axs[0, 1].legend(ncol=2, fontsize=8)
 
         # --- Subplot 3: Y(t) paths ---
         for i in range(Y_vals.shape[1]):
@@ -175,12 +176,12 @@ class SimpleHJB(FBSNN):
 
         # --- Subplot 4: x(t) paths ---
         for i in range(x_vals.shape[1]):
-            axs[1, 1].plot(timesteps, x_vals[:, i])
+            axs[1, 1].plot(timesteps, x_vals[:, i], color=colors(i), alpha=0.6, label=f"Path {i+1}")
         axs[1, 1].set_title("State $x(t)$")
         axs[1, 1].set_xlabel("Time $t$")
         axs[1, 1].set_ylabel("x(t)")
         axs[1, 1].grid(True)
-
+        axs[1, 1].legend(ncol=2, fontsize=8)
 
         plt.tight_layout()
         plt.show()
