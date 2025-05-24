@@ -12,6 +12,8 @@ def main():
     parser = ArgumentParser()
     parser.add_argument("--epochs", type=int, default=run_cfg["epochs"], help="Number of training epochs")
     parser.add_argument("--lr", type=float, default=run_cfg["lr"], help="Learning rate for the optimizer")
+    parser.add_argument("--lr_factor", type=float, default=run_cfg["lr_factor"], help="Factor to reduce learning rate by")
+    parser.add_argument("--lr_patience", type=int, default=run_cfg["lr_patience"], help="Number of epochs with no improvement after which learning rate will be reduced")
     parser.add_argument("--save_path", type=str, default=run_cfg["save_path"], help="Path to save the model")
     parser.add_argument("--n_paths", type=int, default=run_cfg["n_paths"], help="Number of paths to simulate")
     parser.add_argument("--batch_size", type=int, default=run_cfg["batch_size"], help="Batch size for training")
@@ -45,7 +47,7 @@ def main():
             print("No model found, starting training from scratch.")
 
     if args.train:
-        model.train_model(epochs=args.epochs, lr=args.lr, save_path=args.save_path, verbose=args.verbose, plot=args.plot_loss, adaptive=args.adaptive)
+        model.train_model(epochs=args.epochs, lr=args.lr, lr_factor=args.lr_factor, lr_patience=args.lr_patience, save_path=args.save_path, verbose=args.verbose, plot=args.plot_loss, adaptive=args.adaptive)
 
     timesteps, results = model.simulate_paths(n_paths=args.n_simulations, batch_size=args.sim_batch_size, seed=np.random.randint(0, 1000))
     
