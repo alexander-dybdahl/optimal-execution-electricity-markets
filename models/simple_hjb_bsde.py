@@ -31,21 +31,43 @@ class SimpleHJB(FBSNN):
         σ[:, 0, 0] = self.sigma_x
         return σ
 
-    def simulate_paths(self, n_paths=1000, batch_size=256, seed=42, y0_single=None):
+    def simulate_paths(self, n_sim=5, seed=42, y0_single=None):
         torch.manual_seed(seed)
         self.eval()
 
         all_q, all_Y, all_y = [], [], []
 
-        for i in range(n_paths // batch_size):
-            y = y0_single.repeat(batch_size, 1) if y0_single is not None else self.y0.repeat(batch_size, 1)
-            t = torch.zeros(batch_size, 1, device=self.device)
-            
-            q_traj, Y_traj, y_traj = [], [], []
+        y = y0_single.repeat(n_sim, 1) if y0_single is not None else self.y0.repeat(n_sim, 1)
+        t = torch.zeros(n_sim, 1, device=self.device)
+        
+        q_traj, Y_traj, y_traj = [], [], []
 
-            # Initial value function and its gradient
+        # Initial value function and its gradient
+        if self.architecture == "Multi":
+            Y = self.Y_nets[i](t, y)
+        else:
+            Y = self.Y_net(t, y)
+        dY = torch.autograd.grad(
+            outputs=Y,
+            inputs=y,
+            grad_outputs=torch.ones_like(Y),
+            create_graph=False,
+            retain_graph=False
+        )[0]
+
+        q = -0.5 * dY
+
+        q_traj.append(q.detach().cpu().numpy())
+        Y_traj.append(Y.detach().cpu().numpy())
+        y_traj.append(y.detach().cpu().numpy())
+
+        for i in range(self.N):
+            dW = torch.randn(n_sim, self.dim_W, device=self.device) * self.dt**0.5
+            y = self.forward_dynamics(y, q, dW, t, self.dt)
+            t += self.dt
+            
             if self.architecture == "Multi":
-                Y = self.Y_nets[i](t, y)
+                Y = self.Y_nets[i](t, y)  # (batch, 1)
             else:
                 Y = self.Y_net(t, y)
             dY = torch.autograd.grad(
@@ -56,43 +78,15 @@ class SimpleHJB(FBSNN):
                 retain_graph=False
             )[0]
 
-            # Compute z and analytical q
-            # σ = self.sigma(t, y)                            # (batch, 1, 1)
-            # z = torch.bmm(σ, dY.unsqueeze(-1)).squeeze(-1)  # (batch, 1)
-            q = -0.5 * dY                                   # analytical q
+            q = -0.5 * dY
 
             q_traj.append(q.detach().cpu().numpy())
             Y_traj.append(Y.detach().cpu().numpy())
             y_traj.append(y.detach().cpu().numpy())
 
-            for i in range(self.N):
-                dW = torch.randn(batch_size, self.dim_W, device=self.device) * self.dt**0.5
-                y = self.forward_dynamics(y, q, dW, t, self.dt)
-                t += self.dt
-                
-                if self.architecture == "Multi":
-                    Y = self.Y_nets[i](t, y)  # (batch, 1)
-                else:
-                    Y = self.Y_net(t, y)
-                dY = torch.autograd.grad(
-                    outputs=Y,
-                    inputs=y,
-                    grad_outputs=torch.ones_like(Y),
-                    create_graph=False,
-                    retain_graph=False
-                )[0]
-
-                # σ = self.sigma(t, y)
-                # z = torch.bmm(σ, dY.unsqueeze(-1)).squeeze(-1)
-                q = -0.5 * dY
-
-                q_traj.append(q.detach().cpu().numpy())
-                Y_traj.append(Y.detach().cpu().numpy())
-                y_traj.append(y.detach().cpu().numpy())
-
-            all_q.append(np.stack(q_traj))     # shape: (N, batch)
-            all_Y.append(np.stack(Y_traj))
-            all_y.append(np.stack(y_traj))
+        all_q.append(np.stack(q_traj))     # shape: (N, batch)
+        all_Y.append(np.stack(Y_traj))
+        all_y.append(np.stack(y_traj))
 
         timesteps = np.linspace(0, self.T, self.N + 1)
 
