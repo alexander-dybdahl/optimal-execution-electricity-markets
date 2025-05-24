@@ -37,14 +37,17 @@ class SimpleHJB(FBSNN):
 
         all_q, all_Y, all_y = [], [], []
 
-        for _ in range(n_paths // batch_size):
+        for i in range(n_paths // batch_size):
             y = y0_single.repeat(batch_size, 1) if y0_single is not None else self.y0.repeat(batch_size, 1)
             t = torch.zeros(batch_size, 1, device=self.device)
             
             q_traj, Y_traj, y_traj = [], [], []
 
             # Initial value function and its gradient
-            Y = self.Y_net(t, y)
+            if self.architecture == "Multi":
+                Y = self.Y_nets[i](t, y)
+            else:
+                Y = self.Y_net(t, y)
             dY = torch.autograd.grad(
                 outputs=Y,
                 inputs=y,
@@ -54,8 +57,8 @@ class SimpleHJB(FBSNN):
             )[0]
 
             # Compute z and analytical q
-            σ = self.sigma(t, y)                            # (batch, 1, 1)
-            z = torch.bmm(σ, dY.unsqueeze(-1)).squeeze(-1)  # (batch, 1)
+            # σ = self.sigma(t, y)                            # (batch, 1, 1)
+            # z = torch.bmm(σ, dY.unsqueeze(-1)).squeeze(-1)  # (batch, 1)
             q = -0.5 * dY                                   # analytical q
 
             q_traj.append(q.detach().cpu().numpy())
@@ -67,7 +70,10 @@ class SimpleHJB(FBSNN):
                 y = self.forward_dynamics(y, q, dW, t, self.dt)
                 t += self.dt
                 
-                Y = self.Y_net(t, y)  # (batch, 1)
+                if self.architecture == "Multi":
+                    Y = self.Y_nets[i](t, y)  # (batch, 1)
+                else:
+                    Y = self.Y_net(t, y)
                 dY = torch.autograd.grad(
                     outputs=Y,
                     inputs=y,
@@ -76,8 +82,8 @@ class SimpleHJB(FBSNN):
                     retain_graph=False
                 )[0]
 
-                σ = self.sigma(t, y)
-                z = torch.bmm(σ, dY.unsqueeze(-1)).squeeze(-1)
+                # σ = self.sigma(t, y)
+                # z = torch.bmm(σ, dY.unsqueeze(-1)).squeeze(-1)
                 q = -0.5 * dY
 
                 q_traj.append(q.detach().cpu().numpy())
@@ -178,3 +184,79 @@ class SimpleHJB(FBSNN):
 
         plt.tight_layout()
         plt.show()
+
+    def forward_supervised(self):
+        batch_size = self.batch_size
+
+        t = torch.rand(batch_size, 1, device=self.device) * self.T
+        x = torch.randn(batch_size, 1, device=self.device, requires_grad=True)
+
+        with torch.no_grad():
+            K = torch.tensor(self.K_analytic(t.cpu().numpy()), device=self.device).float()
+            phi = torch.tensor(self.phi_analytic(t.cpu().numpy()), device=self.device).float()
+            V_target = phi + K * x**2
+            dV_target = 2 * K * x
+
+        V_pred = self.Y_net(t, x)
+        supervised_loss = torch.mean((V_pred - V_target)**2)
+
+        dV_pred = torch.autograd.grad(
+            outputs=V_pred,
+            inputs=x,
+            grad_outputs=torch.ones_like(V_pred),
+            create_graph=True
+        )[0]
+
+        gradient_loss = torch.mean((dV_pred - dV_target)**2)
+
+        total_loss = supervised_loss + gradient_loss  # λ = 1.0 implicitly
+
+        self.total_Y_loss = supervised_loss.item()
+        self.total_q_loss = gradient_loss.item()
+        self.terminal_loss = 0.0
+        self.terminal_gradient_loss = 0.0
+
+        return total_loss
+
+    def forward_supervised(self):
+        batch_size = self.batch_size
+        dt = self.dt
+
+        total_supervised_loss = 0.0
+        total_gradient_loss = 0.0
+
+        for n in range(self.N + 1):
+            t_n = torch.full((batch_size, 1), n * dt, device=self.device)
+            x = torch.randn(batch_size, 1, device=self.device, requires_grad=True)
+
+            with torch.no_grad():
+                K_n = torch.tensor(self.K_analytic(t_n.cpu().numpy()), device=self.device).float()
+                phi_n = torch.tensor(self.phi_analytic(t_n.cpu().numpy()), device=self.device).float()
+                V_target = phi_n + K_n * x**2
+                dV_target = 2 * K_n * x
+
+            # Predict using the n-th network
+            V_pred = self.Y_nets[n](t_n, x)
+
+            supervised_loss = torch.mean((V_pred - V_target)**2)
+
+            dV_pred = torch.autograd.grad(
+                outputs=V_pred,
+                inputs=x,
+                grad_outputs=torch.ones_like(V_pred),
+                create_graph=True
+            )[0]
+
+            gradient_loss = torch.mean((dV_pred - dV_target)**2)
+
+            total_supervised_loss += supervised_loss
+            total_gradient_loss += gradient_loss
+
+        total_loss = total_supervised_loss + total_gradient_loss
+
+        self.total_Y_loss = total_supervised_loss.item()
+        self.total_q_loss = total_gradient_loss.item()
+        self.terminal_loss = 0.0
+        self.terminal_gradient_loss = 0.0
+
+        return total_loss
