@@ -355,6 +355,10 @@ class FBSNN(nn.Module, ABC):
             )
 
         losses = []
+        losses_Y = []
+        losses_terminal = []
+        losses_terminal_gradient = []
+        losses_pinn = []
 
         self.train()
 
@@ -369,6 +373,11 @@ class FBSNN(nn.Module, ABC):
             optimizer.step()
 
             losses.append(loss.item())
+            losses_Y.append(self.total_Y_loss)
+            losses_terminal.append(self.terminal_loss)
+            losses_terminal_gradient.append(self.terminal_gradient_loss)
+            losses_pinn.append(self.pinn_loss)
+
             scheduler.step(loss.item())
 
             if (epoch % 50 == 0 or epoch == epochs - 1) and verbose:
@@ -406,6 +415,10 @@ class FBSNN(nn.Module, ABC):
 
         if plot:
             plt.plot(losses, label="Loss")
+            plt.plot(losses_Y, label="Y Loss")
+            plt.plot(losses_terminal, label="Terminal Loss")
+            plt.plot(losses_terminal_gradient, label="Terminal Gradient Loss")
+            plt.plot(losses_pinn, label="PINN Loss")
             plt.xlabel("Epoch")
             plt.ylabel("Loss")
             plt.title("Training Loss")
