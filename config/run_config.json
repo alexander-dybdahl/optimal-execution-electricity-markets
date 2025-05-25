@@ -26,5 +26,5 @@
   "lambda_TG": 0.0001,
   "lambda_TH": 0,
   "lambda_pinn": 0,
-  "supervised": true
+  "supervised": false
 }

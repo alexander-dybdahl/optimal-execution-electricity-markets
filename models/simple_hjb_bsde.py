@@ -299,11 +299,11 @@ class SimpleHJB(FBSNN):
 
         total_loss = supervised_loss + gradient_loss
 
-        # Terminal losses per batch
+        # Terminal losses
         t_terminal = torch.full((batch_size, 1), self.T, device=self.device)
         YT = self.Y_net(t_terminal, x)
         terminal = self.terminal_cost(x)
-        terminal_loss = torch.mean(torch.pow(YT - terminal, 2))
+        terminal_loss = torch.mean(torch.pow(YT - terminal, 2)) * 0
 
         # Terminal gradient loss
         dYT = torch.autograd.grad(
@@ -314,7 +314,7 @@ class SimpleHJB(FBSNN):
             retain_graph=True
         )[0]
         terminal_gradient = self.terminal_cost_grad(x)
-        terminal_gradient_loss = torch.mean(torch.pow(dYT - terminal_gradient, 2))
+        terminal_gradient_loss = torch.mean(torch.pow(dYT - terminal_gradient, 2)) * 0
 
         self.total_Y_loss = total_loss.detach().item()
         self.terminal_loss = terminal_loss.detach().item()
