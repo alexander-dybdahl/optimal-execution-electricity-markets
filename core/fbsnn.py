@@ -12,6 +12,7 @@ class FBSNN(nn.Module, ABC):
         super().__init__()
         self.device = args.device
         self.architecture = args.architecture
+        self.supervised = args.supervised
         self.Y_layers = args.Y_layers
         self.n_paths = args.n_paths
         self.batch_size = args.batch_size
@@ -88,17 +89,22 @@ class FBSNN(nn.Module, ABC):
     @abstractmethod
     def sigma(self, t, y): pass  # shape: (batch, dim, dW_dim)
 
+    @abstractmethod
+    def forward_supervised(self): pass
+
     def forward_dynamics(self, y, q, dW, t, dt):
         μ = self.mu(t, y, q)                  # shape: (batch, dim)
         σ = self.sigma(t, y)                  # shape: (batch, dim, dW_dim)
         diffusion = torch.bmm(σ, dW.unsqueeze(-1)).squeeze(-1)  # shape: (batch, dim)
         return y + μ * dt + diffusion         # shape: (batch, dim)
 
-    # def forward(self):
-    #     if self.architecture == "LSTM":
-    #         return self.forward_lstm()
-    #     else:
-    #         return self.forward_fc()
+    def forward(self):
+        if self.supervised:
+            return self.forward_supervised()
+        if self.architecture == "LSTM":
+            return self.forward_lstm()
+        else:
+            return self.forward_fc()
 
     def forward_fc(self):
         n_batches = self.n_paths // self.batch_size
@@ -142,10 +148,7 @@ class FBSNN(nn.Module, ABC):
 
                 f = self.generator(y0, q)
                 Y1_tilde = Y0 - f * self.dt + (Z0 * dW).sum(dim=1, keepdim=True)
-                if _ == self.N - 1:
-                    batch_Y_loss += torch.mean(torch.pow(Y1 - Y1_tilde, 2)) * 10
-                else:
-                    batch_Y_loss += torch.mean(torch.pow(Y1 - Y1_tilde, 2))
+                batch_Y_loss += torch.sum(torch.pow(Y1 - Y1_tilde, 2))
 
                 y0 = y1
                 Y0 = Y1
@@ -157,7 +160,7 @@ class FBSNN(nn.Module, ABC):
             t_terminal = torch.full((batch_size, 1), self.T, device=self.device)
             YT = self.Y_net(t_terminal, y1)
             terminal = self.terminal_cost(y1)
-            terminal_loss = torch.mean(torch.pow(YT - terminal, 2))
+            terminal_loss = torch.sum(torch.pow(YT - terminal, 2))
             total_T_loss += terminal_loss
 
             # Terminal gradient loss
@@ -169,7 +172,7 @@ class FBSNN(nn.Module, ABC):
                 retain_graph=True
             )[0]
             terminal_gradient = self.terminal_cost_grad(y1)
-            terminal_gradient_loss = torch.mean(torch.pow(dYT - terminal_gradient, 2))
+            terminal_gradient_loss = torch.sum(torch.pow(dYT - terminal_gradient, 2))
             total_TG_loss += terminal_gradient_loss
 
             # Terminal Hessian loss
@@ -181,7 +184,7 @@ class FBSNN(nn.Module, ABC):
                 retain_graph=True
             )[0]
             terminal_hessian = self.terminal_cost_hess(y1)
-            terminal_hessian_loss = torch.mean(torch.pow(d2YT - terminal_hessian, 2))
+            terminal_hessian_loss = torch.sum(torch.pow(d2YT - terminal_hessian, 2))
             total_TH_loss += terminal_hessian_loss
 
         # -- Normalize

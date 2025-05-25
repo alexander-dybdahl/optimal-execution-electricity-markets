@@ -36,6 +36,7 @@ def main():
     parser.add_argument("--lambda_TG", type=float, default=run_cfg["lambda_TG"], help="Weight for the terminal gradient term in the loss function")
     parser.add_argument("--lambda_TH", type=float, default=run_cfg["lambda_TH"], help="Weight for the terminal hessian term in the loss function")
     parser.add_argument("--lambda_pinn", type=float, default=run_cfg["lambda_pinn"], help="Weight for the PINN term in the loss function")
+    parser.add_argument("--supervised", type=int, default=run_cfg["supervised"], help="Use supervised learning using analytical solution")
 
     args = parser.parse_args()
     args.Y_layers = run_cfg["Y_layers"]
@@ -61,9 +62,9 @@ def main():
     
     timesteps, results = model.simulate_paths(n_sim=args.n_simulations, seed=np.random.randint(0, 1000))
     if args.plot:
-        # model.plot_approx_vs_analytic(results, timesteps)
-        model.plot_approx_vs_analytic_expectation(results, timesteps)
-        model.plot_terminal_histogram(results)
+        model.plot_approx_vs_analytic(results, timesteps)
+        # model.plot_approx_vs_analytic_expectation(results, timesteps)
+        # model.plot_terminal_histogram(results)
 
 if __name__ == "__main__":
     main()
