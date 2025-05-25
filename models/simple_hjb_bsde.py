@@ -273,12 +273,13 @@ class SimpleHJB(FBSNN):
         plt.tight_layout()
         plt.show()
 
-    def forward_supervised(self):
+    def forward_supervised(self, t_paths, W_paths):
         batch_size = self.batch_size
 
         t = torch.rand(batch_size, 1, device=self.device) * self.T
         x = torch.randn(batch_size, 1, device=self.device, requires_grad=True)
 
+        # -- Supervised loss
         with torch.no_grad():
             K = torch.tensor(self.K_analytic(t.cpu().numpy()), device=self.device).float()
             phi = torch.tensor(self.phi_analytic(t.cpu().numpy()), device=self.device).float()
@@ -286,7 +287,7 @@ class SimpleHJB(FBSNN):
             dV_target = 2 * K * x
 
         V_pred = self.Y_net(t, x)
-        supervised_loss = torch.sum((V_pred - V_target)**2)
+        supervised_loss = torch.mean((V_pred - V_target)**2)
 
         dV_pred = torch.autograd.grad(
             outputs=V_pred,
@@ -295,15 +296,15 @@ class SimpleHJB(FBSNN):
             create_graph=True
         )[0]
 
-        gradient_loss = torch.sum((dV_pred - dV_target)**2)
+        gradient_loss = torch.mean((dV_pred - dV_target)**2)
 
-        total_loss = supervised_loss + gradient_loss
+        Y_loss = supervised_loss + gradient_loss
 
         # Terminal losses
         t_terminal = torch.full((batch_size, 1), self.T, device=self.device)
         YT = self.Y_net(t_terminal, x)
         terminal = self.terminal_cost(x)
-        terminal_loss = torch.sum(torch.pow(YT - terminal, 2))
+        terminal_loss = torch.mean(torch.pow(YT - terminal, 2))
 
         # Terminal gradient loss
         dYT = torch.autograd.grad(
@@ -314,12 +315,12 @@ class SimpleHJB(FBSNN):
             retain_graph=True
         )[0]
         terminal_gradient = self.terminal_cost_grad(x)
-        terminal_gradient_loss = torch.sum(torch.pow(dYT - terminal_gradient, 2))
+        terminal_gradient_loss = torch.mean(torch.pow(dYT - terminal_gradient, 2))
 
-        self.total_Y_loss = self.λ_Y * total_loss.detach().item()
-        self.terminal_loss = self.λ_T * terminal_loss.detach().item()
-        self.terminal_gradient_loss = self.λ_TG * terminal_gradient_loss.detach().item()
+        self.total_Y_loss = self.λ_Y * Y_loss.detach().item()
+        self.terminal_loss = 0.0 # self.λ_T * terminal_loss.detach().item()
+        self.terminal_gradient_loss = 0.0 # self.λ_TG * terminal_gradient_loss.detach().item()
         self.terminal_hessian_loss = 0.0
         self.pinn_loss = 0.0
 
-        return self.λ_Y * total_loss + self.λ_T * terminal_loss + self.λ_TG * terminal_gradient_loss
+        return self.λ_Y * Y_loss #+ self.λ_T * terminal_loss + self.λ_TG * terminal_gradient_loss

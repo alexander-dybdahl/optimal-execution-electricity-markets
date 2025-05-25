@@ -75,10 +75,24 @@ class FBSNN(nn.Module, ABC):
     def terminal_cost(self, y): pass
 
     @abstractmethod
-    def terminal_cost_grad(self, y): pass
+    def terminal_cost_grad(self, y):
+        return torch.autograd.grad(
+            outputs=self.terminal_cost(y),
+            inputs=y,
+            grad_outputs=torch.ones_like(self.terminal_cost(y)),
+            create_graph=True,
+            retain_graph=True
+        )[0]
 
     @abstractmethod
-    def terminal_cost_hess(self, y): pass
+    def terminal_cost_hess(self, y):
+        return torch.autograd.grad(
+            outputs=self.terminal_cost_grad(y),
+            inputs=y,
+            grad_outputs=torch.ones_like(self.terminal_cost_grad(y)),
+            create_graph=True,
+            retain_graph=True
+        )[0]
 
     @abstractmethod
     def mu(self, t, y, q): pass  # shape: (batch, dim)
@@ -90,7 +104,7 @@ class FBSNN(nn.Module, ABC):
     def sigma(self, t, y): pass  # shape: (batch, dim, dW_dim)
 
     @abstractmethod
-    def forward_supervised(self): pass
+    def forward_supervised(self, t_paths, W_paths): pass
 
     def forward_dynamics(self, y, q, dW, t, dt):
         μ = self.mu(t, y, q)                  # shape: (batch, dim)
@@ -98,105 +112,99 @@ class FBSNN(nn.Module, ABC):
         diffusion = torch.bmm(σ, dW.unsqueeze(-1)).squeeze(-1)  # shape: (batch, dim)
         return y + μ * dt + diffusion         # shape: (batch, dim)
 
-    def forward(self):
+    def fetch_minibatch(self, batch_size, N, T, dim_W):
+        dt = T / N
+        dW = torch.randn(batch_size, N, dim_W, device=self.device) * np.sqrt(dt)
+        W = torch.cat([
+            torch.zeros(batch_size, 1, dim_W, device=self.device),
+            torch.cumsum(dW, dim=1)
+        ], dim=1)  # Shape: [batch_size, N+1, dim_W]
+        
+        t = torch.linspace(0, T, N + 1, device=self.device).view(1, -1, 1).repeat(batch_size, 1, 1)  # [M, N+1, 1]
+        return t, W
+
+    def forward(self, t_paths, W_paths):
         if self.supervised:
-            return self.forward_supervised()
-        if self.architecture == "LSTM":
-            return self.forward_lstm()
+            return self.forward_supervised(t_paths, W_paths)
         else:
-            return self.forward_fc()
+            return self.forward_fc(t_paths, W_paths)
 
-    def forward_fc(self):
-        n_batches = self.n_paths // self.batch_size
-        total_Y_loss = 0.0
-        total_T_loss = 0.0
-        total_TG_loss = 0.0
-        total_TH_loss = 0.0
+    def forward_fc(self, t_paths, W_paths):
 
-        for _ in range(n_batches):
-            batch_size = self.batch_size
-            t = torch.zeros(batch_size, 1, device=self.device)
-            y0 = self.y0.repeat(batch_size, 1).to(self.device)
-            Y0 = self.Y_net(t, y0)
+        batch_size = self.batch_size
+        t0 = t_paths[:, 0, :]
+        W0 = W_paths[:, 0, :]
+        y0 = self.y0.repeat(batch_size, 1).to(self.device)
+        Y0 = self.Y_net(t0, y0)
 
-            dY0 = torch.autograd.grad(
-                outputs=Y0,
-                inputs=y0,
-                grad_outputs=torch.ones_like(Y0),
-                create_graph=True,
-                retain_graph=True
-            )[0]
+        dY0 = torch.autograd.grad(
+            outputs=Y0,
+            inputs=y0,
+            grad_outputs=torch.ones_like(Y0),
+            create_graph=True,
+            retain_graph=True
+        )[0]
 
-            batch_Y_loss = 0.0
+        Y_loss = 0.0
 
-            for _ in range(self.N):
-                σ0 = self.sigma(t, y0)
-                Z0 = torch.bmm(σ0, dY0.unsqueeze(-1)).squeeze(-1)
-                q = -0.5 * dY0
-                dW = torch.randn(batch_size, self.dim_W, device=self.device) * self.dt**0.5
-                y1 = self.forward_dynamics(y0, q, dW, t, self.dt)
-                t = t + self.dt
+        for n in range(self.N):
+            t1 = t_paths[:, n + 1, :]
+            W1 = W_paths[:, n + 1, :]
+            σ0 = self.sigma(t0, y0)
+            Z0 = torch.bmm(σ0, dY0.unsqueeze(-1)).squeeze(-1)
+            q = -0.5 * dY0
+            y1 = self.forward_dynamics(y0, q, W1 - W0, t0, t1 - t0)
 
-                Y1 = self.Y_net(t, y1)
-                dY1 = torch.autograd.grad(
-                    outputs=Y1,
-                    inputs=y1,
-                    grad_outputs=torch.ones_like(Y1),
-                    create_graph=True,
-                    retain_graph=True
-                )[0]
-
-                f = self.generator(y0, q)
-                Y1_tilde = Y0 - f * self.dt + (Z0 * dW).sum(dim=1, keepdim=True)
-                batch_Y_loss += torch.sum(torch.pow(Y1 - Y1_tilde, 2))
-
-                y0 = y1
-                Y0 = Y1
-                dY0 = dY1
-
-            total_Y_loss += batch_Y_loss
-
-            # Terminal losses per batch
-            t_terminal = torch.full((batch_size, 1), self.T, device=self.device)
-            YT = self.Y_net(t_terminal, y1)
-            terminal = self.terminal_cost(y1)
-            terminal_loss = torch.sum(torch.pow(YT - terminal, 2))
-            total_T_loss += terminal_loss
-
-            # Terminal gradient loss
-            dYT = torch.autograd.grad(
-                outputs=YT,
+            Y1 = self.Y_net(t1, y1)
+            dY1 = torch.autograd.grad(
+                outputs=Y1,
                 inputs=y1,
-                grad_outputs=torch.ones_like(YT),
+                grad_outputs=torch.ones_like(Y1),
                 create_graph=True,
                 retain_graph=True
             )[0]
-            terminal_gradient = self.terminal_cost_grad(y1)
-            terminal_gradient_loss = torch.sum(torch.pow(dYT - terminal_gradient, 2))
-            total_TG_loss += terminal_gradient_loss
 
-            # Terminal Hessian loss
-            d2YT = torch.autograd.grad(
-                outputs=dYT,
-                inputs=y1,
-                grad_outputs=torch.ones_like(dYT),
-                create_graph=True,
-                retain_graph=True
-            )[0]
-            terminal_hessian = self.terminal_cost_hess(y1)
-            terminal_hessian_loss = torch.sum(torch.pow(d2YT - terminal_hessian, 2))
-            total_TH_loss += terminal_hessian_loss
+            f = self.generator(y0, q)
+            Y1_tilde = Y0 - f * (t1 - t0) + (Z0 * (W1 - W0)).sum(dim=1, keepdim=True)
+            Y_loss += torch.sum(torch.pow(Y1 - Y1_tilde, 2))
 
-        # -- Normalize
-        avg_Y_loss = total_Y_loss / n_batches
-        avg_T_loss = total_T_loss / n_batches
-        avg_TG_loss = total_TG_loss / n_batches
-        avg_TH_loss = total_TH_loss / n_batches
+            t0 = t1
+            W0 = W1
+            y0 = y1
+            Y0 = Y1
+            dY0 = dY1
 
-        self.total_Y_loss = self.λ_Y * avg_Y_loss.detach().item()
-        self.terminal_loss = self.λ_T * avg_T_loss.detach().item()
-        self.terminal_gradient_loss = self.λ_TG * avg_TG_loss.detach().item()
-        self.terminal_hessian_loss = self.λ_TH * avg_TH_loss.detach().item()
+        # Terminal losses per batch
+        YT = self.Y_net(t1, y1)
+        terminal = self.terminal_cost(y1)
+        terminal_loss = torch.sum(torch.pow(YT - terminal, 2))
+
+        # Terminal gradient loss
+        dYT = torch.autograd.grad(
+            outputs=YT,
+            inputs=y1,
+            grad_outputs=torch.ones_like(YT),
+            create_graph=True,
+            retain_graph=True
+        )[0]
+        terminal_gradient = self.terminal_cost_grad(y1)
+        terminal_gradient_loss = torch.sum(torch.pow(dYT - terminal_gradient, 2))
+
+        # Terminal Hessian loss
+        d2YT = torch.autograd.grad(
+            outputs=dYT,
+            inputs=y1,
+            grad_outputs=torch.ones_like(dYT),
+            create_graph=True,
+            retain_graph=True
+        )[0]
+        terminal_hessian = self.terminal_cost_hess(y1)
+        terminal_hessian_loss = torch.sum(torch.pow(d2YT - terminal_hessian, 2))
+
+        self.total_Y_loss = self.λ_Y * Y_loss.detach().item()
+        self.terminal_loss = self.λ_T * terminal_loss.detach().item()
+        self.terminal_gradient_loss = self.λ_TG * terminal_gradient_loss.detach().item()
+        self.terminal_hessian_loss = self.λ_TH * terminal_hessian_loss.detach().item()
 
         # -- PINN stays separate
         t_pinn = torch.rand(self.n_pinn, 1, device=self.device, requires_grad=True) * self.T
@@ -214,56 +222,7 @@ class FBSNN(nn.Module, ABC):
         pinn_loss = torch.mean(torch.pow(residual, 2))
         self.pinn_loss = self.λ_pinn * pinn_loss.detach().item()
 
-        return self.λ_Y * avg_Y_loss + self.λ_T * avg_T_loss + self.λ_TG * avg_TG_loss + self.λ_TH * avg_TH_loss + self.λ_pinn * pinn_loss
-
-    def forward_lstm(self):
-        n_batches = self.n_paths // self.batch_size
-        total_Y_loss = 0.0
-        total_T_loss = 0.0
-        total_TG_loss = 0.0
-
-        for _ in range(n_batches):
-            t_seq = []
-            y_seq = []
-
-            t = torch.zeros(self.batch_size, 1, device=self.device)
-            y = self.y0.repeat(self.batch_size, 1).to(self.device)
-
-            for _ in range(self.N):
-                t_seq.append(t)
-                y_seq.append(y)
-
-                dY = torch.autograd.grad(
-                    outputs=self.Y_net(torch.stack(t_seq, dim=1), torch.stack(y_seq, dim=1)),
-                    inputs=y,
-                    grad_outputs=torch.ones((self.batch_size, 1), device=self.device),
-                    create_graph=True,
-                    retain_graph=True
-                )[0]
-
-                q = -0.5 * dY
-                dW = torch.randn(self.batch_size, self.dim_W, device=self.device) * self.dt**0.5
-                y = self.forward_dynamics(y, q, dW, t, self.dt)
-                t = t + self.dt
-
-            # Terminal evaluation
-            YT = self.Y_net(torch.stack(t_seq + [t], dim=1), torch.stack(y_seq + [y], dim=1))
-            terminal = self.terminal_cost(y)
-            terminal_loss = torch.sum(torch.pow(YT - terminal, 2))
-            total_T_loss += terminal_loss
-
-            dYT = torch.autograd.grad(YT, y, grad_outputs=torch.ones_like(YT), create_graph=True)[0]
-            terminal_gradient = self.terminal_cost_grad(y)
-            terminal_gradient_loss = torch.mean(torch.pow(dYT - terminal_gradient, 2))
-            total_TG_loss += terminal_gradient_loss
-
-        # Normalize
-        avg_T_loss = total_T_loss / n_batches
-        avg_TG_loss = total_TG_loss / n_batches
-        self.terminal_loss = self.λ_T * avg_T_loss.detach().item()
-        self.terminal_gradient_loss = self.λ_TG * avg_TG_loss.detach().item()
-
-        return self.λ_T * avg_T_loss + self.λ_TG * avg_TG_loss
+        return self.λ_Y * Y_loss + self.λ_T * terminal_loss + self.λ_TG * terminal_gradient_loss + self.λ_TH * terminal_hessian_loss + self.λ_pinn * pinn_loss
 
     def train_model(self, epochs=1000, K=50, lr=1e-3, save_path="models/saved/model", verbose=True, plot=True, adaptive=True):
         self.device = next(self.parameters()).device
@@ -273,10 +232,6 @@ class FBSNN(nn.Module, ABC):
             scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
                 optimizer, mode='min', factor=0.9, patience=20
             )
-        # if adaptive:
-        #     scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
-        #         optimizer, T_0=100, T_mult=2, eta_min=1e-6
-        #     )
         else:
             scheduler = torch.optim.lr_scheduler.StepLR(
                 optimizer, step_size=100, gamma=0.5
@@ -308,8 +263,8 @@ class FBSNN(nn.Module, ABC):
             print(f"| λ_TG (Gradient loss)      | {self.λ_TG:<25} |")
             print(f"| λ_TH (Hessian loss)       | {self.λ_TH:<25} |")
             print(f"| λ_pinn (PINN loss)        | {self.λ_pinn:<25} |")
-            print(f"| Batch Size                | {self.batch_size:<25} |")
             print(f"| Number of Paths           | {self.n_paths:<25} |")
+            print(f"| Batch Size                | {self.batch_size:<25} |")
             print(f"| Number of PINN Points     | {self.n_pinn:<25} |")
             print(f"| Architecture              | {self.architecture:<25} |")
             print(f"| Depth                     | {len(self.Y_layers):<25} |")
@@ -321,7 +276,8 @@ class FBSNN(nn.Module, ABC):
 
         for epoch in range(epochs):
             optimizer.zero_grad()
-            loss = self()
+            t_paths, W_paths = self.fetch_minibatch(self.batch_size, self.N, self.T, self.dim_W)
+            loss = self(t_paths, W_paths)
             loss.backward()
             optimizer.step()
 
@@ -333,7 +289,6 @@ class FBSNN(nn.Module, ABC):
             losses_pinn.append(self.pinn_loss)
 
             scheduler.step(loss.item())
-            # scheduler.step(epoch + 1)
 
             if (epoch % K == 0 or epoch == epochs - 1) and verbose and epoch > 0:
                 elapsed = time.time() - start_time

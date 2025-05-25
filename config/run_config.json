@@ -18,13 +18,13 @@
   "lr": 1e-3,
   "adaptive": true,
   "n_paths": 1024,
-  "batch_size": 1024,
+  "batch_size": 64,
   "n_pinn": 256,
-  "n_simulations": 100,
+  "n_simulations": 5,
   "lambda_Y": 1,
-  "lambda_T": 0,
-  "lambda_TG": 0,
+  "lambda_T": 1,
+  "lambda_TG": 1,
   "lambda_TH": 0,
   "lambda_pinn": 0,
-  "supervised": true
+  "supervised": false
 }
