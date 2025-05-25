@@ -15,16 +15,16 @@
   "activation": "ReLU",
   "epochs": 1000,
   "K": 50,
-  "lr": 1e-3,
+  "lr": 1e-4,
   "adaptive": true,
   "n_paths": 1024,
   "batch_size": 1024,
   "n_pinn": 256,
-  "n_simulations": 1000,
+  "n_simulations": 50,
   "lambda_Y": 1,
   "lambda_T": 0.01,
   "lambda_TG": 0.01,
-  "lambda_TH": 0,
+  "lambda_TH": 0.01,
   "lambda_pinn": 0,
-  "supervised": false
+  "supervised": true
 }

@@ -62,7 +62,7 @@ def main():
     
     timesteps, results = model.simulate_paths(n_sim=args.n_simulations, seed=np.random.randint(0, 1000))
     if args.plot:
-        # model.plot_approx_vs_analytic(results, timesteps)
+        model.plot_approx_vs_analytic(results, timesteps)
         model.plot_approx_vs_analytic_expectation(results, timesteps)
         model.plot_terminal_histogram(results)
 

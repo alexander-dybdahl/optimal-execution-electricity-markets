@@ -110,7 +110,11 @@ class FBSNN(nn.Module, ABC):
         diffusion = torch.bmm(σ, dW.unsqueeze(-1)).squeeze(-1)  # shape: (batch, dim)
         return y + μ * dt + diffusion         # shape: (batch, dim)
 
-    def fetch_minibatch(self, batch_size, N, T, dim_W):
+    def fetch_minibatch(self):
+        batch_size = self.batch_size
+        dim_W = self.dim_W
+        T = self.T
+        N = self.N
         dt = T / N
         dW = torch.randn(batch_size, N, dim_W, device=self.device) * np.sqrt(dt)
         W = torch.cat([
@@ -164,7 +168,7 @@ class FBSNN(nn.Module, ABC):
 
             f = self.generator(y0, q)
             Y1_tilde = Y0 - f * (t1 - t0) + (Z0 * (W1 - W0)).sum(dim=1, keepdim=True)
-            Y_loss += torch.sum(torch.pow(Y1 - Y1_tilde, 2))
+            Y_loss += torch.sum(torch.pow(Y1 - Y1_tilde, 2)) / batch_size
 
             t0 = t1
             W0 = W1
@@ -173,28 +177,20 @@ class FBSNN(nn.Module, ABC):
             dY0 = dY1
 
         # Terminal losses per batch
-        YT = self.Y_net(t1, y1)
-        terminal_loss = torch.sum(torch.pow(YT - self.terminal_cost(y1), 2))
+        terminal_loss = torch.sum(torch.pow(Y1 - self.terminal_cost(y1), 2)) / batch_size
 
         # Terminal gradient loss
-        dYT = torch.autograd.grad(
-            outputs=YT,
-            inputs=y1,
-            grad_outputs=torch.ones_like(YT),
-            create_graph=True,
-            retain_graph=True
-        )[0]
-        terminal_gradient_loss = torch.sum(torch.pow(dYT - self.terminal_cost_grad(y1), 2))
+        terminal_gradient_loss = torch.sum(torch.pow(dY1 - self.terminal_cost_grad(y1), 2)) / batch_size
 
         # Terminal Hessian loss
-        d2YT = torch.autograd.grad(
-            outputs=dYT,
+        d2Y1 = torch.autograd.grad(
+            outputs=dY1,
             inputs=y1,
-            grad_outputs=torch.ones_like(dYT),
+            grad_outputs=torch.ones_like(dY1),
             create_graph=True,
             retain_graph=True
         )[0]
-        terminal_hessian_loss = torch.sum(torch.pow(d2YT - self.terminal_cost_hess(y1), 2))
+        terminal_hessian_loss = torch.sum(torch.pow(d2Y1 - self.terminal_cost_hess(y1), 2)) / batch_size
 
         self.total_Y_loss = self.λ_Y * Y_loss.detach().item()
         self.terminal_loss = self.λ_T * terminal_loss.detach().item()
@@ -271,7 +267,7 @@ class FBSNN(nn.Module, ABC):
 
         for epoch in range(epochs):
             optimizer.zero_grad()
-            t_paths, W_paths = self.fetch_minibatch(self.batch_size, self.N, self.T, self.dim_W)
+            t_paths, W_paths = self.fetch_minibatch()
             loss = self(t_paths, W_paths)
             loss.backward()
             optimizer.step()

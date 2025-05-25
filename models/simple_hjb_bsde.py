@@ -310,10 +310,11 @@ class SimpleHJB(FBSNN):
         terminal_gradient = self.terminal_cost_grad(x)
         terminal_gradient_loss = torch.mean(torch.pow(dYT - terminal_gradient, 2))
 
+        self.λ_T, self.λ_TG = 0, 0
         self.total_Y_loss = self.λ_Y * Y_loss.detach().item()
-        self.terminal_loss = 0.0 # self.λ_T * terminal_loss.detach().item()
-        self.terminal_gradient_loss = 0.0 # self.λ_TG * terminal_gradient_loss.detach().item()
+        self.terminal_loss = self.λ_T * terminal_loss.detach().item()
+        self.terminal_gradient_loss = self.λ_TG * terminal_gradient_loss.detach().item()
         self.terminal_hessian_loss = 0.0
         self.pinn_loss = 0.0
 
-        return self.λ_Y * Y_loss #+ self.λ_T * terminal_loss + self.λ_TG * terminal_gradient_loss
+        return self.λ_Y * Y_loss + self.λ_T * terminal_loss + self.λ_TG * terminal_gradient_loss
