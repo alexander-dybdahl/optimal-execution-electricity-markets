@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import matplotlib.pyplot as plt
 import time
+import numpy as np
 from abc import ABC, abstractmethod
 from core.nnets import Sine, FCnet, Resnet, YLSTM
 
@@ -11,12 +12,14 @@ class FBSNN(nn.Module, ABC):
         super().__init__()
         self.device = args.device
         self.architecture = args.architecture
+        self.Y_layers = args.Y_layers
         self.n_paths = args.n_paths
         self.batch_size = args.batch_size
         self.n_pinn = args.n_pinn
         self.λ_Y = args.lambda_Y
         self.λ_T = args.lambda_T
         self.λ_TG = args.lambda_TG
+        self.λ_TH = args.lambda_TH
         self.λ_pinn = args.lambda_pinn
         self.t0 = 0.0
         self.y0 = torch.tensor([model_cfg["y0"]], device=self.device, requires_grad=True)
@@ -30,21 +33,28 @@ class FBSNN(nn.Module, ABC):
         self.total_Y_loss = None
         self.terminal_loss = None
         self.terminal_gradient_loss = None
+        self.terminal_hessian_loss = None
         self.pinn_loss = None
 
         if args.activation == "Sine":
             self.activation = Sine()
         elif args.activation == "ReLU":
             self.activation = nn.ReLU()
+        elif args.activation == "Tanh":
+            self.activation = nn.Tanh()
+        elif args.activation == "Sigmoid":
+            self.activation = nn.Sigmoid()
+        else:
+            raise ValueError(f"Unknown activation function: {args.activation}")
 
         if args.architecture == "Default":
-            self.Y_net = FCnet(layers=[2]+[64, 64, 64, 64, 1], activation=self.activation).to(self.device)
+            self.Y_net = FCnet(layers=[2] + [64, 64, 64, 64, 1], activation=self.activation).to(self.device)
         elif args.architecture == "FC":
-            self.Y_net = FCnet(layers=[2]+model_cfg["Y_layers"], activation=self.activation).to(self.device)
+            self.Y_net = FCnet(layers=[2] + args.Y_layers, activation=self.activation).to(self.device)
         elif args.architecture == "NAISnet":
-            self.Y_net = Resnet(layers=[2]+model_cfg["Y_layers"], activation=self.activation, stable=True).to(self.device)
+            self.Y_net = Resnet(layers=[2] + args.Y_layers, activation=self.activation, stable=True).to(self.device)
         elif args.architecture == "Resnet":
-            self.Y_net = Resnet(layers=[2]+model_cfg["Y_layers"], activation=self.activation, stable=False).to(self.device)
+            self.Y_net = Resnet(layers=[2] + args.Y_layers, activation=self.activation, stable=False).to(self.device)
         elif args.architecture == "LSTM":
             self.Y_net = YLSTM(input_dim=2, hidden_dim=64, output_dim=1).to(self.device)
         elif args.architecture == "Multi":
@@ -67,6 +77,9 @@ class FBSNN(nn.Module, ABC):
     def terminal_cost_grad(self, y): pass
 
     @abstractmethod
+    def terminal_cost_hess(self, y): pass
+
+    @abstractmethod
     def mu(self, t, y, q): pass  # shape: (batch, dim)
 
     @abstractmethod
@@ -82,10 +95,17 @@ class FBSNN(nn.Module, ABC):
         return y + μ * dt + diffusion         # shape: (batch, dim)
 
     def forward(self):
+        if self.architecture == "LSTM":
+            return self.forward_lstm()
+        else:
+            return self.forward_fc()
+
+    def forward_fc(self):
         n_batches = self.n_paths // self.batch_size
         total_Y_loss = 0.0
         total_T_loss = 0.0
         total_TG_loss = 0.0
+        total_TH_loss = 0.0
 
         for _ in range(n_batches):
             batch_size = self.batch_size
@@ -122,7 +142,7 @@ class FBSNN(nn.Module, ABC):
 
                 f = self.generator(y0, q)
                 Y1_tilde = Y0 - f * self.dt + (Z0 * dW).sum(dim=1, keepdim=True)
-                batch_Y_loss += torch.mean((Y1 - Y1_tilde)**2)
+                batch_Y_loss += torch.mean(torch.pow(Y1 - Y1_tilde, 2))
 
                 y0 = y1
                 Y0 = Y1
@@ -134,9 +154,10 @@ class FBSNN(nn.Module, ABC):
             t_terminal = torch.full((batch_size, 1), self.T, device=self.device)
             YT = self.Y_net(t_terminal, y1)
             terminal = self.terminal_cost(y1)
-            terminal_loss = torch.mean((YT - terminal)**2)
+            terminal_loss = torch.mean(torch.pow(YT - terminal, 2))
             total_T_loss += terminal_loss
 
+            # Terminal gradient loss
             dYT = torch.autograd.grad(
                 outputs=YT,
                 inputs=y1,
@@ -145,17 +166,31 @@ class FBSNN(nn.Module, ABC):
                 retain_graph=True
             )[0]
             terminal_gradient = self.terminal_cost_grad(y1)
-            terminal_gradient_loss = torch.mean((dYT - terminal_gradient)**2)
+            terminal_gradient_loss = torch.mean(torch.pow(dYT - terminal_gradient, 2))
             total_TG_loss += terminal_gradient_loss
+
+            # Terminal Hessian loss
+            d2YT = torch.autograd.grad(
+                outputs=dYT,
+                inputs=y1,
+                grad_outputs=torch.ones_like(dYT),
+                create_graph=True,
+                retain_graph=True
+            )[0]
+            terminal_hessian = self.terminal_cost_hess(y1)
+            terminal_hessian_loss = torch.mean(torch.pow(d2YT - terminal_hessian, 2))
+            total_TH_loss += terminal_hessian_loss
 
         # -- Normalize
         avg_Y_loss = total_Y_loss / n_batches
         avg_T_loss = total_T_loss / n_batches
         avg_TG_loss = total_TG_loss / n_batches
+        avg_TH_loss = total_TH_loss / n_batches
 
         self.total_Y_loss = self.λ_Y * avg_Y_loss.detach().item()
         self.terminal_loss = self.λ_T * avg_T_loss.detach().item()
         self.terminal_gradient_loss = self.λ_TG * avg_TG_loss.detach().item()
+        self.terminal_hessian_loss = self.λ_TH * avg_TH_loss.detach().item()
 
         # -- PINN stays separate
         t_pinn = torch.rand(self.n_pinn, 1, device=self.device, requires_grad=True) * self.T
@@ -169,20 +204,73 @@ class FBSNN(nn.Module, ABC):
         d2V_dx2 = torch.autograd.grad(dV_dx, x_pinn, torch.ones_like(dV_dx),
                                     create_graph=True, retain_graph=True)[0]
 
-        residual = dV_dt + 0.5 * self.sigma_x**2 * d2V_dx2 + x_pinn**2 - 0.25 * dV_dx**2
-        pinn_loss = torch.mean(residual**2)
+        residual = dV_dt + 0.5 * self.sigma_x**2 * d2V_dx2 + torch.pow(x_pinn, 2) - 0.25 * torch.pow(dV_dx, 2)
+        pinn_loss = torch.mean(torch.pow(residual, 2))
         self.pinn_loss = self.λ_pinn * pinn_loss.detach().item()
 
-        return self.λ_Y * avg_Y_loss + self.λ_T * avg_T_loss + self.λ_TG * avg_TG_loss + self.λ_pinn * pinn_loss
+        return self.λ_Y * avg_Y_loss + self.λ_T * avg_T_loss + self.λ_TG * avg_TG_loss + self.λ_TH * avg_TH_loss + self.λ_pinn * pinn_loss
 
-    def train_model(self, epochs=1000, lr=1e-3, lr_factor=0.9, lr_patience=20, save_path="models/saved/model", verbose=True, plot=True, adaptive=True):
+    def forward_lstm(self):
+        n_batches = self.n_paths // self.batch_size
+        total_Y_loss = 0.0
+        total_T_loss = 0.0
+        total_TG_loss = 0.0
+
+        for _ in range(n_batches):
+            t_seq = []
+            y_seq = []
+
+            t = torch.zeros(self.batch_size, 1, device=self.device)
+            y = self.y0.repeat(self.batch_size, 1).to(self.device)
+
+            for _ in range(self.N):
+                t_seq.append(t)
+                y_seq.append(y)
+
+                dY = torch.autograd.grad(
+                    outputs=self.Y_net(torch.stack(t_seq, dim=1), torch.stack(y_seq, dim=1)),
+                    inputs=y,
+                    grad_outputs=torch.ones((self.batch_size, 1), device=self.device),
+                    create_graph=True,
+                    retain_graph=True
+                )[0]
+
+                q = -0.5 * dY
+                dW = torch.randn(self.batch_size, self.dim_W, device=self.device) * self.dt**0.5
+                y = self.forward_dynamics(y, q, dW, t, self.dt)
+                t = t + self.dt
+
+            # Terminal evaluation
+            YT = self.Y_net(torch.stack(t_seq + [t], dim=1), torch.stack(y_seq + [y], dim=1))
+            terminal = self.terminal_cost(y)
+            terminal_loss = torch.sum(torch.pow(YT - terminal, 2))
+            total_T_loss += terminal_loss
+
+            dYT = torch.autograd.grad(YT, y, grad_outputs=torch.ones_like(YT), create_graph=True)[0]
+            terminal_gradient = self.terminal_cost_grad(y)
+            terminal_gradient_loss = torch.mean(torch.pow(dYT - terminal_gradient, 2))
+            total_TG_loss += terminal_gradient_loss
+
+        # Normalize
+        avg_T_loss = total_T_loss / n_batches
+        avg_TG_loss = total_TG_loss / n_batches
+        self.terminal_loss = self.λ_T * avg_T_loss.detach().item()
+        self.terminal_gradient_loss = self.λ_TG * avg_TG_loss.detach().item()
+
+        return self.λ_T * avg_T_loss + self.λ_TG * avg_TG_loss
+
+    def train_model(self, epochs=1000, K=50, lr=1e-3, save_path="models/saved/model", verbose=True, plot=True, adaptive=True):
         self.device = next(self.parameters()).device
         optimizer = torch.optim.Adam(self.parameters(), lr=lr)
 
         if adaptive:
             scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-                optimizer, mode='min', factor=lr_factor, patience=lr_patience
+                optimizer, mode='min', factor=0.9, patience=20
             )
+        # if adaptive:
+        #     scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
+        #         optimizer, T_0=100, T_mult=2, eta_min=1e-6
+        #     )
         else:
             scheduler = torch.optim.lr_scheduler.StepLR(
                 optimizer, step_size=100, gamma=0.5
@@ -192,6 +280,7 @@ class FBSNN(nn.Module, ABC):
         losses_Y = []
         losses_terminal = []
         losses_terminal_gradient = []
+        losses_terminal_hessian = []
         losses_pinn = []
 
         self.train()
@@ -207,24 +296,22 @@ class FBSNN(nn.Module, ABC):
             print("+---------------------------+---------------------------+")
             print(f"| Epochs                    | {epochs:<25} |")
             print(f"| Learning Rate             | {lr:<25} |")
-            print(f"| Adaptive LR               | {adaptive:<25} |")
-            print(f"| Factor                    | {lr_factor:<25} |")
-            print(f"| Patience                  | {lr_patience:<25} |")
+            print(f"| Adaptive LR               | {'True' if adaptive else 'False':<25} |")
             print(f"| λ_Y (Y loss)              | {self.λ_Y:<25} |")
             print(f"| λ_T (Terminal loss)       | {self.λ_T:<25} |")
             print(f"| λ_TG (Gradient loss)      | {self.λ_TG:<25} |")
+            print(f"| λ_TH (Hessian loss)       | {self.λ_TH:<25} |")
             print(f"| λ_pinn (PINN loss)        | {self.λ_pinn:<25} |")
             print(f"| Batch Size                | {self.batch_size:<25} |")
             print(f"| Number of Paths           | {self.n_paths:<25} |")
             print(f"| Number of PINN Points     | {self.n_pinn:<25} |")
             print(f"| Architecture              | {self.architecture:<25} |")
+            print(f"| Depth                     | {len(self.Y_layers):<25} |")
+            print(f"| Width                     | {self.Y_layers[0]:<25} |")
             print(f"| Activation                | {self.activation.__class__.__name__:<25} |")
             print(f"| T                         | {self.T:<25} |")
             print(f"| N                         | {self.N:<25} |")
             print("+---------------------------+---------------------------+\n")
-
-        if torch.cuda.is_available():
-            torch.tensor([0.0], device="cuda")
 
         for epoch in range(epochs):
             optimizer.zero_grad()
@@ -236,15 +323,17 @@ class FBSNN(nn.Module, ABC):
             losses_Y.append(self.total_Y_loss)
             losses_terminal.append(self.terminal_loss)
             losses_terminal_gradient.append(self.terminal_gradient_loss)
+            losses_terminal_hessian.append(self.terminal_hessian_loss)
             losses_pinn.append(self.pinn_loss)
 
             scheduler.step(loss.item())
+            # scheduler.step(epoch + 1)
 
-            if (epoch % 50 == 0 or epoch == epochs - 1) and verbose:
+            if (epoch % K == 0 or epoch == epochs - 1) and verbose and epoch > 0:
                 elapsed = time.time() - start_time
                 if not header_printed:
-                    print(f"{'Epoch':>8} | {'Total loss':>12} | {'Y loss':>12} | {'T. loss':>12} | {'T.G. loss':>12} | {'PINN loss':>12} | {'LR':>10} | {'Memory [MB]':>12} | {'Time [s]':>10} | {'Status'}")
-                    print("-" * 120)
+                    print(f"{'Epoch':>8} | {'Total loss':>12} | {'Y loss':>12} | {'T. loss':>12} | {'T.G. loss':>12} | {'T.H. loss':>12} | {'PINN loss':>12} | {'LR':>10} | {'Memory [MB]':>12} | {'Time [s]':>10} | {'Status'}")
+                    print("-" * 150)
                     header_printed = True
 
                 mem_mb = torch.cuda.memory_allocated() / 1e6
@@ -255,21 +344,21 @@ class FBSNN(nn.Module, ABC):
                     torch.save(self.state_dict(), save_path + ".pth")
                     status = f"Model saved ↓"
 
-                if "best" in self.save and loss.item() < self.lowest_loss:
-                    self.lowest_loss = loss.item()
+                if "best" in self.save and np.mean(losses[-K:]) < self.lowest_loss:
+                    self.lowest_loss = np.mean(losses[-K:])
                     torch.save(self.state_dict(), save_path + "_best.pth")
                     status = "Model saved ↓ (best)"
 
-                print(f"{epoch:8} | {loss.item():12.6f} | {self.total_Y_loss:12.6f} | {self.terminal_loss:12.6f} | {self.terminal_gradient_loss:12.6f} | {self.pinn_loss:12.6f} | {current_lr:10.2e} | {mem_mb:12.2f} | {elapsed:10.2f} | {status}")
+                print(f"{epoch:8} | {np.mean(losses[-K:]):12.6f} | {np.mean(losses_Y[-K:]):12.6f} | {np.mean(losses_terminal[-K:]):12.6f} | {np.mean(losses_terminal_gradient[-K:]):12.6f} | {np.mean(losses_terminal_hessian[-K:]):12.6f} | {np.mean(losses_pinn[-K:]):12.6f} | {current_lr:10.2e} | {mem_mb:12.2f} | {elapsed:10.2f} | {status}")
                 start_time = time.time()
 
         if "last" in self.save:
             torch.save(self.state_dict(), save_path + ".pth")
             status = f"Model saved ↓"
-            print(f"{epoch:8} | {loss.item():12.6f} | {self.total_Y_loss:12.6f} | {self.terminal_loss:12.6f} | {self.terminal_gradient_loss:12.6f} | {self.pinn_loss:12.6f} | {current_lr:10.2e} | {mem_mb:12.2f} | {elapsed:10.2f} | {status}")
+            print(f"{epoch:8} | {loss.item():12.6f} | {self.total_Y_loss:12.6f} | {self.terminal_loss:12.6f} | {self.terminal_gradient_loss:12.6f} | {self.terminal_hessian_loss:12.6f} | {self.pinn_loss:12.6f} | {current_lr:10.2e} | {mem_mb:12.2f} | {elapsed:10.2f} | {status}")
 
         if verbose:
-            print("-" * 70)
+            print("-" * 150)
             print(f"Training completed. Lowest loss: {self.lowest_loss:.6f}. Total time: {time.time() - init_time:.2f} seconds")
             print(f"Model saved to {save_path}.pth")
 
@@ -278,6 +367,7 @@ class FBSNN(nn.Module, ABC):
             plt.plot(losses_Y, label="Y Loss")
             plt.plot(losses_terminal, label="Terminal Loss")
             plt.plot(losses_terminal_gradient, label="Terminal Gradient Loss")
+            plt.plot(losses_terminal_hessian, label="Terminal Hessian Loss")
             plt.plot(losses_pinn, label="PINN Loss")
             plt.xlabel("Epoch")
             plt.ylabel("Loss")

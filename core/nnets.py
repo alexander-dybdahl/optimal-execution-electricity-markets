@@ -38,71 +38,54 @@ class FCnet(nn.Module):
         return self.net(torch.cat([t, y], dim=1))
 
 class Resnet(nn.Module):
-
-    def __init__(self, layers, activation, stable):
+    def __init__(self, layers, activation, stable=False):
         super(Resnet, self).__init__()
-
-        self.layer1 = nn.Linear(in_features=layers[0], out_features=layers[1])
-        self.layer2 = nn.Linear(in_features=layers[1], out_features=layers[2])
-        self.layer2_input = nn.Linear(in_features=layers[0], out_features=layers[2])
-        self.layer3 = nn.Linear(in_features=layers[2], out_features=layers[3])
-        self.layer3_input = nn.Linear(in_features=layers[0], out_features=layers[3])
-        self.layer4 = nn.Linear(in_features=layers[3], out_features=layers[4])
-        self.layer4_input = nn.Linear(in_features=layers[0], out_features=layers[4])
-        self.layer5 = nn.Linear(in_features=layers[4], out_features=layers[5])
-
         self.activation = activation
-
-        self.epsilon = 0.01
         self.stable = stable
+        self.epsilon = 0.01
 
-    def stable_forward(self, layer, out):  # Building block for the NAIS-Net
-        weights = layer.weight
+        self.input_dim = layers[0]
+        self.hidden_dims = layers[1:-1]
+        self.output_dim = layers[-1]
+
+        self.hidden_layers = nn.ModuleList()
+        self.shortcut_layers = nn.ModuleList()
+
+        for i in range(len(self.hidden_dims)):
+            in_dim = self.input_dim if i == 0 else self.hidden_dims[i - 1]
+            out_dim = self.hidden_dims[i]
+
+            self.hidden_layers.append(nn.Linear(in_dim, out_dim))
+            if i > 0:
+                self.shortcut_layers.append(nn.Linear(self.input_dim, out_dim))
+
+        self.output_layer = nn.Linear(self.hidden_dims[-1], self.output_dim)
+
+    def stable_forward(self, layer, out):
+        W = layer.weight
         delta = 1 - 2 * self.epsilon
-        RtR = torch.matmul(weights.t(), weights)
+        RtR = torch.matmul(W.t(), W)
         norm = torch.norm(RtR)
         if norm > delta:
-            RtR = delta ** (1 / 2) * RtR / (norm ** (1 / 2))
+            RtR = delta ** 0.5 * RtR / norm**0.5
         A = RtR + torch.eye(RtR.shape[0], device=RtR.device) * self.epsilon
-
         return F.linear(out, -A, layer.bias)
 
     def forward(self, t, y):
-        inp = torch.cat([t, y], dim=1)
-        
-        u = inp
+        u = torch.cat([t, y], dim=1)
+        out = u
 
-        out = self.layer1(inp)
-        out = self.activation(out)
+        for i, layer in enumerate(self.hidden_layers):
+            shortcut = out
 
-        shortcut = out
-        if self.stable:
-            out = self.stable_forward(self.layer2, out)
-            out = out + self.layer2_input(u)
-        else:
-            out = self.layer2(out)
-        out = self.activation(out)
-        out = out + shortcut
+            if self.stable and i > 0:
+                out = self.stable_forward(layer, out)
+                out = out + self.shortcut_layers[i - 1](u)
+            else:
+                out = layer(out)
 
-        shortcut = out
-        if self.stable:
-            out = self.stable_forward(self.layer3, out)
-            out = out + self.layer3_input(u)
-        else:
-            out = self.layer3(out)
-        out = self.activation(out)
-        out = out + shortcut
+            out = self.activation(out)
+            out = out + shortcut if i > 0 else out
 
-        shortcut = out
-        if self.stable:
-            out = self.stable_forward(self.layer4, out)
-            out = out + self.layer4_input(u)
-        else:
-            out = self.layer4(out)
+        return self.output_layer(out)
 
-        out = self.activation(out)
-        out = out + shortcut
-
-        out = self.layer5(out)
-
-        return out

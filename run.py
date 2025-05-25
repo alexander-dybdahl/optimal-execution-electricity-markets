@@ -11,9 +11,8 @@ def main():
     run_cfg = load_run_config(path="config/run_config.json")
     parser = ArgumentParser()
     parser.add_argument("--epochs", type=int, default=run_cfg["epochs"], help="Number of training epochs")
+    parser.add_argument("--K", type=int, default=run_cfg["K"], help="Epochs between evaluations of the model")
     parser.add_argument("--lr", type=float, default=run_cfg["lr"], help="Learning rate for the optimizer")
-    parser.add_argument("--lr_factor", type=float, default=run_cfg["lr_factor"], help="Factor to reduce learning rate by")
-    parser.add_argument("--lr_patience", type=int, default=run_cfg["lr_patience"], help="Number of epochs with no improvement after which learning rate will be reduced")
     parser.add_argument("--save_path", type=str, default=run_cfg["save_path"], help="Path to save the model")
     parser.add_argument("--n_paths", type=int, default=run_cfg["n_paths"], help="Number of paths to simulate")
     parser.add_argument("--batch_size", type=int, default=run_cfg["batch_size"], help="Batch size for training")
@@ -35,9 +34,11 @@ def main():
     parser.add_argument("--lambda_Y", type=float, default=run_cfg["lambda_Y"], help="Weight for the Y term in the loss function")
     parser.add_argument("--lambda_T", type=float, default=run_cfg["lambda_T"], help="Weight for the terminal term in the loss function")
     parser.add_argument("--lambda_TG", type=float, default=run_cfg["lambda_TG"], help="Weight for the terminal gradient term in the loss function")
+    parser.add_argument("--lambda_TH", type=float, default=run_cfg["lambda_TH"], help="Weight for the terminal hessian term in the loss function")
     parser.add_argument("--lambda_pinn", type=float, default=run_cfg["lambda_pinn"], help="Weight for the PINN term in the loss function")
 
     args = parser.parse_args()
+    args.Y_layers = run_cfg["Y_layers"]
 
     model_cfg = load_model_config(args.model_config)
 
@@ -56,11 +57,12 @@ def main():
             print("No model found, starting training from scratch.")
 
     if args.train:
-        model.train_model(epochs=args.epochs, lr=args.lr, lr_factor=args.lr_factor, lr_patience=args.lr_patience, save_path=save_path, verbose=args.verbose, plot=args.plot_loss, adaptive=args.adaptive)
+        model.train_model(epochs=args.epochs, K=args.K, lr=args.lr, save_path=save_path, verbose=args.verbose, plot=args.plot_loss, adaptive=args.adaptive)
     
     timesteps, results = model.simulate_paths(n_sim=args.n_simulations, seed=np.random.randint(0, 1000))
     if args.plot:
         model.plot_approx_vs_analytic(results, timesteps)
+        model.plot_terminal_histogram(results)
 
 if __name__ == "__main__":
     main()
