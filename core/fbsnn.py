@@ -74,7 +74,6 @@ class FBSNN(nn.Module, ABC):
     @abstractmethod
     def terminal_cost(self, y): pass
 
-    @abstractmethod
     def terminal_cost_grad(self, y):
         return torch.autograd.grad(
             outputs=self.terminal_cost(y),
@@ -84,7 +83,6 @@ class FBSNN(nn.Module, ABC):
             retain_graph=True
         )[0]
 
-    @abstractmethod
     def terminal_cost_hess(self, y):
         return torch.autograd.grad(
             outputs=self.terminal_cost_grad(y),
@@ -176,8 +174,7 @@ class FBSNN(nn.Module, ABC):
 
         # Terminal losses per batch
         YT = self.Y_net(t1, y1)
-        terminal = self.terminal_cost(y1)
-        terminal_loss = torch.sum(torch.pow(YT - terminal, 2))
+        terminal_loss = torch.sum(torch.pow(YT - self.terminal_cost(y1), 2))
 
         # Terminal gradient loss
         dYT = torch.autograd.grad(
@@ -187,8 +184,7 @@ class FBSNN(nn.Module, ABC):
             create_graph=True,
             retain_graph=True
         )[0]
-        terminal_gradient = self.terminal_cost_grad(y1)
-        terminal_gradient_loss = torch.sum(torch.pow(dYT - terminal_gradient, 2))
+        terminal_gradient_loss = torch.sum(torch.pow(dYT - self.terminal_cost_grad(y1), 2))
 
         # Terminal Hessian loss
         d2YT = torch.autograd.grad(
@@ -198,8 +194,7 @@ class FBSNN(nn.Module, ABC):
             create_graph=True,
             retain_graph=True
         )[0]
-        terminal_hessian = self.terminal_cost_hess(y1)
-        terminal_hessian_loss = torch.sum(torch.pow(d2YT - terminal_hessian, 2))
+        terminal_hessian_loss = torch.sum(torch.pow(d2YT - self.terminal_cost_hess(y1), 2))
 
         self.total_Y_loss = self.λ_Y * Y_loss.detach().item()
         self.terminal_loss = self.λ_T * terminal_loss.detach().item()

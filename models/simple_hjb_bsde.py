@@ -18,13 +18,6 @@ class SimpleHJB(FBSNN):
         x_T = y[:, 0]
         return self.G * x_T**2
 
-    def terminal_cost_grad(self, y):
-        x_T = y[:, 0]
-        return 2 * self.G * x_T
-    
-    def terminal_cost_hess(self, y):
-        return 2 * self.G * torch.ones_like(y[:, 0])
-
     def mu(self, t, y, q):
         return q
 
