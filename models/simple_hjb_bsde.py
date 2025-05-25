@@ -273,7 +273,7 @@ class SimpleHJB(FBSNN):
         plt.tight_layout()
         plt.show()
 
-    def forward_supervised(self):
+    def forward(self):
         batch_size = self.batch_size
 
         t = torch.rand(batch_size, 1, device=self.device) * self.T
@@ -297,11 +297,12 @@ class SimpleHJB(FBSNN):
 
         gradient_loss = torch.mean((dV_pred - dV_target)**2)
 
-        total_loss = supervised_loss + gradient_loss  # λ = 1.0 implicitly
+        total_loss = supervised_loss + gradient_loss
 
         self.total_Y_loss = supervised_loss.item()
-        self.total_q_loss = gradient_loss.item()
-        self.terminal_loss = 0.0
+        self.terminal_loss = gradient_loss.item()
         self.terminal_gradient_loss = 0.0
+        self.terminal_hessian_loss = 0.0
+        self.pinn_loss = 0.0
 
         return total_loss

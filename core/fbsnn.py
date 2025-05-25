@@ -94,11 +94,11 @@ class FBSNN(nn.Module, ABC):
         diffusion = torch.bmm(σ, dW.unsqueeze(-1)).squeeze(-1)  # shape: (batch, dim)
         return y + μ * dt + diffusion         # shape: (batch, dim)
 
-    def forward(self):
-        if self.architecture == "LSTM":
-            return self.forward_lstm()
-        else:
-            return self.forward_fc()
+    # def forward(self):
+    #     if self.architecture == "LSTM":
+    #         return self.forward_lstm()
+    #     else:
+    #         return self.forward_fc()
 
     def forward_fc(self):
         n_batches = self.n_paths // self.batch_size
@@ -142,7 +142,10 @@ class FBSNN(nn.Module, ABC):
 
                 f = self.generator(y0, q)
                 Y1_tilde = Y0 - f * self.dt + (Z0 * dW).sum(dim=1, keepdim=True)
-                batch_Y_loss += torch.mean(torch.pow(Y1 - Y1_tilde, 2))
+                if _ == self.N - 1:
+                    batch_Y_loss += torch.mean(torch.pow(Y1 - Y1_tilde, 2)) * 10
+                else:
+                    batch_Y_loss += torch.mean(torch.pow(Y1 - Y1_tilde, 2))
 
                 y0 = y1
                 Y0 = Y1
