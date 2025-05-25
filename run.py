@@ -36,7 +36,7 @@ def main():
     parser.add_argument("--lambda_TG", type=float, default=run_cfg["lambda_TG"], help="Weight for the terminal gradient term in the loss function")
     parser.add_argument("--lambda_TH", type=float, default=run_cfg["lambda_TH"], help="Weight for the terminal hessian term in the loss function")
     parser.add_argument("--lambda_pinn", type=float, default=run_cfg["lambda_pinn"], help="Weight for the PINN term in the loss function")
-    parser.add_argument("--supervised", type=int, default=run_cfg["supervised"], help="Use supervised learning using analytical solution")
+    parser.add_argument("--supervised", type=str2bool, default=run_cfg["supervised"], help="Use supervised learning using analytical solution")
 
     args = parser.parse_args()
     args.Y_layers = run_cfg["Y_layers"]

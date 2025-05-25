@@ -15,7 +15,7 @@ class SimpleHJB(FBSNN):
         return q**2 + x**2
 
     def terminal_cost(self, y):
-        x_T = y[:, 0]
+        x_T = y
         return self.G * x_T**2
 
     def mu(self, t, y, q):

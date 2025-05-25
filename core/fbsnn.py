@@ -168,7 +168,7 @@ class FBSNN(nn.Module, ABC):
 
             f = self.generator(y0, q)
             Y1_tilde = Y0 - f * (t1 - t0) + (Z0 * (W1 - W0)).sum(dim=1, keepdim=True)
-            Y_loss += torch.sum(torch.pow(Y1 - Y1_tilde, 2)) / batch_size
+            Y_loss += torch.sum(torch.pow(Y1 - Y1_tilde, 2))
 
             t0 = t1
             W0 = W1
@@ -177,10 +177,10 @@ class FBSNN(nn.Module, ABC):
             dY0 = dY1
 
         # Terminal losses per batch
-        terminal_loss = torch.sum(torch.pow(Y1 - self.terminal_cost(y1), 2)) / batch_size
+        terminal_loss = torch.sum(torch.pow(Y1 - self.terminal_cost(y1), 2))
 
         # Terminal gradient loss
-        terminal_gradient_loss = torch.sum(torch.pow(dY1 - self.terminal_cost_grad(y1), 2)) / batch_size
+        terminal_gradient_loss = torch.sum(torch.pow(dY1 - self.terminal_cost_grad(y1), 2))
 
         # Terminal Hessian loss
         d2Y1 = torch.autograd.grad(
@@ -190,7 +190,7 @@ class FBSNN(nn.Module, ABC):
             create_graph=True,
             retain_graph=True
         )[0]
-        terminal_hessian_loss = torch.sum(torch.pow(d2Y1 - self.terminal_cost_hess(y1), 2)) / batch_size
+        terminal_hessian_loss = torch.sum(torch.pow(d2Y1 - self.terminal_cost_hess(y1), 2))
 
         self.total_Y_loss = self.λ_Y * Y_loss.detach().item()
         self.terminal_loss = self.λ_T * terminal_loss.detach().item()
@@ -263,6 +263,7 @@ class FBSNN(nn.Module, ABC):
             print(f"| Activation                | {self.activation.__class__.__name__:<25} |")
             print(f"| T                         | {self.T:<25} |")
             print(f"| N                         | {self.N:<25} |")
+            print(f"| Supervised                | {'True' if self.supervised else 'False':<25} |")
             print("+---------------------------+---------------------------+\n")
 
         for epoch in range(epochs):
