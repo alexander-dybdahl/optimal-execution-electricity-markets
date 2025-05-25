@@ -130,6 +130,60 @@ class SimpleHJB(FBSNN):
             true_q = self.optimal_control_analytic(timesteps, x_vals)          # shape: (T + 1, N)
             true_Y = self.optimal_cost_analytic(timesteps, x_vals)             # shape (T + 1, N)
 
+        fig, axs = plt.subplots(2, 2, figsize=(14, 10))
+        colors = cm.get_cmap("tab10", approx_q.shape[1])  # Get a colormap with enough distinct colors
+
+        # --- Subplot 1: Learned q(t) paths ---
+        for i in range(approx_q.shape[1]):
+            axs[0, 0].plot(timesteps, approx_q[:, i], color=colors(i), alpha=0.6, label=f"Learned {i+1}")
+            axs[0, 0].plot(timesteps, true_q[:, i], linestyle="--", color=colors(i), alpha=0.4, label=f"Analytical {i+1}")
+        
+        axs[0, 0].set_title("Control $q(t)$: Learned vs Analytical")
+        axs[0, 0].set_xlabel("Time $t$")
+        axs[0, 0].set_ylabel("$q(t)$")
+        axs[0, 0].grid(True)
+
+        # --- Subplot 2: Absolute Difference ---
+        diff = (approx_q.squeeze(-1) - true_q)  # (T, N_paths)
+        for i in range(diff.shape[1]):
+            axs[0, 1].plot(timesteps, diff[:, i], color=colors(i), alpha=0.6, label=f"Diff Path {i+1}")
+        axs[0, 1].axhline(0, color='red', linestyle='--', linewidth=0.8)
+        
+        axs[0, 1].set_title("Difference: Learned $-$ Analytical")
+        axs[0, 1].set_xlabel("Time $t$")
+        axs[0, 1].set_ylabel("$q(t) - q^*(t)$")
+        axs[0, 1].grid(True)
+
+        # --- Subplot 3: Y(t) paths ---
+        for i in range(Y_vals.shape[1]):
+            axs[1, 0].plot(timesteps, Y_vals[:, i, 0], color=colors(i), alpha=0.6, label=f"Learned {i+1}")
+            axs[1, 0].plot(timesteps, true_Y[:, i], linestyle="--", color=colors(i), alpha=0.4, label=f"Analytical {i+1}")
+
+        axs[1, 0].set_title("Cost-to-Go $Y(t)$")
+        axs[1, 0].set_xlabel("Time $t$")
+        axs[1, 0].set_ylabel("Y(t)")
+        axs[1, 0].grid(True)
+
+        # --- Subplot 4: x(t) paths ---
+        for i in range(x_vals.shape[1]):
+            axs[1, 1].plot(timesteps, x_vals[:, i], color=colors(i), alpha=0.6, label=f"Path {i+1}")
+        axs[1, 1].set_title("State $x(t)$")
+        axs[1, 1].set_xlabel("Time $t$")
+        axs[1, 1].set_ylabel("x(t)")
+        axs[1, 1].grid(True)
+
+        plt.tight_layout()
+        plt.show()
+
+    def plot_approx_vs_analytic_expectation(self, results, timesteps):
+        approx_q = results["q"]              # shape: (T + 1, N_paths)
+        x_vals = results["y"][:, :, 0]       # shape: (T + 1, N_paths)
+        Y_vals = results["Y"]                # shape: (T + 1, N_paths, 1)
+
+        with torch.no_grad():
+            true_q = self.optimal_control_analytic(timesteps, x_vals)          # shape: (T + 1, N)
+            true_Y = self.optimal_cost_analytic(timesteps, x_vals)             # shape (T + 1, N)
+
         mean_Y = Y_vals[:, :, 0].mean(axis=1).squeeze()
         std_Y = Y_vals[:, :, 0].std(axis=1).squeeze()
 
@@ -146,10 +200,6 @@ class SimpleHJB(FBSNN):
         colors = cm.get_cmap("tab10", approx_q.shape[1])  # Get a colormap with enough distinct colors
 
         # --- Subplot 1: Learned q(t) paths ---
-        # for i in range(approx_q.shape[1]):
-        #     axs[0, 0].plot(timesteps, approx_q[:, i], color=colors(i), alpha=0.6, label=f"Learned {i+1}")
-        #     axs[0, 0].plot(timesteps, true_q[:, i], linestyle="--", color=colors(i), alpha=0.4, label=f"Analytical {i+1}")
-        
         axs[0, 0].plot(timesteps, mean_q, label='Learned Mean', color='blue')
         axs[0, 0].fill_between(timesteps, mean_q - std_q, mean_q + std_q, color='blue', alpha=0.3, label='Learned ±1 Std')
 
@@ -163,10 +213,6 @@ class SimpleHJB(FBSNN):
 
         # --- Subplot 2: Absolute Difference ---
         diff = (approx_q.squeeze(-1) - true_q)  # (T, N_paths)
-        # for i in range(diff.shape[1]):
-        #     axs[0, 1].plot(timesteps, diff[:, i], color=colors(i), alpha=0.6, label=f"Diff Path {i+1}")
-        # axs[0, 1].axhline(0, color='red', linestyle='--', linewidth=0.8)
-        
         mean_diff = np.mean(diff, axis=1)
         std_diff = np.std(diff, axis=1)
         axs[0, 1].fill_between(timesteps, mean_diff - std_diff, mean_diff + std_diff, color='red', alpha=0.4, label='±1 Std Dev')
@@ -177,10 +223,6 @@ class SimpleHJB(FBSNN):
         axs[0, 1].grid(True)
 
         # --- Subplot 3: Y(t) paths ---
-        # for i in range(Y_vals.shape[1]):
-        #     axs[1, 0].plot(timesteps, Y_vals[:, i, 0], color=colors(i), alpha=0.6, label=f"Learned {i+1}")
-        #     axs[1, 0].plot(timesteps, true_Y[:, i], linestyle="--", color=colors(i), alpha=0.4, label=f"Analytical {i+1}")
-
         axs[1, 0].plot(timesteps, mean_Y, color='blue', label='Learned Mean')
         axs[1, 0].fill_between(timesteps, mean_Y - std_Y, mean_Y + std_Y, color='blue', alpha=0.3, label='Learned ±1 Std')
 
