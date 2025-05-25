@@ -7,16 +7,14 @@ import matplotlib.cm as cm
 class SimpleHJB(FBSNN):
     def __init__(self, args, model_cfg):
         super().__init__(args, model_cfg)
-        self.sigma_x = model_cfg["sigma"]
+        self.sigma_y = model_cfg["sigma"]
         self.G = model_cfg["G"]
 
     def generator(self, y, q):
-        x = y[:, 0:1]
-        return q**2 + x**2
+        return q**2 + y**2
 
     def terminal_cost(self, y):
-        x_T = y
-        return self.G * x_T**2
+        return self.G * y**2
 
     def mu(self, t, y, q):
         return q
@@ -24,7 +22,7 @@ class SimpleHJB(FBSNN):
     def sigma(self, t, y):
         batch_size = y.shape[0]
         σ = torch.zeros(batch_size, 1, 1, device=self.device)
-        σ[:, 0, 0] = self.sigma_x
+        σ[:, 0, 0] = self.sigma_y
         return σ
 
     def simulate_paths(self, n_sim=5, seed=42, y0_single=None):
@@ -92,14 +90,14 @@ class SimpleHJB(FBSNN):
         A = (G + 1) * np.exp(2 * (self.T - t))
         return (A + (G - 1)) / (A - (G - 1))
 
-    def optimal_control_analytic(self, t, x):
-        """Optimal q(t, x) = -K(t) * x"""
+    def optimal_control_analytic(self, t, y):
+        """Optimal q(t, y) = -K(t) * y"""
         K_t = self.K_analytic(t).reshape(-1, 1)           # shape: (T, 1)
-        return -K_t * x                                   # shape: (T, N_paths)
+        return -K_t * y                                  # shape: (T, N_paths)
 
     def phi_analytic(self, t):
         """Analytical phi(t) from backward integral of K"""
-        sigma = self.sigma_x
+        sigma = self.sigma_y
         G = self.G
         def A(s): return (G + 1) * np.exp(2 * (self.T - s))
         A_t = A(t)
@@ -108,20 +106,20 @@ class SimpleHJB(FBSNN):
         phi = 0.5 * sigma**2 * np.log(log_expr)
         return phi
 
-    def optimal_cost_analytic(self, t, x):
-        """Analytical cost-to-go Y(t) = phi(t) + K(t) * x^2"""
+    def optimal_cost_analytic(self, t, y):
+        """Analytical cost-to-go Y(t) = phi(t) + K(t) * y^2"""
         K_t = self.K_analytic(t).reshape(-1, 1)      # shape (T, 1)
         phi_t = self.phi_analytic(t).reshape(-1, 1)  # shape (T, 1)
-        return phi_t + K_t * x**2                    # shape (T, N)
+        return phi_t + K_t * y**2                    # shape (T, N)
 
     def plot_approx_vs_analytic(self, results, timesteps):
         approx_q = results["q"]              # shape: (T + 1, N_paths)
-        x_vals = results["y"][:, :, 0]       # shape: (T + 1, N_paths)
+        y_vals = results["y"][:, :, 0]       # shape: (T + 1, N_paths)
         Y_vals = results["Y"]                # shape: (T + 1, N_paths, 1)
 
         with torch.no_grad():
-            true_q = self.optimal_control_analytic(timesteps, x_vals)          # shape: (T + 1, N)
-            true_Y = self.optimal_cost_analytic(timesteps, x_vals)             # shape (T + 1, N)
+            true_q = self.optimal_control_analytic(timesteps, y_vals)          # shape: (T + 1, N)
+            true_Y = self.optimal_cost_analytic(timesteps, y_vals)             # shape (T + 1, N)
 
         fig, axs = plt.subplots(2, 2, figsize=(14, 10))
         colors = cm.get_cmap("tab10", approx_q.shape[1])  # Get a colormap with enough distinct colors
@@ -157,9 +155,9 @@ class SimpleHJB(FBSNN):
         axs[1, 0].set_ylabel("Y(t)")
         axs[1, 0].grid(True)
 
-        # --- Subplot 4: x(t) paths ---
-        for i in range(x_vals.shape[1]):
-            axs[1, 1].plot(timesteps, x_vals[:, i], color=colors(i), alpha=0.6, label=f"Path {i+1}")
+        # --- Subplot 4: y(t) paths ---
+        for i in range(y_vals.shape[1]):
+            axs[1, 1].plot(timesteps, y_vals[:, i], color=colors(i), alpha=0.6, label=f"Path {i+1}")
         axs[1, 1].set_title("State $x(t)$")
         axs[1, 1].set_xlabel("Time $t$")
         axs[1, 1].set_ylabel("x(t)")
@@ -170,12 +168,12 @@ class SimpleHJB(FBSNN):
 
     def plot_approx_vs_analytic_expectation(self, results, timesteps):
         approx_q = results["q"]              # shape: (T + 1, N_paths)
-        x_vals = results["y"][:, :, 0]       # shape: (T + 1, N_paths)
+        y_vals = results["y"][:, :, 0]       # shape: (T + 1, N_paths)
         Y_vals = results["Y"]                # shape: (T + 1, N_paths, 1)
 
         with torch.no_grad():
-            true_q = self.optimal_control_analytic(timesteps, x_vals)          # shape: (T + 1, N)
-            true_Y = self.optimal_cost_analytic(timesteps, x_vals)             # shape (T + 1, N)
+            true_q = self.optimal_control_analytic(timesteps, y_vals)          # shape: (T + 1, N)
+            true_Y = self.optimal_cost_analytic(timesteps, y_vals)             # shape (T + 1, N)
 
         mean_Y = Y_vals[:, :, 0].mean(axis=1).squeeze()
         std_Y = Y_vals[:, :, 0].std(axis=1).squeeze()
@@ -227,9 +225,9 @@ class SimpleHJB(FBSNN):
         axs[1, 0].set_ylabel("Y(t)")
         axs[1, 0].grid(True)
 
-        # --- Subplot 4: x(t) paths ---
-        for i in range(x_vals.shape[1]):
-            axs[1, 1].plot(timesteps, x_vals[:, i], color=colors(i), alpha=0.6, label=f"Path {i+1}")
+        # --- Subplot 4: y(t) paths ---
+        for i in range(y_vals.shape[1]):
+            axs[1, 1].plot(timesteps, y_vals[:, i], color=colors(i), alpha=0.6, label=f"Path {i+1}")
         axs[1, 1].set_title("State $x(t)$")
         axs[1, 1].set_xlabel("Time $t$")
         axs[1, 1].set_ylabel("x(t)")
@@ -239,18 +237,18 @@ class SimpleHJB(FBSNN):
         plt.show()
 
     def plot_terminal_histogram(self, results):
-        x_vals = results["y"][:, :, 0]       # shape: (T + 1, N_paths)
+        y_vals = results["y"][:, :, 0]       # shape: (T + 1, N_paths)
         Y_vals = results["Y"]                # shape: (T + 1, N_paths, 1)
 
         Y_T_approx = Y_vals[-1, :, 0]  # shape: (N_paths,)
-        x_T = x_vals[-1, :]            # shape: (N_paths,)
-        Y_T_true = self.terminal_cost(torch.tensor(x_T, device=self.device).unsqueeze(1)).cpu().numpy()
+        y_T = y_vals[-1, :]            # shape: (N_paths,)
+        Y_T_true = self.terminal_cost(torch.tensor(y_T, device=self.device).unsqueeze(1)).cpu().numpy()
 
         plt.figure(figsize=(8, 6))
         bins = 30
 
         plt.hist(Y_T_approx, bins=bins, alpha=0.6, label="Approx. $Y_T$", color="blue", density=True)
-        plt.hist(Y_T_true, bins=bins, alpha=0.6, label="Analytical $g(x_T)$", color="green", density=True)
+        plt.hist(Y_T_true, bins=bins, alpha=0.6, label="Analytical $g(y_T)$", color="green", density=True)
 
         mean_approx = np.mean(Y_T_approx)
         mean_true = np.mean(Y_T_true)
@@ -259,7 +257,7 @@ class SimpleHJB(FBSNN):
         plt.axvline(mean_true, color='green', linestyle='--', label=f"Mean true: {mean_true:.3f}")
 
         plt.title("Distribution of Terminal Values")
-        plt.xlabel("$Y(T)$ / $g(x_T)$")
+        plt.xlabel("$Y(T)$ / $g(y_T)$")
         plt.ylabel("Density")
         plt.legend()
         plt.grid(True)
