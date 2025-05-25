@@ -106,9 +106,9 @@ class FBSNN(nn.Module, ABC):
             for _ in range(self.N):
                 σ0 = self.sigma(t, y0)
                 Z0 = torch.bmm(σ0, dY0.unsqueeze(-1)).squeeze(-1)
-                q0 = -0.5 * dY0
+                q = -0.5 * dY0
                 dW = torch.randn(batch_size, self.dim_W, device=self.device) * self.dt**0.5
-                y1 = self.forward_dynamics(y0, q0, dW, t, self.dt)
+                y1 = self.forward_dynamics(y0, q, dW, t, self.dt)
                 t = t + self.dt
 
                 Y1 = self.Y_net(t, y1)
@@ -120,7 +120,7 @@ class FBSNN(nn.Module, ABC):
                     retain_graph=True
                 )[0]
 
-                f = self.generator(y0, q0)
+                f = self.generator(y0, q)
                 Y1_tilde = Y0 - f * self.dt + (Z0 * dW).sum(dim=1, keepdim=True)
                 batch_Y_loss += torch.mean((Y1 - Y1_tilde)**2)
 
@@ -179,13 +179,11 @@ class FBSNN(nn.Module, ABC):
         self.device = next(self.parameters()).device
         optimizer = torch.optim.Adam(self.parameters(), lr=lr)
 
-        # Adaptive learning rate scheduler
         if adaptive:
             scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
                 optimizer, mode='min', factor=lr_factor, patience=lr_patience
             )
         else:
-            # Fixed learning rate scheduler
             scheduler = torch.optim.lr_scheduler.StepLR(
                 optimizer, step_size=100, gamma=0.5
             )
@@ -202,6 +200,32 @@ class FBSNN(nn.Module, ABC):
         
         init_time = time.time()
         start_time = time.time()
+
+        if verbose:
+            print("\n+---------------------------+---------------------------+")
+            print("| Training Configuration    |                           |")
+            print("+---------------------------+---------------------------+")
+            print(f"| Epochs                    | {epochs:<25} |")
+            print(f"| Learning Rate             | {lr:<25} |")
+            print(f"| Adaptive LR               | {adaptive:<25} |")
+            print(f"| Factor                    | {lr_factor:<25} |")
+            print(f"| Patience                  | {lr_patience:<25} |")
+            print(f"| λ_Y (Y loss)              | {self.λ_Y:<25} |")
+            print(f"| λ_T (Terminal loss)       | {self.λ_T:<25} |")
+            print(f"| λ_TG (Gradient loss)      | {self.λ_TG:<25} |")
+            print(f"| λ_pinn (PINN loss)        | {self.λ_pinn:<25} |")
+            print(f"| Batch Size                | {self.batch_size:<25} |")
+            print(f"| Number of Paths           | {self.n_paths:<25} |")
+            print(f"| Number of PINN Points     | {self.n_pinn:<25} |")
+            print(f"| Architecture              | {self.architecture:<25} |")
+            print(f"| Activation                | {self.activation.__class__.__name__:<25} |")
+            print(f"| T                         | {self.T:<25} |")
+            print(f"| N                         | {self.N:<25} |")
+            print("+---------------------------+---------------------------+\n")
+
+        if torch.cuda.is_available():
+            torch.tensor([0.0], device="cuda")
+
         for epoch in range(epochs):
             optimizer.zero_grad()
             loss = self()
@@ -227,7 +251,7 @@ class FBSNN(nn.Module, ABC):
                 current_lr = optimizer.param_groups[0]['lr']
                 status = ""
 
-                if "every" in self.save and epoch % self.save_n == 0:
+                if "every" in self.save and (epoch % self.save_n == 0 or epoch == epochs - 1):
                     torch.save(self.state_dict(), save_path + ".pth")
                     status = f"Model saved ↓"
 
@@ -237,7 +261,7 @@ class FBSNN(nn.Module, ABC):
                     status = "Model saved ↓ (best)"
 
                 print(f"{epoch:8} | {loss.item():12.6f} | {self.total_Y_loss:12.6f} | {self.terminal_loss:12.6f} | {self.terminal_gradient_loss:12.6f} | {self.pinn_loss:12.6f} | {current_lr:10.2e} | {mem_mb:12.2f} | {elapsed:10.2f} | {status}")
-                start_time = time.time()  # Reset timer for next block
+                start_time = time.time()
 
         if "last" in self.save:
             torch.save(self.state_dict(), save_path + ".pth")

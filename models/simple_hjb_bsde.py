@@ -85,9 +85,9 @@ class SimpleHJB(FBSNN):
         timesteps = np.linspace(0, self.T, self.N + 1)
 
         return timesteps, {
-            "q": np.concatenate(all_q, axis=1),         # (N, n_paths)
+            "q": np.concatenate(all_q, axis=1),         # shape (N, n_paths)
             "Y": np.concatenate(all_Y, axis=1),
-            "y": np.concatenate(all_y, axis=1)    # (N, n_paths, dim)
+            "y": np.concatenate(all_y, axis=1)          # shape (N, n_paths, dim)
         }
 
     def K_analytic(self, t):
@@ -99,7 +99,7 @@ class SimpleHJB(FBSNN):
     def optimal_control_analytic(self, t, x):
         """Optimal q(t, x) = -K(t) * x"""
         K_t = self.K_analytic(t).reshape(-1, 1)           # shape: (T, 1)
-        return -K_t * x  # shape: (T, N_paths)
+        return -K_t * x                                   # shape: (T, N_paths)
 
     def phi_analytic(self, t):
         """Analytical phi(t) from backward integral of K"""
@@ -114,13 +114,13 @@ class SimpleHJB(FBSNN):
 
     def optimal_cost_analytic(self, t, x):
         """Analytical cost-to-go Y(t) = phi(t) + K(t) * x^2"""
-        K_t = self.K_analytic(t).reshape(-1, 1)  # (T, 1)
-        phi_t = self.phi_analytic(t).reshape(-1, 1)  # (T, 1)
-        return phi_t + K_t * x**2  # shape (T, N)
+        K_t = self.K_analytic(t).reshape(-1, 1)      # shape (T, 1)
+        phi_t = self.phi_analytic(t).reshape(-1, 1)  # shape (T, 1)
+        return phi_t + K_t * x**2                    # shape (T, N)
 
     def plot_approx_vs_analytic(self, results, timesteps):
         approx_q = results["q"]              # shape: (T + 1, N_paths)
-        x_vals = results["y"][:, :, 0] # shape: (T + 1, N_paths)
+        x_vals = results["y"][:, :, 0]       # shape: (T + 1, N_paths)
         Y_vals = results["Y"]                # shape: (T + 1, N_paths, 1)
 
         with torch.no_grad():
@@ -140,17 +140,21 @@ class SimpleHJB(FBSNN):
         axs[0, 0].set_xlabel("Time $t$")
         axs[0, 0].set_ylabel("$q(t)$")
         axs[0, 0].grid(True)
-        axs[0, 0].legend(ncol=2, fontsize=8)
 
         # --- Subplot 2: Absolute Difference ---
         diff = (approx_q.squeeze(-1) - true_q)  # (T, N_paths)
         for i in range(diff.shape[1]):
             axs[0, 1].plot(timesteps, diff[:, i], color=colors(i), alpha=0.6, label=f"Diff Path {i+1}")
+        axs[0, 1].axhline(0, color='red', linestyle='--', linewidth=0.8)
+        
+        mean_diff = np.mean(diff, axis=1)
+        std_diff = np.std(diff, axis=1)
+        axs[0, 1].fill_between(timesteps, mean_diff - std_diff, mean_diff + std_diff, color='red', alpha=0.4, label='±1 Std Dev')
+
         axs[0, 1].set_title("Difference: Learned $-$ Analytical")
         axs[0, 1].set_xlabel("Time $t$")
         axs[0, 1].set_ylabel("$q(t) - q^*(t)$")
         axs[0, 1].grid(True)
-        axs[0, 1].legend(ncol=2, fontsize=8)
 
         # --- Subplot 3: Y(t) paths ---
         for i in range(Y_vals.shape[1]):
@@ -160,7 +164,6 @@ class SimpleHJB(FBSNN):
         axs[1, 0].set_xlabel("Time $t$")
         axs[1, 0].set_ylabel("Y(t)")
         axs[1, 0].grid(True)
-        axs[1, 0].legend(ncol=2, fontsize=8)
 
         # --- Subplot 4: x(t) paths ---
         for i in range(x_vals.shape[1]):
@@ -169,7 +172,6 @@ class SimpleHJB(FBSNN):
         axs[1, 1].set_xlabel("Time $t$")
         axs[1, 1].set_ylabel("x(t)")
         axs[1, 1].grid(True)
-        axs[1, 1].legend(ncol=2, fontsize=8)
 
         plt.tight_layout()
         plt.show()

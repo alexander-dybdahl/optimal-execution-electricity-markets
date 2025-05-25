@@ -41,10 +41,12 @@ def main():
 
     model_cfg = load_model_config(args.model_config)
 
-    # model = HJB(args, model_cfg)
     model = SimpleHJB(args, model_cfg)
     save_path = run_cfg["save_path"] + f"_{args.architecture}_{args.activation}"
     
+    import warnings
+    warnings.filterwarnings("ignore", message="Attempting to run cuBLAS, but there was no current CUDA context!")
+
     if args.load_if_exists:
         try:
             load_path = save_path + "_best" if args.best else save_path
@@ -55,7 +57,6 @@ def main():
 
     if args.train:
         model.train_model(epochs=args.epochs, lr=args.lr, lr_factor=args.lr_factor, lr_patience=args.lr_patience, save_path=save_path, verbose=args.verbose, plot=args.plot_loss, adaptive=args.adaptive)
-
     
     timesteps, results = model.simulate_paths(n_sim=args.n_simulations, seed=np.random.randint(0, 1000))
     if args.plot:
