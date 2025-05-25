@@ -89,8 +89,8 @@ class SimpleHJB(FBSNN):
     def K_analytic(self, t):
         """Analytical solution to Riccati equation"""
         G = self.G
-        A = ((G + 1) / (G - 1)) * np.exp(2 * (self.T - t))
-        return (A + 1) / (A - 1)
+        A = (G + 1) * np.exp(2 * (self.T - t))
+        return (A + (G - 1)) / (A - (G - 1))
 
     def optimal_control_analytic(self, t, x):
         """Optimal q(t, x) = -K(t) * x"""
@@ -101,10 +101,10 @@ class SimpleHJB(FBSNN):
         """Analytical phi(t) from backward integral of K"""
         sigma = self.sigma_x
         G = self.G
-        def A(s): return (G + 1) / (G - 1) * np.exp(2 * (self.T - s))
+        def A(s): return (G + 1) * np.exp(2 * (self.T - s))
         A_t = A(t)
         A_T = A(self.T)
-        log_expr = (A_T / A_t) * ((A_t - 1)**2 / (A_T - 1)**2)
+        log_expr = (A_T / A_t) * ((A_t - (G - 1))**2 / (A_T - (G - 1))**2)
         phi = 0.5 * sigma**2 * np.log(log_expr)
         return phi
 
