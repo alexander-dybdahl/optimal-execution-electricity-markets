@@ -183,7 +183,7 @@ class FBSNN(nn.Module, ABC):
 
         if adaptive:
             scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-                optimizer, mode='min', factor=0.5, patience=50
+                optimizer, mode='min', factor=0.60, patience=100
             )
         else:
             scheduler = torch.optim.lr_scheduler.StepLR(

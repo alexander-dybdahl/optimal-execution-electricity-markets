@@ -16,12 +16,12 @@
   "epochs": 1000,
   "K": 50,
   "lr": 1e-3,
-  "adaptive": false,
+  "adaptive": true,
   "n_paths": 1024,
   "batch_size": 1024,
   "n_simulations": 10,
   "lambda_Y": 1,
   "lambda_T": 1,
   "lambda_TG": 1,
-  "supervised": false
+  "supervised": true
 }

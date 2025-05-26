@@ -308,15 +308,20 @@ class AidIntradayLQ(FBSNN):
         t = torch.rand(batch_size, 1, device=self.device) * self.T
         y = torch.randn(batch_size, dim, device=self.device, requires_grad=True)
 
-        with torch.no_grad():
-            V_target = self.value_function_analytic(t, y)
-            dV_target = torch.autograd.grad(
-                outputs=V_target,
-                inputs=y,
-                grad_outputs=torch.ones_like(V_target),
-                create_graph=False
-            )[0]
+        # -- Get V_target analytically (no need for autograd)
+        V_target = self.value_function_analytic(t, y.detach())
 
+        # -- Compute dV_target using autograd
+        y_ = y.clone().detach().requires_grad_(True)
+        V_temp = self.value_function_analytic(t, y_)
+        dV_target = torch.autograd.grad(
+            outputs=V_temp,
+            inputs=y_,
+            grad_outputs=torch.ones_like(V_temp),
+            create_graph=False
+        )[0]
+
+        # -- Predict and compute losses
         V_pred = self.Y_net(t, y)
         supervised_loss = torch.mean((V_pred - V_target)**2)
 
@@ -330,7 +335,7 @@ class AidIntradayLQ(FBSNN):
         gradient_loss = torch.mean((dV_pred - dV_target)**2)
         Y_loss = supervised_loss + gradient_loss
 
-        # Terminal losses
+        # Terminal condition
         t_terminal = torch.full((batch_size, 1), self.T, device=self.device)
         YT = self.Y_net(t_terminal, y)
         terminal = self.terminal_cost(y)
@@ -352,3 +357,4 @@ class AidIntradayLQ(FBSNN):
         self.terminal_gradient_loss = self.λ_TG * terminal_gradient_loss.detach().item()
 
         return self.λ_Y * Y_loss + self.λ_T * terminal_loss + self.λ_TG * terminal_gradient_loss
+
