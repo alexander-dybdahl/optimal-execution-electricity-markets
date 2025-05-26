@@ -162,11 +162,11 @@ class AidIntradayLQ(FBSNN):
         axs[0, 0].grid(True)
 
         for i in range(approx_q.shape[1]):
-            diff = approx_q[:, i] - true_q[:, i]
+            diff = approx_q[:, i].squeeze() - true_q[:, i].squeeze()
             axs[0, 1].plot(timesteps, diff, color=colors(i), alpha=0.6)
         axs[0, 1].axhline(0, color='red', linestyle='--', linewidth=0.8)
         axs[0, 1].set_title("Difference: Learned $-$ Analytical")
-        axs[0, 1].set_xlabel("Time $t")
+        axs[0, 1].set_xlabel("Time $t$")
         axs[0, 1].set_ylabel("$q(t) - q^*(t)$")
         axs[0, 1].grid(True)
 
@@ -174,14 +174,14 @@ class AidIntradayLQ(FBSNN):
             axs[1, 0].plot(timesteps, Y_vals[:, i, 0], color=colors(i), alpha=0.6)
             axs[1, 0].plot(timesteps, true_Y[:, i], linestyle="--", color=colors(i), alpha=0.4)
         axs[1, 0].set_title("Cost-to-Go $Y(t)$")
-        axs[1, 0].set_xlabel("Time $t")
+        axs[1, 0].set_xlabel("Time $t$")
         axs[1, 0].set_ylabel("Y(t)")
         axs[1, 0].grid(True)
 
         for i in range(y_vals.shape[1]):
             axs[1, 1].plot(timesteps, y_vals[:, i, 0], color=colors(i), alpha=0.6)
         axs[1, 1].set_title("State $x(t)$")
-        axs[1, 1].set_xlabel("Time $t")
+        axs[1, 1].set_xlabel("Time $t$")
         axs[1, 1].set_ylabel("x(t)")
         axs[1, 1].grid(True)
 
