@@ -62,11 +62,11 @@ class AidIntradayLQ(FBSNN):
         return q
 
     def optimal_control_analytic(self, t, y):
-        D = y[:, 2:3]
+        X = y[:, 0:1]
         P = y[:, 1:2]
-        num = self.eta * (self.mu_D * t + D) - P
-        denom = (self.eta + self.nu) * t + 2 * self.gamma
-        return num / denom
+        D = y[:, 2:3]
+        tau = self.T - t
+        return (self.eta * (self.mu_D * tau + D - X) - P) / ((self.eta + self.nu) * tau + 2 * self.gamma)
 
     def value_function_analytic(self, t, y):
         X = y[:, 0:1]
