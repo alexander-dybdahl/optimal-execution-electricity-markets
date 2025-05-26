@@ -1,6 +1,6 @@
 {
-  "save_path": "models/saved/pinn",
-  "config_path": "config/simple_hjb_config.json",
+  "save_path": "models/saved/almgrem",
+  "config_path": "config/aid_config.json",
   "device": "cuda",
   "train": true,
   "load_if_exists": true,
@@ -10,7 +10,7 @@
   "plot_loss": true,
   "save": ["best", "every"],
   "save_n": 50,
-  "architecture": "NAISnet",
+  "architecture": "FC",
   "Y_layers": [256, 256, 256, 256, 256, 256, 256, 256, 1],
   "activation": "ReLU",
   "epochs": 1000,
@@ -19,12 +19,9 @@
   "adaptive": true,
   "n_paths": 1024,
   "batch_size": 1024,
-  "n_pinn": 256,
   "n_simulations": 10,
   "lambda_Y": 1,
   "lambda_T": 1,
   "lambda_TG": 1,
-  "lambda_TH": 0,
-  "lambda_pinn": 0,
   "supervised": false
 }

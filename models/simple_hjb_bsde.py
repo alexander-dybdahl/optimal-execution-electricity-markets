@@ -327,7 +327,5 @@ class SimpleHJB(FBSNN):
         self.total_Y_loss = self.λ_Y * Y_loss.detach().item()
         self.terminal_loss = self.λ_T * terminal_loss.detach().item()
         self.terminal_gradient_loss = self.λ_TG * terminal_gradient_loss.detach().item()
-        self.terminal_hessian_loss = 0.0
-        self.pinn_loss = 0.0
 
         return self.λ_Y * Y_loss + self.λ_T * terminal_loss + self.λ_TG * terminal_gradient_loss

@@ -43,6 +43,23 @@ class AidIntradayLQ(FBSNN):
         Sigma[:, 2, 1] = (1 - self.rho**2)**0.5 * self.sigma_D # dD = ... dW2
         return Sigma
 
+    def trading_rate(self, t, y, Y):
+
+        dV = torch.autograd.grad(
+            outputs=Y,
+            inputs=y,
+            grad_outputs=torch.ones_like(Y),
+            create_graph=True
+        )[0]  # shape: [batch, dim] = [batch, 3]
+
+        dV_X = dV[:, 0:1]
+        dV_P = dV[:, 1:2]
+        P = y[:, 1:2]
+
+        q = -0.5 / self.gamma * (P + dV_X + self.nu * dV_P)  # shape: [batch, 1]
+
+        return q
+
     def optimal_control_analytic(self, t, y):
         D = y[:, 2:3]
         P = y[:, 1:2]
@@ -255,3 +272,55 @@ class AidIntradayLQ(FBSNN):
         plt.grid(True)
         plt.tight_layout()
         plt.show()
+
+    def forward_supervised(self, t_paths, W_paths):
+        batch_size = self.batch_size
+        dim = self.dim
+
+        t = torch.rand(batch_size, 1, device=self.device) * self.T
+        y = torch.randn(batch_size, dim, device=self.device, requires_grad=True)
+
+        with torch.no_grad():
+            V_target = self.value_function_analytic(t, y)
+            dV_target = torch.autograd.grad(
+                outputs=V_target,
+                inputs=y,
+                grad_outputs=torch.ones_like(V_target),
+                create_graph=False
+            )[0]
+
+        V_pred = self.Y_net(t, y)
+        supervised_loss = torch.mean((V_pred - V_target)**2)
+
+        dV_pred = torch.autograd.grad(
+            outputs=V_pred,
+            inputs=y,
+            grad_outputs=torch.ones_like(V_pred),
+            create_graph=True
+        )[0]
+
+        gradient_loss = torch.mean((dV_pred - dV_target)**2)
+        Y_loss = supervised_loss + gradient_loss
+
+        # Terminal losses
+        t_terminal = torch.full((batch_size, 1), self.T, device=self.device)
+        YT = self.Y_net(t_terminal, y)
+        terminal = self.terminal_cost(y)
+        terminal_loss = torch.mean(torch.pow(YT - terminal, 2))
+
+        dYT = torch.autograd.grad(
+            outputs=YT,
+            inputs=y,
+            grad_outputs=torch.ones_like(YT),
+            create_graph=True,
+            retain_graph=True
+        )[0]
+        terminal_gradient = self.terminal_cost_grad(y)
+        terminal_gradient_loss = torch.mean(torch.pow(dYT - terminal_gradient, 2))
+
+        self.λ_T, self.λ_TG = 0, 0
+        self.total_Y_loss = self.λ_Y * Y_loss.detach().item()
+        self.terminal_loss = self.λ_T * terminal_loss.detach().item()
+        self.terminal_gradient_loss = self.λ_TG * terminal_gradient_loss.detach().item()
+
+        return self.λ_Y * Y_loss + self.λ_T * terminal_loss + self.λ_TG * terminal_gradient_loss

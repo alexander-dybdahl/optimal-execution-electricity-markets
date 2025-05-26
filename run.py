@@ -16,7 +16,6 @@ def main():
     parser.add_argument("--save_path", type=str, default=run_cfg["save_path"], help="Path to save the model")
     parser.add_argument("--n_paths", type=int, default=run_cfg["n_paths"], help="Number of paths to simulate")
     parser.add_argument("--batch_size", type=int, default=run_cfg["batch_size"], help="Batch size for training")
-    parser.add_argument("--n_pinn", type=int, default=run_cfg["n_pinn"], help="Number of discretization points for PINN")
     parser.add_argument("--n_simulations", type=int, default=run_cfg["n_simulations"], help="Number of simulations to run")
     parser.add_argument("--device", type=str, default=run_cfg["device"], help="Device to use for training (cpu or cuda)")
     parser.add_argument("--model_config", type=str, default=run_cfg["config_path"], help="Path to the model configuration file")
@@ -34,8 +33,6 @@ def main():
     parser.add_argument("--lambda_Y", type=float, default=run_cfg["lambda_Y"], help="Weight for the Y term in the loss function")
     parser.add_argument("--lambda_T", type=float, default=run_cfg["lambda_T"], help="Weight for the terminal term in the loss function")
     parser.add_argument("--lambda_TG", type=float, default=run_cfg["lambda_TG"], help="Weight for the terminal gradient term in the loss function")
-    parser.add_argument("--lambda_TH", type=float, default=run_cfg["lambda_TH"], help="Weight for the terminal hessian term in the loss function")
-    parser.add_argument("--lambda_pinn", type=float, default=run_cfg["lambda_pinn"], help="Weight for the PINN term in the loss function")
     parser.add_argument("--supervised", type=str2bool, default=run_cfg["supervised"], help="Use supervised learning using analytical solution")
 
     args = parser.parse_args()
