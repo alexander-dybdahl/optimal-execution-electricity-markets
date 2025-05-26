@@ -24,6 +24,17 @@ class SimpleHJB(FBSNN):
         σ = torch.zeros(batch_size, 1, 1, device=self.device)
         σ[:, 0, 0] = self.sigma_y
         return σ
+    
+    def trading_rate(self, t, y, Y):
+        dV = torch.autograd.grad(
+            outputs=Y,
+            inputs=y,
+            grad_outputs=torch.ones_like(Y),
+            create_graph=True,
+            retain_graph=True
+        )[0]
+        q = - 0.5 * dV
+        return q
 
     def simulate_paths(self, n_sim=5, seed=42, y0_single=None):
         torch.manual_seed(seed)
