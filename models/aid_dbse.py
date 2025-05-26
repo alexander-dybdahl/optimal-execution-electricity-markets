@@ -11,7 +11,8 @@ class AidIntradayLQ(FBSNN):
         self.sigma_D = model_cfg["sigma_D"]
         self.rho = model_cfg["rho"]
         self.gamma = model_cfg["gamma"]  # temp impact
-        self.nu = model_cfg["nu"]        # perm impact and terminal penalty
+        self.nu = model_cfg["nu"]        # perm impact
+        self.eta = model_cfg["eta"]        # terminal penalty
         self.mu_D = model_cfg["mu_D"]     # drift for D
 
     def generator(self, y, q):
@@ -21,7 +22,7 @@ class AidIntradayLQ(FBSNN):
     def terminal_cost(self, y):
         D = y[:, 2:3]
         X = y[:, 0:1]
-        return 0.5 * self.nu * (D - X)**2
+        return 0.5 * self.eta * (D - X)**2
 
     def mu(self, t, y, q):
         X = y[:, 0:1]
@@ -91,7 +92,7 @@ class AidIntradayLQ(FBSNN):
 
         log_term = gamma * (sigma_0**2 + sigma_d**2 * eta**2 - 2 * rho * sigma_0 * sigma_d * eta) / (eta + nu)**2
         log_expr = 1 + ((eta + nu) * tau) / (2 * gamma)
-        term4 = log_term * torch.log(torch.tensor(log_expr, device=self.device))
+        term4 = log_term * torch.log(log_expr)
 
         term5 = (sigma_d**2 * eta * nu + 2 * rho * sigma_0 * sigma_d * eta - sigma_0**2) / (2 * (eta + nu)) * tau
 
@@ -140,25 +141,32 @@ class AidIntradayLQ(FBSNN):
         y_vals = results["y"]
         Y_vals = results["Y"]
 
+        T, N_paths = y_vals.shape[:2]
+
         with torch.no_grad():
-            t_grid = torch.tensor(timesteps, dtype=torch.float32, device=self.device).unsqueeze(1).repeat(1, y_vals.shape[1])
-            y_tensor = torch.tensor(y_vals, dtype=torch.float32, device=self.device)
-            true_q = self.optimal_control_analytic(t_grid.flatten(), y_tensor.reshape(-1, y_tensor.shape[-1])).view(*t_grid.shape)
-            true_Y = self.value_function_analytic(t_grid.flatten(), y_tensor.reshape(-1, y_tensor.shape[-1])).view(*t_grid.shape)
+            t_grid = torch.linspace(0, self.T, self.N + 1, device=self.device).view(self.N + 1, 1).expand(self.N + 1, N_paths)  # shape: (N + 1, N_paths)
+            y_tensor = torch.tensor(results["y"], dtype=torch.float32, device=self.device)          # shape: (N + 1, N_paths, dim)
+            flat_y = y_tensor.reshape(-1, self.dim)                   # (N + 1) * n_sim, dim
+            flat_t = t_grid.reshape(-1, 1).expand_as(flat_y[:, :1])   # match shape: (N + 1) * n_sim, 1
+            true_q = self.optimal_control_analytic(flat_t, flat_y).view(self.N + 1, N_paths)
+            true_Y = self.value_function_analytic(flat_t, flat_y).view(self.N + 1, N_paths)
+
+        true_q = true_q.cpu().numpy()
+        true_Y = true_Y.cpu().numpy()
 
         fig, axs = plt.subplots(2, 2, figsize=(14, 10))
         colors = cm.get_cmap("tab10", approx_q.shape[1])
 
         for i in range(approx_q.shape[1]):
             axs[0, 0].plot(timesteps, approx_q[:, i], color=colors(i), alpha=0.6)
-            axs[0, 0].plot(timesteps, true_q[:, i].cpu(), linestyle="--", color=colors(i), alpha=0.4)
+            axs[0, 0].plot(timesteps, true_q[:, i], linestyle="--", color=colors(i), alpha=0.4)
         axs[0, 0].set_title("Control $q(t)$: Learned vs Analytical")
         axs[0, 0].set_xlabel("Time $t$")
         axs[0, 0].set_ylabel("$q(t)$")
         axs[0, 0].grid(True)
 
         for i in range(approx_q.shape[1]):
-            diff = approx_q[:, i] - true_q[:, i].cpu()
+            diff = approx_q[:, i] - true_q[:, i]
             axs[0, 1].plot(timesteps, diff, color=colors(i), alpha=0.6)
         axs[0, 1].axhline(0, color='red', linestyle='--', linewidth=0.8)
         axs[0, 1].set_title("Difference: Learned $-$ Analytical")
@@ -168,7 +176,7 @@ class AidIntradayLQ(FBSNN):
 
         for i in range(Y_vals.shape[1]):
             axs[1, 0].plot(timesteps, Y_vals[:, i, 0], color=colors(i), alpha=0.6)
-            axs[1, 0].plot(timesteps, true_Y[:, i].cpu(), linestyle="--", color=colors(i), alpha=0.4)
+            axs[1, 0].plot(timesteps, true_Y[:, i], linestyle="--", color=colors(i), alpha=0.4)
         axs[1, 0].set_title("Cost-to-Go $Y(t)$")
         axs[1, 0].set_xlabel("Time $t")
         axs[1, 0].set_ylabel("Y(t)")
@@ -189,20 +197,30 @@ class AidIntradayLQ(FBSNN):
         y_vals = results["y"]
         Y_vals = results["Y"]
 
-        with torch.no_grad():
-            t_grid = torch.tensor(timesteps, dtype=torch.float32, device=self.device).unsqueeze(1).repeat(1, y_vals.shape[1])
-            y_tensor = torch.tensor(y_vals, dtype=torch.float32, device=self.device)
-            true_q = self.optimal_control_analytic(t_grid.flatten(), y_tensor.reshape(-1, y_tensor.shape[-1])).view(*t_grid.shape)
-            true_Y = self.value_function_analytic(t_grid.flatten(), y_tensor.reshape(-1, y_tensor.shape[-1])).view(*t_grid.shape)
+        T, N_paths = y_vals.shape[:2]
 
-        mean_Y = Y_vals[:, :, 0].mean(axis=1).squeeze()
-        std_Y = Y_vals[:, :, 0].std(axis=1).squeeze()
-        mean_true_Y = true_Y.mean(dim=1).cpu().numpy().squeeze()
-        std_true_Y = true_Y.std(dim=1).cpu().numpy().squeeze()
+        with torch.no_grad():
+            t_grid = torch.linspace(0, self.T, self.N + 1, device=self.device).view(self.N + 1, 1).expand(self.N + 1, N_paths)  # shape: (N + 1, N_paths)
+            y_tensor = torch.tensor(results["y"], dtype=torch.float32, device=self.device)          # shape: (N + 1, N_paths, dim)
+            flat_y = y_tensor.reshape(-1, self.dim)                   # (N + 1) * n_sim, dim
+            flat_t = t_grid.reshape(-1, 1).expand_as(flat_y[:, :1])   # match shape: (N + 1) * n_sim, 1
+            true_q = self.optimal_control_analytic(flat_t, flat_y).view(self.N + 1, N_paths)
+            true_Y = self.value_function_analytic(flat_t, flat_y).view(self.N + 1, N_paths)
+
+        true_q = true_q.cpu().numpy()
+        true_Y = true_Y.cpu().numpy()
+
+        # Learned results
         mean_q = approx_q.mean(axis=1).squeeze()
         std_q = approx_q.std(axis=1).squeeze()
-        mean_q_true = true_q.mean(dim=1).cpu().numpy().squeeze()
-        std_q_true = true_q.std(dim=1).cpu().numpy().squeeze()
+        mean_Y = Y_vals[:, :, 0].mean(axis=1).squeeze()
+        std_Y = Y_vals[:, :, 0].std(axis=1).squeeze()
+
+        # Analytic results
+        mean_q_true = true_q.mean(axis=1).squeeze()
+        std_q_true = true_q.std(axis=1).squeeze()
+        mean_true_Y = true_Y.mean(axis=1).squeeze()
+        std_true_Y = true_Y.std(axis=1).squeeze()
 
         fig, axs = plt.subplots(2, 2, figsize=(14, 10))
 
@@ -216,7 +234,7 @@ class AidIntradayLQ(FBSNN):
         axs[0, 0].grid(True)
         axs[0, 0].legend()
 
-        diff = (approx_q.squeeze(-1) - true_q.cpu().numpy())
+        diff = (approx_q.squeeze(-1) - true_q)
         mean_diff = np.mean(diff, axis=1)
         std_diff = np.std(diff, axis=1)
         axs[0, 1].fill_between(timesteps, mean_diff - std_diff, mean_diff + std_diff, color='red', alpha=0.4, label='±1 Std Dev')
@@ -237,7 +255,7 @@ class AidIntradayLQ(FBSNN):
         axs[1, 0].grid(True)
         axs[1, 0].legend()
 
-        diff_Y = (Y_vals[:, :, 0] - true_Y.cpu().numpy())
+        diff_Y = (Y_vals[:, :, 0] - true_Y)
         mean_diff_Y = np.mean(diff_Y, axis=1)
         std_diff_Y = np.std(diff_Y, axis=1)
         axs[1, 1].fill_between(timesteps, mean_diff_Y - std_diff_Y, mean_diff_Y + std_diff_Y, color='red', alpha=0.4, label='±1 Std Dev')
@@ -252,12 +270,22 @@ class AidIntradayLQ(FBSNN):
         plt.show()
         
     def plot_terminal_histogram(self, results):
-        y_vals = results["y"][:, :, 0]  # X_T
+        y_vals = results["y"]  # shape: (T+1, N_paths, dim)
         Y_vals = results["Y"]  # shape: (T+1, N_paths, 1)
 
         Y_T_approx = Y_vals[-1, :, 0]
-        y_T = y_vals[-1, :]
-        Y_T_true = self.terminal_cost(torch.tensor(y_T, device=self.device).unsqueeze(1)).cpu().numpy()
+        y_T = y_vals[-1, :, :]  # full final states
+        y_T_tensor = torch.tensor(y_T, dtype=torch.float32, device=self.device)
+        Y_T_true = self.terminal_cost(y_T_tensor).detach().cpu().numpy().squeeze()
+
+        # Filter out NaN or Inf
+        mask = np.isfinite(Y_T_approx) & np.isfinite(Y_T_true)
+        Y_T_approx = Y_T_approx[mask]
+        Y_T_true = Y_T_true[mask]
+
+        if len(Y_T_approx) == 0 or len(Y_T_true) == 0:
+            print("Warning: No valid terminal values to plot.")
+            return
 
         plt.figure(figsize=(8, 6))
         bins = 30
