@@ -44,21 +44,19 @@ class AidIntradayLQ(FBSNN):
         Sigma[:, 2, 1] = (1 - self.rho**2)**0.5 * self.sigma_D # dD = ... dW2
         return Sigma
 
-    def trading_rate(self, t, y, Y):
-
+    def trading_rate(self, t, y, Y, create_graph=True):
         dV = torch.autograd.grad(
             outputs=Y,
             inputs=y,
             grad_outputs=torch.ones_like(Y),
-            create_graph=True
-        )[0]  # shape: [batch, dim] = [batch, 3]
+            create_graph=create_graph
+        )[0]
 
         dV_X = dV[:, 0:1]
         dV_P = dV[:, 1:2]
         P = y[:, 1:2]
 
-        q = -0.5 / self.gamma * (P + dV_X + self.nu * dV_P)  # shape: [batch, 1]
-
+        q = -0.5 / self.gamma * (P + dV_X + self.nu * dV_P)
         return q
 
     def optimal_control_analytic(self, t, y):
@@ -110,8 +108,7 @@ class AidIntradayLQ(FBSNN):
         q_traj, Y_traj, y_traj = [], [], []
 
         Y = self.Y_net(t, y)
-        dY = torch.autograd.grad(Y, y, torch.ones_like(Y), create_graph=False)[0]
-        q = -0.5 * dY[:, 0:1]  # control acts on X
+        q = self.trading_rate(t, y, Y, create_graph=False)
 
         q_traj.append(q.detach().cpu().numpy())
         Y_traj.append(Y.detach().cpu().numpy())
@@ -123,8 +120,7 @@ class AidIntradayLQ(FBSNN):
             t += self.dt
 
             Y = self.Y_net(t, y)
-            dY = torch.autograd.grad(Y, y, torch.ones_like(Y), create_graph=False)[0]
-            q = -0.5 * dY[:, 0:1]
+            q = self.trading_rate(t, y, Y, create_graph=False)
 
             q_traj.append(q.detach().cpu().numpy())
             Y_traj.append(Y.detach().cpu().numpy())
@@ -229,7 +225,7 @@ class AidIntradayLQ(FBSNN):
         axs[0, 0].plot(timesteps, mean_q_true, label='Analytical Mean', color='black', linestyle='--')
         axs[0, 0].fill_between(timesteps, mean_q_true - std_q_true, mean_q_true + std_q_true, color='black', alpha=0.2, label='Analytical ±1 Std')
         axs[0, 0].set_title("Control $q(t)$: Learned vs Analytical")
-        axs[0, 0].set_xlabel("Time $t")
+        axs[0, 0].set_xlabel("Time $t$")
         axs[0, 0].set_ylabel("$q(t)$")
         axs[0, 0].grid(True)
         axs[0, 0].legend()
@@ -240,7 +236,7 @@ class AidIntradayLQ(FBSNN):
         axs[0, 1].fill_between(timesteps, mean_diff - std_diff, mean_diff + std_diff, color='red', alpha=0.4, label='±1 Std Dev')
         axs[0, 1].plot(timesteps, mean_diff, color='red', label='Mean Difference')
         axs[0, 1].set_title("Difference: Learned $-$ Analytical")
-        axs[0, 1].set_xlabel("Time $t")
+        axs[0, 1].set_xlabel("Time $t$")
         axs[0, 1].set_ylabel("$q(t) - q^*(t)$")
         axs[0, 1].grid(True)
         axs[0, 1].legend()
@@ -250,7 +246,7 @@ class AidIntradayLQ(FBSNN):
         axs[1, 0].plot(timesteps, mean_true_Y, color='black', linestyle='--', label='Analytical Mean')
         axs[1, 0].fill_between(timesteps, mean_true_Y - std_true_Y, mean_true_Y + std_true_Y, color='black', alpha=0.2, label='Analytical ±1 Std')
         axs[1, 0].set_title("Cost-to-Go $Y(t)$")
-        axs[1, 0].set_xlabel("Time $t")
+        axs[1, 0].set_xlabel("Time $t$")
         axs[1, 0].set_ylabel("Y(t)")
         axs[1, 0].grid(True)
         axs[1, 0].legend()
@@ -261,7 +257,7 @@ class AidIntradayLQ(FBSNN):
         axs[1, 1].fill_between(timesteps, mean_diff_Y - std_diff_Y, mean_diff_Y + std_diff_Y, color='red', alpha=0.4, label='±1 Std Dev')
         axs[1, 1].plot(timesteps, mean_diff_Y, color='red', label='Mean Difference')
         axs[1, 1].set_title("Difference: Learned $Y(t) - Y^*(t)$")
-        axs[1, 1].set_xlabel("Time $t")
+        axs[1, 1].set_xlabel("Time $t$")
         axs[1, 1].set_ylabel("$Y(t) - Y^*(t)$")
         axs[1, 1].grid(True)
         axs[1, 1].legend()
