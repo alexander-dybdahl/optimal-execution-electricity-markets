@@ -56,12 +56,12 @@ class HJB(FBSNN):
 
     def sigma(self, t, y):
         batch_size = t.shape[0]
-        sigma_tensor = torch.zeros(batch_size, 4, 3, device=self.device)
-        sigma_tensor[:, 1, 0] = self.sigma_P(t).squeeze()
-        sigma_tensor[:, 2, 0] = self.rho * self.sigma_D(t).squeeze()
-        sigma_tensor[:, 2, 1] = (1 - self.rho**2) ** 0.5 * self.sigma_D(t).squeeze()
-        sigma_tensor[:, 3, 2] = self.sigma_B(t).squeeze()
-        return sigma_tensor
+        Sigma = torch.zeros(batch_size, 4, 3, device=self.device)
+        Sigma[:, 1, 0] = self.sigma_P(t).squeeze()
+        Sigma[:, 2, 0] = self.rho * self.sigma_D(t).squeeze()
+        Sigma[:, 2, 1] = (1 - self.rho**2) ** 0.5 * self.sigma_D(t).squeeze()
+        Sigma[:, 3, 2] = self.sigma_B(t).squeeze()
+        return Sigma
     
     def simulate_paths(self, n_sim=1024, seed=42, y0_single=None):
         torch.manual_seed(seed)

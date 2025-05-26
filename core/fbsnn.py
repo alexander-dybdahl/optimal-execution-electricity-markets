@@ -183,14 +183,15 @@ class FBSNN(nn.Module, ABC):
         terminal_gradient_loss = torch.sum(torch.pow(dY1 - self.terminal_cost_grad(y1), 2))
 
         # Terminal Hessian loss
-        d2Y1 = torch.autograd.grad(
+        d2Y = torch.autograd.grad(
             outputs=dY1,
             inputs=y1,
             grad_outputs=torch.ones_like(dY1),
             create_graph=True,
             retain_graph=True
         )[0]
-        terminal_hessian_loss = torch.sum(torch.pow(d2Y1 - self.terminal_cost_hess(y1), 2))
+        print("d²V/dx² =", d2Y.item())
+        terminal_hessian_loss = torch.sum(torch.pow(d2Y - self.terminal_cost_hess(y1), 2))
 
         self.total_Y_loss = self.λ_Y * Y_loss.detach().item()
         self.terminal_loss = self.λ_T * terminal_loss.detach().item()
@@ -209,8 +210,8 @@ class FBSNN(nn.Module, ABC):
         d2V_dx2 = torch.autograd.grad(dV_dx, x_pinn, torch.ones_like(dV_dx),
                                     create_graph=True, retain_graph=True)[0]
 
-        residual = dV_dt + 0.5 * self.sigma_x**2 * d2V_dx2 + torch.pow(x_pinn, 2) - 0.25 * torch.pow(dV_dx, 2)
-        pinn_loss = torch.mean(torch.pow(residual, 2))
+        residual = dV_dt + 0.5 * self.sigma_y**2 * d2V_dx2 + torch.pow(x_pinn, 2) - 0.25 * torch.pow(dV_dx, 2)
+        pinn_loss = torch.sum(torch.pow(residual, 2))
         self.pinn_loss = self.λ_pinn * pinn_loss.detach().item()
 
         return self.λ_Y * Y_loss + self.λ_T * terminal_loss + self.λ_TG * terminal_gradient_loss + self.λ_TH * terminal_hessian_loss + self.λ_pinn * pinn_loss
@@ -221,7 +222,7 @@ class FBSNN(nn.Module, ABC):
 
         if adaptive:
             scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-                optimizer, mode='min', factor=0.9, patience=20
+                optimizer, mode='min', factor=0.5, patience=50
             )
         else:
             scheduler = torch.optim.lr_scheduler.StepLR(

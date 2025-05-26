@@ -201,17 +201,19 @@ class SimpleHJB(FBSNN):
         axs[0, 0].set_xlabel("Time $t$")
         axs[0, 0].set_ylabel("$q(t)$")
         axs[0, 0].grid(True)
+        axs[0, 0].legend()
 
         # --- Subplot 2: Absolute Difference ---
         diff = (approx_q.squeeze(-1) - true_q)  # (T, N_paths)
         mean_diff = np.mean(diff, axis=1)
         std_diff = np.std(diff, axis=1)
         axs[0, 1].fill_between(timesteps, mean_diff - std_diff, mean_diff + std_diff, color='red', alpha=0.4, label='±1 Std Dev')
-
+        axs[0, 1].plot(timesteps, mean_diff, color='red', label='Mean Difference')
         axs[0, 1].set_title("Difference: Learned $-$ Analytical")
         axs[0, 1].set_xlabel("Time $t$")
         axs[0, 1].set_ylabel("$q(t) - q^*(t)$")
         axs[0, 1].grid(True)
+        axs[0, 1].legend()
 
         # --- Subplot 3: Y(t) paths ---
         axs[1, 0].plot(timesteps, mean_Y, color='blue', label='Learned Mean')
@@ -224,14 +226,27 @@ class SimpleHJB(FBSNN):
         axs[1, 0].set_xlabel("Time $t$")
         axs[1, 0].set_ylabel("Y(t)")
         axs[1, 0].grid(True)
+        axs[1, 0].legend()
 
-        # --- Subplot 4: y(t) paths ---
-        for i in range(y_vals.shape[1]):
-            axs[1, 1].plot(timesteps, y_vals[:, i], color=colors(i), alpha=0.6, label=f"Path {i+1}")
-        axs[1, 1].set_title("State $x(t)$")
+        # --- Subplot 4: Difference ---
+        diff_Y = (Y_vals[:, :, 0] - true_Y)  # (T, N_paths)
+        mean_diff_Y = np.mean(diff_Y, axis=1)
+        std_diff_Y = np.std(diff_Y, axis=1)
+        axs[1, 1].fill_between(timesteps, mean_diff_Y - std_diff_Y, mean_diff_Y + std_diff_Y, color='red', alpha=0.4, label='±1 Std Dev')
+        axs[1, 1].plot(timesteps, mean_diff_Y, color='red', label='Mean Difference')
+        axs[1, 1].set_title("Difference: Learned $Y(t) - Y^*(t)$")
         axs[1, 1].set_xlabel("Time $t$")
-        axs[1, 1].set_ylabel("x(t)")
+        axs[1, 1].set_ylabel("$Y(t) - Y^*(t)$")
         axs[1, 1].grid(True)
+        axs[1, 1].legend()
+
+        # # --- Subplot 4: y(t) paths ---
+        # for i in range(y_vals.shape[1]):
+        #     axs[1, 1].plot(timesteps, y_vals[:, i], color=colors(i), alpha=0.6, label=f"Path {i+1}")
+        # axs[1, 1].set_title("State $x(t)$")
+        # axs[1, 1].set_xlabel("Time $t$")
+        # axs[1, 1].set_ylabel("x(t)")
+        # axs[1, 1].grid(True)
 
         plt.tight_layout()
         plt.show()

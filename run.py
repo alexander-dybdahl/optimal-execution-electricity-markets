@@ -5,6 +5,7 @@ from utils.load_config import load_model_config, load_run_config
 from utils.tools import str2bool
 from models.hjb_bsde import HJB
 from models.simple_hjb_bsde import SimpleHJB
+from models.aid_dbse import AidIntradayLQ
 
 def main():
     run_cfg = load_run_config(path="config/run_config.json")
@@ -42,7 +43,7 @@ def main():
 
     model_cfg = load_model_config(args.model_config)
 
-    model = SimpleHJB(args, model_cfg)
+    model = AidIntradayLQ(args, model_cfg)
     save_path = run_cfg["save_path"] + f"_{args.architecture}_{args.activation}"
     
     import warnings
@@ -62,6 +63,9 @@ def main():
     timesteps, results = model.simulate_paths(n_sim=args.n_simulations, seed=np.random.randint(0, 1000))
     if args.plot:
         model.plot_approx_vs_analytic(results, timesteps)
+    
+    timesteps, results = model.simulate_paths(n_sim=1000, seed=np.random.randint(0, 1000))
+    if args.plot:
         model.plot_approx_vs_analytic_expectation(results, timesteps)
         model.plot_terminal_histogram(results)
 
