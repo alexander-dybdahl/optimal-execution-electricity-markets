@@ -244,19 +244,20 @@ class FBSNN(nn.Module, ABC):
 
             scheduler.step(loss.item() if adaptive else epoch)
 
-            avg_time_per_K = (time.time() - init_time) / (epoch + 1e-8)  # avoid div-by-zero
-            eta_seconds = avg_time_per_K * (epochs - epoch) if epoch > 0 else 0
-            eta_minutes_part = eta_seconds // 60
-            eta_seconds_part = eta_seconds % 60
-            if epoch == 0:
-                eta_str = "N/A"
-            else:
-                eta_seconds = int(avg_time_per_K * (epochs - epoch))
+            if (epoch % K == 0 or epoch == epochs - 1):
+                
+                avg_time_per_K = (time.time() - init_time) / (epoch + 1e-8)  # avoid div-by-zero
+                eta_seconds = avg_time_per_K * (epochs - epoch) if epoch > 0 else 0
                 eta_minutes_part = eta_seconds // 60
                 eta_seconds_part = eta_seconds % 60
-                eta_str = f"{eta_minutes_part}m {eta_seconds_part:02d}s" if eta_seconds >= 60 else f"{eta_seconds}s"
+                if epoch == 0:
+                    eta_str = "N/A"
+                else:
+                    eta_seconds = int(avg_time_per_K * (epochs - epoch))
+                    eta_minutes_part = eta_seconds // 60
+                    eta_seconds_part = eta_seconds % 60
+                    eta_str = f"{eta_minutes_part}m {eta_seconds_part:02d}s" if eta_seconds >= 60 else f"{eta_seconds}s"
 
-            if (epoch % K == 0 or epoch == epochs - 1):
                 elapsed = time.time() - start_time
                 if not header_printed:
                     log(f"{'Epoch':>{max_widths['epoch']}} | "
