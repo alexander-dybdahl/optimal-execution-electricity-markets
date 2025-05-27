@@ -100,13 +100,16 @@ class AidIntradayLQ(FBSNN):
 
         return term1 + term2 + term3 + term4 + term5 + term6
 
+    def pinn_loss(self, t, y, Y):
+        return super().pinn_loss(t, y, Y)
+
     def simulate_paths(self, n_sim=5, seed=42, y0_single=None):
         torch.manual_seed(seed)
         self.eval()
 
         y = y0_single.repeat(n_sim, 1) if y0_single is not None else self.y0.repeat(n_sim, 1)
         t = torch.zeros(n_sim, 1, device=self.device)
-
+  
         q_traj, Y_traj, y_traj = [], [], []
 
         Y = self.Y_net(t, y)

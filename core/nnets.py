@@ -6,16 +6,22 @@ import torch
 import torch.nn as nn
 
 class LSTMNet(nn.Module):
-    def __init__(self, layers, activation):
+    def __init__(self, layers, activation, type='LSTM'):
         super().__init__()
         input_size = layers[0]  # dim + 1 (time + state)
         hidden_sizes = layers[1:-1]
         output_size = layers[-1]
 
-        self.lstm_layers = nn.ModuleList([
-            LSTMCell(input_size if i == 0 else hidden_sizes[i - 1], hidden_sizes[i])
-            for i in range(len(hidden_sizes))
-        ])
+        if type == 'ResLSTM':
+            self.lstm_layers = nn.ModuleList([
+                ResLSTMCell(input_size if i == 0 else hidden_sizes[i - 1], hidden_sizes[i], activation=activation)
+                for i in range(len(hidden_sizes))
+            ])
+        else:
+            self.lstm_layers = nn.ModuleList([
+                LSTMCell(input_size if i == 0 else hidden_sizes[i - 1], hidden_sizes[i])
+                for i in range(len(hidden_sizes))
+            ])
         self.out_layer = nn.Linear(hidden_sizes[-1], output_size)
         self.activation = activation
 
@@ -55,6 +61,50 @@ class LSTMCell(nn.Module):
 
         c = f * c_prev + i * g
         h = o * torch.tanh(c)
+        return h, (h, c)
+
+class ResLSTMCell(nn.Module):
+    def __init__(self, input_size, hidden_size, stable=False, activation=nn.Tanh()):
+        super().__init__()
+        self.stable = stable
+        self.activation = activation
+        self.epsilon = 0.01
+
+        self.i2h = nn.Linear(input_size, 4 * hidden_size)
+        self.h2h = nn.Linear(hidden_size, 4 * hidden_size)
+        self.residual = nn.Linear(input_size, hidden_size)
+
+    def stable_forward(self, layer, out):
+        W = layer.weight
+        delta = 1 - 2 * self.epsilon
+        RtR = torch.matmul(W.t(), W)
+        norm = torch.norm(RtR)
+        if norm > delta:
+            RtR = delta ** 0.5 * RtR / norm**0.5
+        A = RtR + torch.eye(RtR.shape[0], device=RtR.device) * self.epsilon
+        return F.linear(out, -A, layer.bias)
+
+    def forward(self, x, hidden):
+        h_prev, c_prev = hidden
+        gates = self.i2h(x) + self.h2h(h_prev)
+        i, f, g, o = gates.chunk(4, dim=1)
+
+        i = torch.sigmoid(i)
+        f = torch.sigmoid(f)
+        g = torch.tanh(g)
+        o = torch.sigmoid(o)
+
+        c = f * c_prev + i * g
+        h_core = o * torch.tanh(c)
+
+        # Inject residual connection
+        res = self.residual(x)
+        if self.stable:
+            res = self.stable_forward(self.residual, x)
+
+        h = h_core + res  # or h = h_core + shortcut(x)
+        h = self.activation(h)
+
         return h, (h, c)
 
 class Sine(nn.Module):
@@ -132,4 +182,3 @@ class Resnet(nn.Module):
             out = out + shortcut if i > 0 else out
 
         return self.output_layer(out)
-

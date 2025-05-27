@@ -86,6 +86,9 @@ class FBSNN(nn.Module, ABC):
     def trading_rate(self, t, y, Y): pass 
 
     @abstractmethod
+    def pinn_loss(self, t, y, Y): pass
+
+    @abstractmethod
     def forward_supervised(self, t_paths, W_paths): pass
 
     def forward_dynamics(self, y, q, dW, t, dt):
@@ -112,8 +115,6 @@ class FBSNN(nn.Module, ABC):
     def forward(self, t_paths, W_paths):
         if self.supervised:
             return self.forward_supervised(t_paths, W_paths)
-        if self.architecture == "LSTM":
-            return self.forward_lstm(t_paths, W_paths)
         else:
             return self.forward_fc(t_paths, W_paths)
 
@@ -160,55 +161,6 @@ class FBSNN(nn.Module, ABC):
 
         terminal_loss = torch.sum(torch.pow(Y1 - self.terminal_cost(y1), 2))
         terminal_gradient_loss = torch.sum(torch.pow(dY1 - self.terminal_cost_grad(y1), 2))
-
-        self.total_Y_loss = self.λ_Y * Y_loss.detach().item()
-        self.terminal_loss = self.λ_T * terminal_loss.detach().item()
-        self.terminal_gradient_loss = self.λ_TG * terminal_gradient_loss.detach().item()
-
-        return self.λ_Y * Y_loss + self.λ_T * terminal_loss + self.λ_TG * terminal_gradient_loss
-
-    def forward_lstm(self, t_paths, W_paths):
-        batch_size = self.batch_size
-        t0 = t_paths[:, 0, :]
-        W0 = W_paths[:, 0, :]
-        y0 = self.y0.repeat(batch_size, 1).to(self.device)
-        Y0 = self.Y_net(t0, y0)
-
-        dY0 = torch.autograd.grad(
-            outputs=Y0,
-            inputs=y0,
-            grad_outputs=torch.ones_like(Y0),
-            create_graph=True,
-            retain_graph=True
-        )[0]
-
-        Y_loss = 0.0
-
-        for n in range(self.N):
-            t1 = t_paths[:, n + 1, :]
-            W1 = W_paths[:, n + 1, :]
-            σ0 = self.sigma(t0, y0)
-            Z0 = torch.bmm(σ0.transpose(1, 2), dY0.unsqueeze(-1)).squeeze(-1)
-            q = self.trading_rate(t0, y0, Y0)
-            y1 = self.forward_dynamics(y0, q, W1 - W0, t0, t1 - t0)
-
-            Y1 = self.Y_net(t1, y1)
-            dY1 = torch.autograd.grad(
-                outputs=Y1,
-                inputs=y1,
-                grad_outputs=torch.ones_like(Y1),
-                create_graph=True,
-                retain_graph=True
-            )[0]
-
-            f = self.generator(y0, q)
-            Y1_tilde = Y0 - f * (t1 - t0) + (Z0 * (W1 - W0)).sum(dim=1, keepdim=True)
-            Y_loss += torch.sum((Y1 - Y1_tilde) ** 2)
-
-            t0, W0, y0, Y0, dY0 = t1, W1, y1, Y1, dY1
-
-        terminal_loss = torch.sum((Y1 - self.terminal_cost(y1)) ** 2)
-        terminal_gradient_loss = torch.sum((dY1 - self.terminal_cost_grad(y1)) ** 2)
 
         self.total_Y_loss = self.λ_Y * Y_loss.detach().item()
         self.terminal_loss = self.λ_T * terminal_loss.detach().item()
