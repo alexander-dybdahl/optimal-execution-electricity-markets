@@ -222,7 +222,7 @@ class AidIntradayLQ(FBSNN):
         axs[0, 0].set_xlabel("Time $t$")
         axs[0, 0].set_ylabel("$q(t)$")
         axs[0, 0].grid(True)
-        axs[0, 0].legend(loc='upper right')
+        axs[0, 0].legend(loc='upper left')
 
         for i in range(approx_q.shape[1]):
             diff = approx_q[:, i].squeeze() - true_q[:, i].squeeze()
@@ -232,7 +232,7 @@ class AidIntradayLQ(FBSNN):
         axs[0, 1].set_xlabel("Time $t$")
         axs[0, 1].set_ylabel("$q(t) - q^*(t)$")
         axs[0, 1].grid(True)
-        axs[0, 1].legend(loc='upper right')
+        axs[0, 1].legend(loc='upper left')
 
         for i in range(Y_vals.shape[1]):
             axs[1, 0].plot(timesteps, Y_vals[:, i, 0], color=colors(i), alpha=0.6, label=f"Learned $Y_{i}(t)$" if i == 0 else None)
@@ -241,7 +241,7 @@ class AidIntradayLQ(FBSNN):
         axs[1, 0].set_xlabel("Time $t$")
         axs[1, 0].set_ylabel("Y(t)")
         axs[1, 0].grid(True)
-        axs[1, 0].legend(loc='upper right')
+        axs[1, 0].legend(loc='upper left')
 
         for i in range(Y_vals.shape[1]):
             diff_Y = Y_vals[:, i, 0] - true_Y[:, i]
@@ -251,7 +251,7 @@ class AidIntradayLQ(FBSNN):
         axs[1, 1].set_xlabel("Time $t$")
         axs[1, 1].set_ylabel("$Y(t) - Y^*(t)$")
         axs[1, 1].grid(True)
-        axs[1, 1].legend(loc='upper right')
+        axs[1, 1].legend(loc='upper left')
 
         for i in range(y_vals.shape[1]):
             axs[2, 0].plot(timesteps, y_vals[:, i, 0], color=colors(i), alpha=0.6, label=f"$x_{i}(t)$" if i == 0 else None)
@@ -260,7 +260,7 @@ class AidIntradayLQ(FBSNN):
         axs[2, 0].set_xlabel("Time $t$")
         axs[2, 0].set_ylabel("x(t)/p(t)/d(t)")
         axs[2, 0].grid(True)
-        axs[2, 0].legend(loc='upper right')
+        axs[2, 0].legend(loc='upper left')
 
         for i in range(y_vals.shape[1]):
             axs[2, 1].plot(timesteps, y_vals[:, i, 1], color=colors(i), alpha=0.6, label=f"$p_{i}(t)$" if i == 0 else None)
@@ -268,7 +268,7 @@ class AidIntradayLQ(FBSNN):
         axs[2, 1].set_xlabel("Time $t$")
         axs[2, 1].set_ylabel("x(t)/p(t)/d(t)")
         axs[2, 1].grid(True)
-        axs[2, 1].legend(loc='upper right')
+        axs[2, 1].legend(loc='upper left')
 
         plt.tight_layout()
         if save_dir:
@@ -316,7 +316,7 @@ class AidIntradayLQ(FBSNN):
         axs[0, 0].set_xlabel("Time $t$")
         axs[0, 0].set_ylabel("$q(t)$")
         axs[0, 0].grid(True)
-        axs[0, 0].legend(loc='upper right')
+        axs[0, 0].legend(loc='upper left')
 
         diff = (approx_q.squeeze(-1) - true_q)
         mean_diff = np.mean(diff, axis=1)
@@ -327,7 +327,7 @@ class AidIntradayLQ(FBSNN):
         axs[0, 1].set_xlabel("Time $t$")
         axs[0, 1].set_ylabel("$q(t) - q^*(t)$")
         axs[0, 1].grid(True)
-        axs[0, 1].legend(loc='upper right')
+        axs[0, 1].legend(loc='upper left')
 
         axs[1, 0].plot(timesteps, mean_Y, color='blue', label='Learned Mean')
         axs[1, 0].fill_between(timesteps, mean_Y - std_Y, mean_Y + std_Y, color='blue', alpha=0.3, label='Learned ±1 Std')
@@ -337,7 +337,7 @@ class AidIntradayLQ(FBSNN):
         axs[1, 0].set_xlabel("Time $t$")
         axs[1, 0].set_ylabel("Y(t)")
         axs[1, 0].grid(True)
-        axs[1, 0].legend(loc='upper right')
+        axs[1, 0].legend(loc='upper left')
 
         diff_Y = (Y_vals[:, :, 0] - true_Y)
         mean_diff_Y = np.mean(diff_Y, axis=1)
@@ -348,7 +348,7 @@ class AidIntradayLQ(FBSNN):
         axs[1, 1].set_xlabel("Time $t$")
         axs[1, 1].set_ylabel("$Y(t) - Y^*(t)$")
         axs[1, 1].grid(True)
-        axs[1, 1].legend(loc='upper right')
+        axs[1, 1].legend(loc='upper left')
 
         plt.tight_layout()
         if save_dir:

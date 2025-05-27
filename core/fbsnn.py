@@ -193,6 +193,8 @@ class FBSNN(nn.Module, ABC):
         losses, losses_Y, losses_terminal, losses_terminal_gradient = [], [], [], []
         self.train()
 
+        log(f"Training started at {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())}")
+        log(f"Logging training to {log_file}")
         log("\n+---------------------------+---------------------------+")
         log("| Training Configuration    |                           |")
         log("+---------------------------+---------------------------+")
@@ -219,13 +221,14 @@ class FBSNN(nn.Module, ABC):
         
         max_widths = {
             "epoch": 8,
-            "loss": 10,
-            "lr": 8,
+            "loss": 12,
+            "lr": 10,
             "mem": 12,
             "time": 8,
+            "eta": 8,
             "status": 20
         }
-        width = (max_widths['epoch'] + max_widths['loss'] * 4 + max_widths['lr'] + max_widths['mem'] + max_widths['time'] + max_widths['status'] + 7 * 3 + 1)
+        width = (max_widths['epoch'] + max_widths['loss'] * 4 + max_widths['lr'] + max_widths['mem'] + max_widths['time'] + max_widths['eta'] + max_widths['status'] + 8 * 3 + 1)
 
         for epoch in range(epochs):
             optimizer.zero_grad()
@@ -241,10 +244,23 @@ class FBSNN(nn.Module, ABC):
 
             scheduler.step(loss.item() if adaptive else epoch)
 
+            avg_time_per_K = (time.time() - init_time) / (epoch + 1e-8)  # avoid div-by-zero
+            eta_seconds = avg_time_per_K * (epochs - epoch) if epoch > 0 else 0
+            eta_minutes = eta_seconds / 60.0
+
             if (epoch % K == 0 or epoch == epochs - 1):
                 elapsed = time.time() - start_time
                 if not header_printed:
-                    log(f"{'Epoch':>{max_widths['epoch']}} | {'Total loss':>{max_widths['loss']}} | {'Y loss':>{max_widths['loss']}} | {'T. loss':>{max_widths['loss']}} | {'T.G. loss':>{max_widths['loss']}} | {'LR':>{max_widths['lr']}} | {'Memory [MB]':>{max_widths['mem']}} | {'Time [s]':>{max_widths['time']}} | {'Status':<{max_widths['status']}}")
+                    log(f"{'Epoch':>{max_widths['epoch']}} | "
+                        f"{'Total loss':>{max_widths['loss']}} | "
+                        f"{'Y loss':>{max_widths['loss']}} | "
+                        f"{'T. loss':>{max_widths['loss']}} | "
+                        f"{'T.G. loss':>{max_widths['loss']}} | "
+                        f"{'LR':>{max_widths['lr']}} | "
+                        f"{'Memory [MB]':>{max_widths['mem']}} | "
+                        f"{'Time [s]':>{max_widths['time']}} | "
+                        f"{'ETA [min]':>{max_widths['eta']}} | "
+                        f"{'Status':<{max_widths['status']}}")
                     log("-" * width)
                     header_printed = True
 
@@ -259,6 +275,7 @@ class FBSNN(nn.Module, ABC):
                 if "best" in self.save and np.mean(losses[-K:]) < self.lowest_loss:
                     self.lowest_loss = np.mean(losses[-K:])
                     torch.save(self.state_dict(), save_path + "_best.pth")
+                    time.sleep(0.01)
                     status = "Model saved (best)"
 
                 log(f"{epoch:>{max_widths['epoch']}} | "
@@ -269,6 +286,7 @@ class FBSNN(nn.Module, ABC):
                     f"{current_lr:>{max_widths['lr']}.2e} | "
                     f"{mem_mb:>{max_widths['mem']}.2f} | "
                     f"{elapsed:>{max_widths['time']}.2f} | "
+                    f"{eta_minutes:>{max_widths['eta']}.1f} | "
                     f"{status:<{max_widths['status']}}")
                 start_time = time.time()
 
@@ -283,6 +301,7 @@ class FBSNN(nn.Module, ABC):
                 f"{current_lr:>{max_widths['lr']}.2e} | "
                 f"{mem_mb:>{max_widths['mem']}.2f} | "
                 f"{elapsed:>{max_widths['time']}.2f} | "
+                f"{eta_minutes:>{max_widths['eta']}.1f} | "
                 f"{status:<{max_widths['status']}}")
 
         log("-" * width)
