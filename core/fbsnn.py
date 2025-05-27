@@ -246,7 +246,15 @@ class FBSNN(nn.Module, ABC):
 
             avg_time_per_K = (time.time() - init_time) / (epoch + 1e-8)  # avoid div-by-zero
             eta_seconds = avg_time_per_K * (epochs - epoch) if epoch > 0 else 0
-            eta_minutes = eta_seconds / 60.0
+            eta_minutes_part = eta_seconds // 60
+            eta_seconds_part = eta_seconds % 60
+            if epoch == 0:
+                eta_str = "N/A"
+            else:
+                eta_seconds = int(avg_time_per_K * (epochs - epoch))
+                eta_minutes_part = eta_seconds // 60
+                eta_seconds_part = eta_seconds % 60
+                eta_str = f"{eta_minutes_part}m {eta_seconds_part:02d}s" if eta_seconds >= 60 else f"{eta_seconds}s"
 
             if (epoch % K == 0 or epoch == epochs - 1):
                 elapsed = time.time() - start_time
@@ -259,7 +267,7 @@ class FBSNN(nn.Module, ABC):
                         f"{'LR':>{max_widths['lr']}} | "
                         f"{'Memory [MB]':>{max_widths['mem']}} | "
                         f"{'Time [s]':>{max_widths['time']}} | "
-                        f"{'ETA [min]':>{max_widths['eta']}} | "
+                        f"{'ETA':>{max_widths['eta']}} | "
                         f"{'Status':<{max_widths['status']}}")
                     log("-" * width)
                     header_printed = True
@@ -291,7 +299,7 @@ class FBSNN(nn.Module, ABC):
                     f"{current_lr:>{max_widths['lr']}.2e} | "
                     f"{mem_mb:>{max_widths['mem']}.2f} | "
                     f"{elapsed:>{max_widths['time']}.2f} | "
-                    f"{eta_minutes:>{max_widths['eta']}.1f} | "
+                    f"{eta_str:>{max_widths['eta']}} | "
                     f"{status:<{max_widths['status']}}")
                 start_time = time.time()
 
@@ -302,14 +310,14 @@ class FBSNN(nn.Module, ABC):
                 log(f"Error saving last model: {e}")
             status = "Model saved"
             log(f"{epoch:>{max_widths['epoch']}} | "
-                f"{loss.item():>{max_widths['loss']}.2e} | "
-                f"{self.total_Y_loss:>{max_widths['loss']}.2e} | "
-                f"{self.terminal_loss:>{max_widths['loss']}.2e} | "
-                f"{self.terminal_gradient_loss:>{max_widths['loss']}.2e} | "
+                f"{np.mean(losses[-K:]):>{max_widths['loss']}.2e} | "
+                f"{np.mean(losses_Y[-K:]):>{max_widths['loss']}.2e} | "
+                f"{np.mean(losses_terminal[-K:]):>{max_widths['loss']}.2e} | "
+                f"{np.mean(losses_terminal_gradient[-K:]):>{max_widths['loss']}.2e} | "
                 f"{current_lr:>{max_widths['lr']}.2e} | "
                 f"{mem_mb:>{max_widths['mem']}.2f} | "
                 f"{elapsed:>{max_widths['time']}.2f} | "
-                f"{eta_minutes:>{max_widths['eta']}.1f} | "
+                f"{eta_str:>{max_widths['eta']}} | "
                 f"{status:<{max_widths['status']}}")
 
         log("-" * width)
