@@ -2,16 +2,60 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-class YLSTM(nn.Module):
-    def __init__(self, input_dim, hidden_dim, output_dim):
-        super(YLSTM, self).__init__()
-        self.lstm = nn.LSTM(input_dim, hidden_dim, batch_first=True)
-        self.output_layer = nn.Linear(hidden_dim, output_dim)
+import torch
+import torch.nn as nn
 
-    def forward(self, t_seq, y_seq):
-        inp = torch.cat([t_seq, y_seq], dim=2)
-        lstm_out, _ = self.lstm(inp)
-        return self.output_layer(lstm_out)
+class LSTMNet(nn.Module):
+    def __init__(self, layers, activation):
+        super().__init__()
+        input_size = layers[0]  # dim + 1 (time + state)
+        hidden_sizes = layers[1:-1]
+        output_size = layers[-1]
+
+        self.lstm_layers = nn.ModuleList([
+            LSTMCell(input_size if i == 0 else hidden_sizes[i - 1], hidden_sizes[i])
+            for i in range(len(hidden_sizes))
+        ])
+        self.out_layer = nn.Linear(hidden_sizes[-1], output_size)
+        self.activation = activation
+
+    def forward(self, t, y):
+        input_seq = torch.cat([t, y], dim=1).unsqueeze(1)  # shape: [batch, seq_len=1, input_size]
+        batch_size = input_seq.size(0)
+
+        h = [torch.zeros(batch_size, layer.hidden_size, device=input_seq.device, requires_grad=True)
+            for layer in self.lstm_layers]
+        c = [torch.zeros_like(h_i) for h_i in h]
+
+        x = input_seq.squeeze(1)
+        for i, lstm_cell in enumerate(self.lstm_layers):
+            h[i], (h[i], c[i]) = lstm_cell(x, (h[i], c[i]))
+            x = self.activation(h[i])
+
+        return self.out_layer(x)
+
+class LSTMCell(nn.Module):
+    def __init__(self, input_size, hidden_size):
+        super().__init__()
+        self.input_size = input_size
+        self.hidden_size = hidden_size
+
+        self.i2h = nn.Linear(input_size, 4 * hidden_size)
+        self.h2h = nn.Linear(hidden_size, 4 * hidden_size)
+
+    def forward(self, x, hidden):
+        h_prev, c_prev = hidden
+        gates = self.i2h(x) + self.h2h(h_prev)
+        i, f, g, o = gates.chunk(4, dim=1)
+
+        i = torch.sigmoid(i)
+        f = torch.sigmoid(f)
+        g = torch.tanh(g)
+        o = torch.sigmoid(o)
+
+        c = f * c_prev + i * g
+        h = o * torch.tanh(c)
+        return h, (h, c)
 
 class Sine(nn.Module):
     """This class defines the sine activation function as a nn.Module"""

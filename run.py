@@ -5,7 +5,7 @@ from utils.load_config import load_model_config, load_run_config
 from utils.tools import str2bool
 from models.hjb_bsde import HJB
 from models.simple_hjb_bsde import SimpleHJB
-from models.aid_dbse import AidIntradayLQ
+from models.aid_bdse import AidIntradayLQ
 
 def main():
     run_cfg = load_run_config(path="config/run_config.json")
