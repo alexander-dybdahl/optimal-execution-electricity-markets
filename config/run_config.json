@@ -16,7 +16,7 @@
   "epochs": 1000,
   "K": 50,
   "lr": 1e-3,
-  "adaptive": false,
+  "adaptive": true,
   "n_paths": 1024,
   "batch_size": 1024,
   "n_simulations": 5,
