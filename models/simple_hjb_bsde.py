@@ -126,7 +126,7 @@ class SimpleHJB(FBSNN):
         phi_t = self.phi_analytic(t).reshape(-1, 1)  # shape (T, 1)
         return phi_t + K_t * y**2                    # shape (T, N)
 
-    def plot_approx_vs_analytic(self, results, timesteps):
+    def plot_approx_vs_analytic(self, results, timesteps, save_dir=None):
         approx_q = results["q"]              # shape: (T + 1, N_paths)
         y_vals = results["y"][:, :, 0]       # shape: (T + 1, N_paths)
         Y_vals = results["Y"]                # shape: (T + 1, N_paths, 1)
@@ -178,9 +178,11 @@ class SimpleHJB(FBSNN):
         axs[1, 1].grid(True)
 
         plt.tight_layout()
+        if save_dir:
+            plt.savefig(f"{save_dir}/approx_vs_analytic.png", dpi=300, bbox_inches='tight')
         plt.show()
 
-    def plot_approx_vs_analytic_expectation(self, results, timesteps):
+    def plot_approx_vs_analytic_expectation(self, results, timesteps, save_dir=None):
         approx_q = results["q"]              # shape: (T + 1, N_paths)
         y_vals = results["y"][:, :, 0]       # shape: (T + 1, N_paths)
         Y_vals = results["Y"]                # shape: (T + 1, N_paths, 1)
@@ -263,9 +265,11 @@ class SimpleHJB(FBSNN):
         # axs[1, 1].grid(True)
 
         plt.tight_layout()
+        if save_dir:
+            plt.savefig(f"{save_dir}/approx_vs_analytic_expectation.png", dpi=300, bbox_inches='tight')
         plt.show()
 
-    def plot_terminal_histogram(self, results):
+    def plot_terminal_histogram(self, results, save_dir=None):
         y_vals = results["y"][:, :, 0]       # shape: (T + 1, N_paths)
         Y_vals = results["Y"]                # shape: (T + 1, N_paths, 1)
 
@@ -291,6 +295,8 @@ class SimpleHJB(FBSNN):
         plt.legend()
         plt.grid(True)
         plt.tight_layout()
+        if save_dir:
+            plt.savefig(f"{save_dir}/terminal_histogram.png", dpi=300, bbox_inches='tight')
         plt.show()
 
     def forward_supervised(self, t_paths, W_paths):

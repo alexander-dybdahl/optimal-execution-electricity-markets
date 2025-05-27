@@ -170,14 +170,8 @@ class FBSNN(nn.Module, ABC):
 
         return self.λ_Y * Y_loss + self.λ_T * terminal_loss + self.λ_TG * terminal_gradient_loss
 
-    def train_model(self, epochs=1000, K=50, lr=1e-3, verbose=True, plot=True, adaptive=True, run_cfg=None, save_path=None):
-        # Create save path
-        assert run_cfg is not None, "run_cfg must be provided"
-        save_dir = os.path.join(run_cfg["save_path"], f"{self.architecture}_{self.activation.__class__.__name__}")
-        os.makedirs(save_dir, exist_ok=True)
+    def train_model(self, epochs=1000, K=50, lr=1e-3, verbose=True, plot=True, adaptive=True, save_dir=None):
         save_path = os.path.join(save_dir, "model")
-
-        # Setup logger
         log_file = os.path.join(save_dir, "training.log")
         logging.basicConfig(filename=log_file, filemode='w', level=logging.INFO, format='%(message)s')
         logger = logging.getLogger()
@@ -284,7 +278,7 @@ class FBSNN(nn.Module, ABC):
             plt.tight_layout()
             plt.savefig(os.path.join(save_dir, "training_loss.png"))
             plt.show()
-            if save_path:
+            if save_dir:
                 plt.savefig(save_path + "_loss.png")
                 log(f"Loss plot saved to {save_path}_loss.png")
 

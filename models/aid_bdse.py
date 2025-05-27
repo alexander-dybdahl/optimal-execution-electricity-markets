@@ -194,7 +194,7 @@ class AidIntradayLQ(FBSNN):
 
         return self.λ_Y * Y_loss + self.λ_T * terminal_loss + self.λ_TG * terminal_gradient_loss
 
-    def plot_approx_vs_analytic(self, results, timesteps, save_path=None):
+    def plot_approx_vs_analytic(self, results, timesteps, save_dir=None):
         approx_q = results["q"]
         y_vals = results["y"]
         Y_vals = results["Y"]
@@ -271,11 +271,11 @@ class AidIntradayLQ(FBSNN):
         axs[2, 1].legend(loc='upper right')
 
         plt.tight_layout()
+        if save_dir:
+            plt.savefig(f"{save_dir}/approx_vs_analytic.png", dpi=300, bbox_inches='tight')
         plt.show()
-        if save_path:
-            plt.savefig(save_path + "_approx_vs_analytic.png")
 
-    def plot_approx_vs_analytic_expectation(self, results, timesteps, save_path=None):
+    def plot_approx_vs_analytic_expectation(self, results, timesteps, save_dir=None):
         approx_q = results["q"]
         y_vals = results["y"]
         Y_vals = results["Y"]
@@ -350,11 +350,11 @@ class AidIntradayLQ(FBSNN):
         axs[1, 1].legend(loc='upper right')
 
         plt.tight_layout()
+        if save_dir:
+            plt.savefig(f"{save_dir}/approx_vs_analytic_expectation.png", dpi=300, bbox_inches='tight')
         plt.show()
-        if save_path:
-            plt.savefig(save_path + "_approx_vs_analytic_expectation.png")
         
-    def plot_terminal_histogram(self, results, save_path=None):
+    def plot_terminal_histogram(self, results, save_dir=None):
         y_vals = results["y"]  # shape: (T+1, N_paths, dim)
         Y_vals = results["Y"]  # shape: (T+1, N_paths, 1)
 
@@ -384,6 +384,6 @@ class AidIntradayLQ(FBSNN):
         plt.legend()
         plt.grid(True)
         plt.tight_layout()
+        if save_dir:
+            plt.savefig(f"{save_dir}/terminal_histogram.png", dpi=300, bbox_inches='tight')
         plt.show()
-        if save_path:
-            plt.savefig(save_path + "_terminal_histogram.png")

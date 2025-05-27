@@ -1,5 +1,6 @@
 import numpy as np
 import torch
+import os
 from argparse import ArgumentParser
 from utils.load_config import load_model_config, load_run_config
 from utils.tools import str2bool
@@ -40,9 +41,11 @@ def main():
 
     model_cfg = load_model_config(args.model_config)
 
-    model = SimpleHJB(args, model_cfg)
-    save_path = run_cfg["save_path"] + f"_{args.architecture}_{args.activation}"
-    
+    model = AidIntradayLQ(args, model_cfg)
+    save_dir = f"{run_cfg['save_path']}_{args.architecture}_{args.activation}"
+    os.makedirs(save_dir, exist_ok=True)
+    save_path = os.path.join(save_dir, "model")
+
     import warnings
     warnings.filterwarnings("ignore", message="Attempting to run cuBLAS, but there was no current CUDA context!")
 
@@ -52,19 +55,19 @@ def main():
             model.load_state_dict(torch.load(load_path + ".pth", map_location=run_cfg["device"]))
             print("Model loaded successfully.")
         except FileNotFoundError:
-            print("No model found, starting training from scratch.")
+            print(f"No model found in {save_path}, starting training from scratch.")
 
     if args.train:
-        model.train_model(epochs=args.epochs, K=args.K, lr=args.lr, verbose=args.verbose, plot=args.plot_loss, adaptive=args.adaptive, run_cfg=run_cfg)
+        model.train_model(epochs=args.epochs, K=args.K, lr=args.lr, verbose=args.verbose, plot=args.plot_loss, adaptive=args.adaptive, save_dir=save_dir)
     
     timesteps, results = model.simulate_paths(n_sim=args.n_simulations, seed=np.random.randint(0, 1000))
     if args.plot:
-        model.plot_approx_vs_analytic(results, timesteps)
+        model.plot_approx_vs_analytic(results, timesteps, save_dir=save_dir)
     
     timesteps, results = model.simulate_paths(n_sim=1000, seed=np.random.randint(0, 1000))
     if args.plot:
-        model.plot_approx_vs_analytic_expectation(results, timesteps)
-        model.plot_terminal_histogram(results)
+        model.plot_approx_vs_analytic_expectation(results, timesteps, save_dir=save_dir)
+        model.plot_terminal_histogram(results, save_dir=save_dir)
 
 if __name__ == "__main__":
     main()
