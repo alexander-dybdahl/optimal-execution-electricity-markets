@@ -277,10 +277,9 @@ class FBSNN(nn.Module, ABC):
             plt.grid()
             plt.tight_layout()
             plt.savefig(os.path.join(save_dir, "training_loss.png"))
-            plt.show()
             if save_dir:
-                plt.savefig(save_path + "_loss.png")
-                log(f"Loss plot saved to {save_path}_loss.png")
+                plt.savefig(f"{save_dir}/loss.png", dpi=300, bbox_inches='tight')
+                plt.show()
 
         return losses
 
