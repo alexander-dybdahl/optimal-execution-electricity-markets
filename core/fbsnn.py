@@ -51,8 +51,8 @@ class FBSNN(nn.Module, ABC):
             self.Y_net = Resnet(layers=[self.dim + 1] + args.Y_layers, activation=self.activation, stable=True).to(self.device)
         elif args.architecture == "Resnet":
             self.Y_net = Resnet(layers=[self.dim + 1] + args.Y_layers, activation=self.activation, stable=False).to(self.device)
-        elif args.architecture == "LSTM":
-            self.Y_net = LSTMNet(layers=[self.dim + 1, 64, 64, 64, 1], activation=self.activation).to(self.device)
+        elif args.architecture == "LSTM" or args.architecture == "ResLSTM":
+            self.Y_net = LSTMNet(layers=[self.dim + 1] + args.Y_layers, activation=self.activation, type=args.architecture).to(self.device)
         else:
             raise ValueError(f"Unknown architecture: {args.architecture}")
 

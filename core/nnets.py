@@ -66,6 +66,8 @@ class LSTMCell(nn.Module):
 class ResLSTMCell(nn.Module):
     def __init__(self, input_size, hidden_size, stable=False, activation=nn.Tanh()):
         super().__init__()
+        self.input_size = input_size
+        self.hidden_size = hidden_size
         self.stable = stable
         self.activation = activation
         self.epsilon = 0.01
