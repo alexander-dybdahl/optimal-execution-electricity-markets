@@ -40,7 +40,7 @@ def main():
 
     model_cfg = load_model_config(args.model_config)
 
-    model = AidIntradayLQ(args, model_cfg)
+    model = SimpleHJB(args, model_cfg)
     save_path = run_cfg["save_path"] + f"_{args.architecture}_{args.activation}"
     
     import warnings
@@ -55,7 +55,7 @@ def main():
             print("No model found, starting training from scratch.")
 
     if args.train:
-        model.train_model(epochs=args.epochs, K=args.K, lr=args.lr, save_path=save_path, verbose=args.verbose, plot=args.plot_loss, adaptive=args.adaptive)
+        model.train_model(epochs=args.epochs, K=args.K, lr=args.lr, verbose=args.verbose, plot=args.plot_loss, adaptive=args.adaptive, run_cfg=run_cfg)
     
     timesteps, results = model.simulate_paths(n_sim=args.n_simulations, seed=np.random.randint(0, 1000))
     if args.plot:

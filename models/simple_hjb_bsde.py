@@ -36,6 +36,9 @@ class SimpleHJB(FBSNN):
         q = - 0.5 * dV
         return q
 
+    def pinn_loss(self, t, y, Y):
+        return super().pinn_loss(t, y, Y)
+
     def simulate_paths(self, n_sim=5, seed=42, y0_single=None):
         torch.manual_seed(seed)
         self.eval()

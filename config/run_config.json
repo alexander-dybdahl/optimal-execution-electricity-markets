@@ -1,6 +1,6 @@
 {
-  "save_path": "models_saved/almgrem",
-  "config_path": "config/aid_config.json",
+  "save_path": "saved/",
+  "config_path": "config/simple_hjb_config.json",
   "device": "cuda",
   "train": true,
   "load_if_exists": true,
@@ -11,7 +11,7 @@
   "save": ["best", "every"],
   "save_n": 50,
   "architecture": "ResLSTM",
-  "Y_layers": [256, 256, 256, 256, 256, 256, 256, 256, 1],
+  "Y_layers": [256, 256, 256, 256, 1],
   "activation": "ReLU",
   "epochs": 1000,
   "K": 50,
