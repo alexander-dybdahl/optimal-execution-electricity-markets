@@ -51,11 +51,11 @@ def main():
 
     if args.load_if_exists:
         try:
-            load_path = save_path + "_best" if args.best else save_path
+            load_path = save_path + "_best.pth" if args.best else save_path
             model.load_state_dict(torch.load(load_path + ".pth", map_location=run_cfg["device"]))
             print("Model loaded successfully.")
         except FileNotFoundError:
-            print(f"No model found in {save_path}, starting training from scratch.")
+            print(f"No model found in {save_dir}, starting training from scratch.")
 
     if args.train:
         model.train_model(epochs=args.epochs, K=args.K, lr=args.lr, verbose=args.verbose, plot=args.plot_loss, adaptive=args.adaptive, save_dir=save_dir)

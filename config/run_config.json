@@ -10,7 +10,7 @@
   "plot_loss": false,
   "save": ["best", "every"],
   "save_n": 50,
-  "architecture": "LSTM",
+  "architecture": "NAISnet",
   "Y_layers": [256, 256, 256, 256, 1],
   "activation": "ReLU",
   "epochs": 1000,
