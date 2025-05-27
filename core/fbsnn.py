@@ -216,6 +216,15 @@ class FBSNN(nn.Module, ABC):
         header_printed = False
         init_time = time.time()
         start_time = time.time()
+        
+        max_widths = {
+            "epoch": 8,
+            "loss": 14,
+            "lr": 12,
+            "mem": 14,
+            "time": 10,
+            "status": 20
+        }
 
         for epoch in range(epochs):
             optimizer.zero_grad()
@@ -234,8 +243,8 @@ class FBSNN(nn.Module, ABC):
             if (epoch % K == 0 or epoch == epochs - 1):
                 elapsed = time.time() - start_time
                 if not header_printed:
-                    log(f"{'Epoch':>8} | {'Total loss':>12} | {'Y loss':>12} | {'T. loss':>12} | {'T.G. loss':>12} | {'LR':>10} | {'Memory [MB]':>12} | {'Time [s]':>10} | {'Status'}")
-                    log("-" * 120)
+                    log(f"{'Epoch':>{max_widths['epoch']}} | {'Total loss':>{max_widths['loss']}} | {'Y loss':>{max_widths['loss']}} | {'T. loss':>{max_widths['loss']}} | {'T.G. loss':>{max_widths['loss']}} | {'LR':>{max_widths['lr']}} | {'Memory [MB]':>{max_widths['mem']}} | {'Time [s]':>{max_widths['time']}} | {'Status':<{max_widths['status']}}")
+                    log("-" * (sum(max_widths.values()) + 7 * 3 + 1))  # account for separators
                     header_printed = True
 
                 mem_mb = torch.cuda.memory_allocated() / 1e6
@@ -244,20 +253,23 @@ class FBSNN(nn.Module, ABC):
 
                 if "every" in self.save and (epoch % self.save_n == 0 or epoch == epochs - 1):
                     torch.save(self.state_dict(), save_path + ".pth")
-                    status = f"Model saved"
+                    status = "Model saved"
 
                 if "best" in self.save and np.mean(losses[-K:]) < self.lowest_loss:
                     self.lowest_loss = np.mean(losses[-K:])
                     torch.save(self.state_dict(), save_path + "_best.pth")
                     status = "Model saved (best)"
 
-                log(f"{epoch:8} | {np.mean(losses[-K:]):12.6f} | {np.mean(losses_Y[-K:]):12.6f} | {np.mean(losses_terminal[-K:]):12.6f} | {np.mean(losses_terminal_gradient[-K:]):12.6f} | {current_lr:10.2e} | {mem_mb:12.2f} | {elapsed:10.2f} | {status}")
+                status = (status[:max_widths["status"] - 3] + "...") if len(status) > max_widths["status"] else status
+
+                log(f"{epoch:>{max_widths['epoch']}} | {np.mean(losses[-K:]):>{max_widths['loss']}.6f} | {np.mean(losses_Y[-K:]):>{max_widths['loss']}.6f} | {np.mean(losses_terminal[-K:]):>{max_widths['loss']}.6f} | {np.mean(losses_terminal_gradient[-K:]):>{max_widths['loss']}.6f} | {current_lr:>{max_widths['lr']}.2e} | {mem_mb:>{max_widths['mem']}.2f} | {elapsed:>{max_widths['time']}.2f} | {status:<{max_widths['status']}}")
                 start_time = time.time()
 
         if "last" in self.save:
             torch.save(self.state_dict(), save_path + ".pth")
-            status = f"Model saved"
-            log(f"{epoch:8} | {loss.item():12.6f} | {self.total_Y_loss:12.6f} | {self.terminal_loss:12.6f} | {self.terminal_gradient_loss:12.6f} | {current_lr:10.2e} | {mem_mb:12.2f} | {elapsed:10.2f} | {status}")
+            status = "Model saved"
+            status = (status[:max_widths["status"] - 3] + "...") if len(status) > max_widths["status"] else status
+            log(f"{epoch:>{max_widths['epoch']}} | {loss.item():>{max_widths['loss']}.6f} | {self.total_Y_loss:>{max_widths['loss']}.6f} | {self.terminal_loss:>{max_widths['loss']}.6f} | {self.terminal_gradient_loss:>{max_widths['loss']}.6f} | {current_lr:>{max_widths['lr']}.2e} | {mem_mb:>{max_widths['mem']}.2f} | {elapsed:>{max_widths['time']}.2f} | {status:<{max_widths['status']}}")
 
         log("-" * 120)
         log(f"Training completed. Lowest loss: {self.lowest_loss:.6f}. Total time: {time.time() - init_time:.2f} seconds")

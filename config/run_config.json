@@ -1,5 +1,5 @@
 {
-  "save_path": "saved/almgren_supervised",
+  "save_path": "saved/almgren",
   "config_path": "config/aid_config.json",
   "device": "cuda",
   "train": true,
@@ -23,5 +23,5 @@
   "lambda_Y": 1,
   "lambda_T": 1,
   "lambda_TG": 1,
-  "supervised": true
+  "supervised": false
 }
