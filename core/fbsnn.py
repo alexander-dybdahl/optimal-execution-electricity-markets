@@ -269,13 +269,18 @@ class FBSNN(nn.Module, ABC):
                 status = ""
 
                 if "every" in self.save and (epoch % self.save_n == 0 or epoch == epochs - 1):
-                    torch.save(self.state_dict(), save_path + ".pth")
+                    try:
+                        torch.save(self.state_dict(), save_path + ".pth")
+                    except Exception as e:
+                        log(f"Error saving model: {e}")
                     status = "Model saved"
 
                 if "best" in self.save and np.mean(losses[-K:]) < self.lowest_loss:
                     self.lowest_loss = np.mean(losses[-K:])
-                    torch.save(self.state_dict(), save_path + "_best.pth")
-                    time.sleep(0.01)
+                    try:
+                        torch.save(self.state_dict(), save_path + "_best.pth")
+                    except Exception as e:
+                        log(f"Error saving best model: {e}")
                     status = "Model saved (best)"
 
                 log(f"{epoch:>{max_widths['epoch']}} | "
@@ -291,7 +296,10 @@ class FBSNN(nn.Module, ABC):
                 start_time = time.time()
 
         if "last" in self.save:
-            torch.save(self.state_dict(), save_path + ".pth")
+            try:
+                torch.save(self.state_dict(), save_path + ".pth")
+            except Exception as e:
+                log(f"Error saving last model: {e}")
             status = "Model saved"
             log(f"{epoch:>{max_widths['epoch']}} | "
                 f"{loss.item():>{max_widths['loss']}.2e} | "
