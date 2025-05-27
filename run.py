@@ -61,13 +61,11 @@ def main():
         model.train_model(epochs=args.epochs, K=args.K, lr=args.lr, verbose=args.verbose, plot=args.plot_loss, adaptive=args.adaptive, save_dir=save_dir)
     
     timesteps, results = model.simulate_paths(n_sim=args.n_simulations, seed=np.random.randint(0, 1000))
-    if args.plot:
-        model.plot_approx_vs_analytic(results, timesteps, save_dir=save_dir)
+    model.plot_approx_vs_analytic(results, timesteps, plot=args.plot, save_dir=save_dir)
     
     timesteps, results = model.simulate_paths(n_sim=1000, seed=np.random.randint(0, 1000))
-    if args.plot:
-        model.plot_approx_vs_analytic_expectation(results, timesteps, save_dir=save_dir)
-        model.plot_terminal_histogram(results, save_dir=save_dir)
+    model.plot_approx_vs_analytic_expectation(results, timesteps, plot=args.plot, save_dir=save_dir)
+    model.plot_terminal_histogram(results, plot=args.plot, save_dir=save_dir)
 
 if __name__ == "__main__":
     main()

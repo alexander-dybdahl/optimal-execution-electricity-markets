@@ -289,21 +289,21 @@ class FBSNN(nn.Module, ABC):
         log(f"Training completed. Lowest loss: {self.lowest_loss:.6f}. Total time: {time.time() - init_time:.2f} seconds")
         log(f"Model saved to {save_path}.pth")
 
+        plt.figure(figsize=(10, 6))
+        plt.plot(losses, label="Total Loss")
+        plt.plot(losses_Y, label="Y Loss")
+        plt.plot(losses_terminal, label="Terminal Loss")
+        plt.plot(losses_terminal_gradient, label="Terminal Gradient Loss")
+        plt.xlabel("Epoch")
+        plt.ylabel("Loss")
+        plt.title("Training Loss")
+        plt.yscale("log")
+        plt.legend()
+        plt.grid()
+        plt.tight_layout()
+        if save_dir:
+            plt.savefig(f"{save_dir}/loss.png", dpi=300, bbox_inches='tight')
         if plot:
-            plt.figure(figsize=(10, 6))
-            plt.plot(losses, label="Total Loss")
-            plt.plot(losses_Y, label="Y Loss")
-            plt.plot(losses_terminal, label="Terminal Loss")
-            plt.plot(losses_terminal_gradient, label="Terminal Gradient Loss")
-            plt.xlabel("Epoch")
-            plt.ylabel("Loss")
-            plt.title("Training Loss")
-            plt.yscale("log")
-            plt.legend()
-            plt.grid()
-            plt.tight_layout()
-            if save_dir:
-                plt.savefig(f"{save_dir}/loss.png", dpi=300, bbox_inches='tight')
             plt.show()
 
         return losses
