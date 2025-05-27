@@ -199,9 +199,9 @@ class FBSNN(nn.Module, ABC):
         log(f"| Epochs                    | {epochs:<25} |")
         log(f"| Learning Rate             | {lr:<25} |")
         log(f"| Adaptive LR               | {'True' if adaptive else 'False':<25} |")
-        log(f"| λ_Y (Y loss)              | {self.λ_Y:<25} |")
-        log(f"| λ_T (Terminal loss)       | {self.λ_T:<25} |")
-        log(f"| λ_TG (Gradient loss)      | {self.λ_TG:<25} |")
+        log(f"| lambda_Y (Y loss)         | {self.λ_Y:<25} |")
+        log(f"| lambda_T (Terminal loss)  | {self.λ_T:<25} |")
+        log(f"| lambda_TG (Gradient loss) | {self.λ_TG:<25} |")
         log(f"| Number of Paths           | {self.n_paths:<25} |")
         log(f"| Batch Size                | {self.batch_size:<25} |")
         log(f"| Architecture              | {self.architecture:<25} |")
@@ -244,19 +244,19 @@ class FBSNN(nn.Module, ABC):
 
                 if "every" in self.save and (epoch % self.save_n == 0 or epoch == epochs - 1):
                     torch.save(self.state_dict(), save_path + ".pth")
-                    status = f"Model saved ↓"
+                    status = f"Model saved"
 
                 if "best" in self.save and np.mean(losses[-K:]) < self.lowest_loss:
                     self.lowest_loss = np.mean(losses[-K:])
                     torch.save(self.state_dict(), save_path + "_best.pth")
-                    status = "Model saved ↓ (best)"
+                    status = "Model saved (best)"
 
                 log(f"{epoch:8} | {np.mean(losses[-K:]):12.6f} | {np.mean(losses_Y[-K:]):12.6f} | {np.mean(losses_terminal[-K:]):12.6f} | {np.mean(losses_terminal_gradient[-K:]):12.6f} | {current_lr:10.2e} | {mem_mb:12.2f} | {elapsed:10.2f} | {status}")
                 start_time = time.time()
 
         if "last" in self.save:
             torch.save(self.state_dict(), save_path + ".pth")
-            status = f"Model saved ↓"
+            status = f"Model saved"
             log(f"{epoch:8} | {loss.item():12.6f} | {self.total_Y_loss:12.6f} | {self.terminal_loss:12.6f} | {self.terminal_gradient_loss:12.6f} | {current_lr:10.2e} | {mem_mb:12.2f} | {elapsed:10.2f} | {status}")
 
         log("-" * 120)
@@ -276,10 +276,9 @@ class FBSNN(nn.Module, ABC):
             plt.legend()
             plt.grid()
             plt.tight_layout()
-            plt.savefig(os.path.join(save_dir, "training_loss.png"))
             if save_dir:
                 plt.savefig(f"{save_dir}/loss.png", dpi=300, bbox_inches='tight')
-                plt.show()
+            plt.show()
 
         return losses
 
