@@ -41,7 +41,7 @@ def main():
 
     model_cfg = load_model_config(args.model_config)
 
-    model = AidIntradayLQ(args, model_cfg)
+    model = SimpleHJB(args, model_cfg)
     save_dir = f"{run_cfg['save_path']}_supervised_{args.architecture}_{args.activation}" if args.supervised else f"{run_cfg['save_path']}_{args.architecture}_{args.activation}"
     os.makedirs(save_dir, exist_ok=True)
     save_path = os.path.join(save_dir, "model")
@@ -51,11 +51,11 @@ def main():
 
     if args.load_if_exists:
         try:
-            load_path = save_path + "_best.pth" if args.best else save_path
+            load_path = save_path + "_best" if args.best else save_path
             model.load_state_dict(torch.load(load_path + ".pth", map_location=run_cfg["device"]))
             print("Model loaded successfully.")
         except FileNotFoundError:
-            print(f"No model found in {save_dir}, starting training from scratch.")
+            print(f"No model found in {load_path + ".pth"}, starting training from scratch.")
 
     if args.train:
         model.train_model(epochs=args.epochs, K=args.K, lr=args.lr, verbose=args.verbose, plot=args.plot_loss, adaptive=args.adaptive, save_dir=save_dir)

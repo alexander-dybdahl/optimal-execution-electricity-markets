@@ -14,12 +14,13 @@ class AidIntradayLQ(FBSNN):
         self.nu = model_cfg["nu"]        # perm impact
         self.eta = model_cfg["eta"]        # terminal penalty
         self.mu_D = model_cfg["mu_D"]     # drift for D
+        self.mu_P = model_cfg["mu_P"]     # drift for D
 
     def generator(self, y, q):
         P = y[:, 1:2]
         temporary_impact = self.gamma * q
         execution_price = P + temporary_impact
-        return q * execution_price
+        return - q * execution_price
 
     def terminal_cost(self, y):
         D = y[:, 2:3]
@@ -32,7 +33,7 @@ class AidIntradayLQ(FBSNN):
         D = y[:, 2:3]
 
         dX = q
-        dP = self.nu * q # permanent impact
+        dP = self.mu_P + self.nu * q # drift + permanent impact
         dD = self.mu_D * torch.ones_like(D)
 
         return torch.cat([dX, dP, dD], dim=1)
@@ -58,7 +59,7 @@ class AidIntradayLQ(FBSNN):
         dV_P = dV[:, 1:2]
         P = y[:, 1:2]
 
-        q = -0.5 / self.gamma * (P + dV_X + self.nu * dV_P)
+        q = 0.5 / self.gamma * (dV_X + self.nu * dV_P - P)
         return q
 
     def optimal_control_analytic(self, t, y):
@@ -66,7 +67,7 @@ class AidIntradayLQ(FBSNN):
         P = y[:, 1:2]
         D = y[:, 2:3]
         tau = self.T - t
-        return (self.eta * (self.mu_D * tau + D - X) - P) / ((self.eta + self.nu) * tau + 2 * self.gamma)
+        return - (self.eta * (self.mu_D * tau + D - X) - P) / ((self.eta + self.nu) * tau + 2 * self.gamma)
 
     def value_function_analytic(self, t, y):
         X = y[:, 0:1]
@@ -187,7 +188,7 @@ class AidIntradayLQ(FBSNN):
         terminal_gradient = self.terminal_cost_grad(y)
         terminal_gradient_loss = torch.mean(torch.pow(dYT - terminal_gradient, 2))
 
-        self.λ_T, self.λ_TG = 0, 0
+        # self.λ_T, self.λ_TG = 0, 0
         self.total_Y_loss = self.λ_Y * Y_loss.detach().item()
         self.terminal_loss = self.λ_T * terminal_loss.detach().item()
         self.terminal_gradient_loss = self.λ_TG * terminal_gradient_loss.detach().item()

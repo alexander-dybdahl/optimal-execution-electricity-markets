@@ -126,7 +126,58 @@ class SimpleHJB(FBSNN):
         phi_t = self.phi_analytic(t).reshape(-1, 1)  # shape (T, 1)
         return phi_t + K_t * y**2                    # shape (T, N)
 
-    def plot_approx_vs_analytic(self, results, timesteps, save_dir=None):
+    def forward_supervised(self, t_paths, W_paths):
+        batch_size = self.batch_size
+
+        t = torch.rand(batch_size, 1, device=self.device) * self.T
+        x = torch.randn(batch_size, 1, device=self.device, requires_grad=True)
+
+        # -- Supervised loss
+        with torch.no_grad():
+            K = torch.tensor(self.K_analytic(t.cpu().numpy()), device=self.device).float()
+            phi = torch.tensor(self.phi_analytic(t.cpu().numpy()), device=self.device).float()
+            V_target = phi + K * x**2
+            dV_target = 2 * K * x
+
+        V_pred = self.Y_net(t, x)
+        supervised_loss = torch.mean((V_pred - V_target)**2)
+
+        dV_pred = torch.autograd.grad(
+            outputs=V_pred,
+            inputs=x,
+            grad_outputs=torch.ones_like(V_pred),
+            create_graph=True
+        )[0]
+
+        gradient_loss = torch.mean((dV_pred - dV_target)**2)
+
+        Y_loss = supervised_loss + gradient_loss
+
+        # Terminal losses
+        t_terminal = torch.full((batch_size, 1), self.T, device=self.device)
+        YT = self.Y_net(t_terminal, x)
+        terminal = self.terminal_cost(x)
+        terminal_loss = torch.mean(torch.pow(YT - terminal, 2))
+
+        # Terminal gradient loss
+        dYT = torch.autograd.grad(
+            outputs=YT,
+            inputs=x,
+            grad_outputs=torch.ones_like(YT),
+            create_graph=True,
+            retain_graph=True
+        )[0]
+        terminal_gradient = self.terminal_cost_grad(x)
+        terminal_gradient_loss = torch.mean(torch.pow(dYT - terminal_gradient, 2))
+
+        self.λ_T, self.λ_TG = 0, 0
+        self.total_Y_loss = self.λ_Y * Y_loss.detach().item()
+        self.terminal_loss = self.λ_T * terminal_loss.detach().item()
+        self.terminal_gradient_loss = self.λ_TG * terminal_gradient_loss.detach().item()
+
+        return self.λ_Y * Y_loss + self.λ_T * terminal_loss + self.λ_TG * terminal_gradient_loss
+    
+    def plot_approx_vs_analytic(self, results, timesteps, plot=True, save_dir=None):
         approx_q = results["q"]              # shape: (T + 1, N_paths)
         y_vals = results["y"][:, :, 0]       # shape: (T + 1, N_paths)
         Y_vals = results["Y"]                # shape: (T + 1, N_paths, 1)
@@ -180,9 +231,10 @@ class SimpleHJB(FBSNN):
         plt.tight_layout()
         if save_dir:
             plt.savefig(f"{save_dir}/approx_vs_analytic.png", dpi=300, bbox_inches='tight')
-        plt.show()
+        if plot:
+            plt.show()
 
-    def plot_approx_vs_analytic_expectation(self, results, timesteps, save_dir=None):
+    def plot_approx_vs_analytic_expectation(self, results, timesteps, plot=True, save_dir=None):
         approx_q = results["q"]              # shape: (T + 1, N_paths)
         y_vals = results["y"][:, :, 0]       # shape: (T + 1, N_paths)
         Y_vals = results["Y"]                # shape: (T + 1, N_paths, 1)
@@ -267,9 +319,10 @@ class SimpleHJB(FBSNN):
         plt.tight_layout()
         if save_dir:
             plt.savefig(f"{save_dir}/approx_vs_analytic_expectation.png", dpi=300, bbox_inches='tight')
-        plt.show()
+        if plot:
+            plt.show()
 
-    def plot_terminal_histogram(self, results, save_dir=None):
+    def plot_terminal_histogram(self, results, plot=True, save_dir=None):
         y_vals = results["y"][:, :, 0]       # shape: (T + 1, N_paths)
         Y_vals = results["Y"]                # shape: (T + 1, N_paths, 1)
 
@@ -297,55 +350,5 @@ class SimpleHJB(FBSNN):
         plt.tight_layout()
         if save_dir:
             plt.savefig(f"{save_dir}/terminal_histogram.png", dpi=300, bbox_inches='tight')
-        plt.show()
-
-    def forward_supervised(self, t_paths, W_paths):
-        batch_size = self.batch_size
-
-        t = torch.rand(batch_size, 1, device=self.device) * self.T
-        x = torch.randn(batch_size, 1, device=self.device, requires_grad=True)
-
-        # -- Supervised loss
-        with torch.no_grad():
-            K = torch.tensor(self.K_analytic(t.cpu().numpy()), device=self.device).float()
-            phi = torch.tensor(self.phi_analytic(t.cpu().numpy()), device=self.device).float()
-            V_target = phi + K * x**2
-            dV_target = 2 * K * x
-
-        V_pred = self.Y_net(t, x)
-        supervised_loss = torch.mean((V_pred - V_target)**2)
-
-        dV_pred = torch.autograd.grad(
-            outputs=V_pred,
-            inputs=x,
-            grad_outputs=torch.ones_like(V_pred),
-            create_graph=True
-        )[0]
-
-        gradient_loss = torch.mean((dV_pred - dV_target)**2)
-
-        Y_loss = supervised_loss + gradient_loss
-
-        # Terminal losses
-        t_terminal = torch.full((batch_size, 1), self.T, device=self.device)
-        YT = self.Y_net(t_terminal, x)
-        terminal = self.terminal_cost(x)
-        terminal_loss = torch.mean(torch.pow(YT - terminal, 2))
-
-        # Terminal gradient loss
-        dYT = torch.autograd.grad(
-            outputs=YT,
-            inputs=x,
-            grad_outputs=torch.ones_like(YT),
-            create_graph=True,
-            retain_graph=True
-        )[0]
-        terminal_gradient = self.terminal_cost_grad(x)
-        terminal_gradient_loss = torch.mean(torch.pow(dYT - terminal_gradient, 2))
-
-        self.λ_T, self.λ_TG = 0, 0
-        self.total_Y_loss = self.λ_Y * Y_loss.detach().item()
-        self.terminal_loss = self.λ_T * terminal_loss.detach().item()
-        self.terminal_gradient_loss = self.λ_TG * terminal_gradient_loss.detach().item()
-
-        return self.λ_Y * Y_loss + self.λ_T * terminal_loss + self.λ_TG * terminal_gradient_loss
+        if plot:
+            plt.show()
