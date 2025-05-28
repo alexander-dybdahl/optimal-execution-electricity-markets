@@ -1,0 +1,29 @@
+Training started at 2025-05-28 17:14:44
+Logging training to saved/simple_LSTM_ReLU\training.log
+
++---------------------------+---------------------------+
+| Training Configuration    |                           |
++---------------------------+---------------------------+
+| Epochs                    | 5000                      |
+| Learning Rate             | 0.001                     |
+| Adaptive LR               | True                      |
+| lambda_Y (Y loss)         | 1                         |
+| lambda_T (Terminal loss)  | 1                         |
+| lambda_TG (Gradient loss) | 1                         |
+| Number of Paths           | 1024                      |
+| Batch Size                | 1024                      |
+| Architecture              | LSTM                      |
+| Depth                     | 5                         |
+| Width                     | 256                       |
+| Activation                | ReLU                      |
+| T                         | 1.0                       |
+| N                         | 40                        |
+| Supervised                | False                     |
++---------------------------+---------------------------+
+
+   Epoch |   Total loss |       Y loss |      T. loss |    T.G. loss |         LR |  Memory [MB] | Time [s] |      ETA | Status              
+-------------------------------------------------------------------------------------------------------------------------------------------
+       0 |     1.67e+04 |     3.67e+02 |     1.22e+04 |     4.10e+03 |   1.00e-03 |       390.84 |     1.53 |      N/A | Model saved (best)  
+      50 |     1.10e+04 |     5.27e+02 |     7.50e+03 |     2.99e+03 |   1.00e-03 |       390.84 |    45.09 |  76m 58s | Model saved (best)  
+     100 |     1.95e+03 |     5.88e+02 |     7.69e+02 |     5.92e+02 |   1.00e-03 |       390.84 |    46.27 |  75m 55s | Model saved (best)  
+     150 |     9.62e+02 |     4.22e+02 |     2.96e+02 |     2.43e+02 |   1.00e-03 |       390.84 |    44.85 |  74m 17s | Model saved (best)  

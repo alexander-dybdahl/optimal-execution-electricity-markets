@@ -2,16 +2,112 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-class YLSTM(nn.Module):
-    def __init__(self, input_dim, hidden_dim, output_dim):
-        super(YLSTM, self).__init__()
-        self.lstm = nn.LSTM(input_dim, hidden_dim, batch_first=True)
-        self.output_layer = nn.Linear(hidden_dim, output_dim)
+import torch
+import torch.nn as nn
 
-    def forward(self, t_seq, y_seq):
-        inp = torch.cat([t_seq, y_seq], dim=2)
-        lstm_out, _ = self.lstm(inp)
-        return self.output_layer(lstm_out)
+class LSTMNet(nn.Module):
+    def __init__(self, layers, activation, type='LSTM'):
+        super().__init__()
+        input_size = layers[0]  # dim + 1 (time + state)
+        hidden_sizes = layers[1:-1]
+        output_size = layers[-1]
+
+        if type == 'ResLSTM':
+            self.lstm_layers = nn.ModuleList([
+                ResLSTMCell(input_size if i == 0 else hidden_sizes[i - 1], hidden_sizes[i], activation=activation)
+                for i in range(len(hidden_sizes))
+            ])
+        else:
+            self.lstm_layers = nn.ModuleList([
+                LSTMCell(input_size if i == 0 else hidden_sizes[i - 1], hidden_sizes[i])
+                for i in range(len(hidden_sizes))
+            ])
+        self.out_layer = nn.Linear(hidden_sizes[-1], output_size)
+        self.activation = activation
+
+    def forward(self, t, y):
+        input_seq = torch.cat([t, y], dim=1).unsqueeze(1)  # shape: [batch, seq_len=1, input_size]
+        batch_size = input_seq.size(0)
+
+        h = [torch.zeros(batch_size, layer.hidden_size, device=input_seq.device, requires_grad=True)
+            for layer in self.lstm_layers]
+        c = [torch.zeros_like(h_i) for h_i in h]
+
+        x = input_seq.squeeze(1)
+        for i, lstm_cell in enumerate(self.lstm_layers):
+            h[i], (h[i], c[i]) = lstm_cell(x, (h[i], c[i]))
+            x = self.activation(h[i])
+
+        return self.out_layer(x)
+
+class LSTMCell(nn.Module):
+    def __init__(self, input_size, hidden_size):
+        super().__init__()
+        self.input_size = input_size
+        self.hidden_size = hidden_size
+
+        self.i2h = nn.Linear(input_size, 4 * hidden_size)
+        self.h2h = nn.Linear(hidden_size, 4 * hidden_size)
+
+    def forward(self, x, hidden):
+        h_prev, c_prev = hidden
+        gates = self.i2h(x) + self.h2h(h_prev)
+        i, f, g, o = gates.chunk(4, dim=1)
+
+        i = torch.sigmoid(i)
+        f = torch.sigmoid(f)
+        g = torch.tanh(g)
+        o = torch.sigmoid(o)
+
+        c = f * c_prev + i * g
+        h = o * torch.tanh(c)
+        return h, (h, c)
+
+class ResLSTMCell(nn.Module):
+    def __init__(self, input_size, hidden_size, stable=False, activation=nn.Tanh()):
+        super().__init__()
+        self.input_size = input_size
+        self.hidden_size = hidden_size
+        self.stable = stable
+        self.activation = activation
+        self.epsilon = 0.01
+
+        self.i2h = nn.Linear(input_size, 4 * hidden_size)
+        self.h2h = nn.Linear(hidden_size, 4 * hidden_size)
+        self.residual = nn.Linear(input_size, hidden_size)
+
+    def stable_forward(self, layer, out):
+        W = layer.weight
+        delta = 1 - 2 * self.epsilon
+        RtR = torch.matmul(W.t(), W)
+        norm = torch.norm(RtR)
+        if norm > delta:
+            RtR = delta ** 0.5 * RtR / norm**0.5
+        A = RtR + torch.eye(RtR.shape[0], device=RtR.device) * self.epsilon
+        return F.linear(out, -A, layer.bias)
+
+    def forward(self, x, hidden):
+        h_prev, c_prev = hidden
+        gates = self.i2h(x) + self.h2h(h_prev)
+        i, f, g, o = gates.chunk(4, dim=1)
+
+        i = torch.sigmoid(i)
+        f = torch.sigmoid(f)
+        g = torch.tanh(g)
+        o = torch.sigmoid(o)
+
+        c = f * c_prev + i * g
+        h_core = o * torch.tanh(c)
+
+        # Inject residual connection
+        res = self.residual(x)
+        if self.stable:
+            res = self.stable_forward(self.residual, x)
+
+        h = h_core + res  # or h = h_core + shortcut(x)
+        h = self.activation(h)
+
+        return h, (h, c)
 
 class Sine(nn.Module):
     """This class defines the sine activation function as a nn.Module"""
@@ -38,71 +134,53 @@ class FCnet(nn.Module):
         return self.net(torch.cat([t, y], dim=1))
 
 class Resnet(nn.Module):
-
-    def __init__(self, layers, activation, stable):
+    def __init__(self, layers, activation, stable=False):
         super(Resnet, self).__init__()
-
-        self.layer1 = nn.Linear(in_features=layers[0], out_features=layers[1])
-        self.layer2 = nn.Linear(in_features=layers[1], out_features=layers[2])
-        self.layer2_input = nn.Linear(in_features=layers[0], out_features=layers[2])
-        self.layer3 = nn.Linear(in_features=layers[2], out_features=layers[3])
-        self.layer3_input = nn.Linear(in_features=layers[0], out_features=layers[3])
-        self.layer4 = nn.Linear(in_features=layers[3], out_features=layers[4])
-        self.layer4_input = nn.Linear(in_features=layers[0], out_features=layers[4])
-        self.layer5 = nn.Linear(in_features=layers[4], out_features=layers[5])
-
         self.activation = activation
-
-        self.epsilon = 0.01
         self.stable = stable
+        self.epsilon = 0.01
 
-    def stable_forward(self, layer, out):  # Building block for the NAIS-Net
-        weights = layer.weight
+        self.input_dim = layers[0]
+        self.hidden_dims = layers[1:-1]
+        self.output_dim = layers[-1]
+
+        self.hidden_layers = nn.ModuleList()
+        self.shortcut_layers = nn.ModuleList()
+
+        for i in range(len(self.hidden_dims)):
+            in_dim = self.input_dim if i == 0 else self.hidden_dims[i - 1]
+            out_dim = self.hidden_dims[i]
+
+            self.hidden_layers.append(nn.Linear(in_dim, out_dim))
+            if i > 0:
+                self.shortcut_layers.append(nn.Linear(self.input_dim, out_dim))
+
+        self.output_layer = nn.Linear(self.hidden_dims[-1], self.output_dim)
+
+    def stable_forward(self, layer, out):
+        W = layer.weight
         delta = 1 - 2 * self.epsilon
-        RtR = torch.matmul(weights.t(), weights)
+        RtR = torch.matmul(W.t(), W)
         norm = torch.norm(RtR)
         if norm > delta:
-            RtR = delta ** (1 / 2) * RtR / (norm ** (1 / 2))
+            RtR = delta ** 0.5 * RtR / norm**0.5
         A = RtR + torch.eye(RtR.shape[0], device=RtR.device) * self.epsilon
-
         return F.linear(out, -A, layer.bias)
 
     def forward(self, t, y):
-        inp = torch.cat([t, y], dim=1)
-        
-        u = inp
+        u = torch.cat([t, y], dim=1)
+        out = u
 
-        out = self.layer1(inp)
-        out = self.activation(out)
+        for i, layer in enumerate(self.hidden_layers):
+            shortcut = out
 
-        shortcut = out
-        if self.stable:
-            out = self.stable_forward(self.layer2, out)
-            out = out + self.layer2_input(u)
-        else:
-            out = self.layer2(out)
-        out = self.activation(out)
-        out = out + shortcut
+            if self.stable and i > 0:
+                out = self.stable_forward(layer, out)
+                out = out + self.shortcut_layers[i - 1](u)
+            else:
+                out = layer(out)
 
-        shortcut = out
-        if self.stable:
-            out = self.stable_forward(self.layer3, out)
-            out = out + self.layer3_input(u)
-        else:
-            out = self.layer3(out)
-        out = self.activation(out)
-        out = out + shortcut
+            out = self.activation(out)
+            out = out + shortcut if i > 0 else out
 
-        shortcut = out
-        if self.stable:
-            out = self.stable_forward(self.layer4, out)
-            out = out + self.layer4_input(u)
-        else:
-            out = self.layer4(out)
-
-        out = self.activation(out)
-        out = out + shortcut
-
-        out = self.layer5(out)
-
-        return out
+        return self.output_layer(out)

@@ -1,23 +1,22 @@
 import numpy as np
 import torch
+import os
 from argparse import ArgumentParser
 from utils.load_config import load_model_config, load_run_config
-from utils.plots import plot_all_diagnostics
 from utils.tools import str2bool
 from models.hjb_bsde import HJB
 from models.simple_hjb_bsde import SimpleHJB
+from models.aid_bdse import AidIntradayLQ
 
 def main():
     run_cfg = load_run_config(path="config/run_config.json")
     parser = ArgumentParser()
     parser.add_argument("--epochs", type=int, default=run_cfg["epochs"], help="Number of training epochs")
+    parser.add_argument("--K", type=int, default=run_cfg["K"], help="Epochs between evaluations of the model")
     parser.add_argument("--lr", type=float, default=run_cfg["lr"], help="Learning rate for the optimizer")
-    parser.add_argument("--lr_factor", type=float, default=run_cfg["lr_factor"], help="Factor to reduce learning rate by")
-    parser.add_argument("--lr_patience", type=int, default=run_cfg["lr_patience"], help="Number of epochs with no improvement after which learning rate will be reduced")
     parser.add_argument("--save_path", type=str, default=run_cfg["save_path"], help="Path to save the model")
     parser.add_argument("--n_paths", type=int, default=run_cfg["n_paths"], help="Number of paths to simulate")
     parser.add_argument("--batch_size", type=int, default=run_cfg["batch_size"], help="Batch size for training")
-    parser.add_argument("--n_pinn", type=int, default=run_cfg["n_pinn"], help="Number of discretization points for PINN")
     parser.add_argument("--n_simulations", type=int, default=run_cfg["n_simulations"], help="Number of simulations to run")
     parser.add_argument("--device", type=str, default=run_cfg["device"], help="Device to use for training (cpu or cuda)")
     parser.add_argument("--model_config", type=str, default=run_cfg["config_path"], help="Path to the model configuration file")
@@ -35,31 +34,38 @@ def main():
     parser.add_argument("--lambda_Y", type=float, default=run_cfg["lambda_Y"], help="Weight for the Y term in the loss function")
     parser.add_argument("--lambda_T", type=float, default=run_cfg["lambda_T"], help="Weight for the terminal term in the loss function")
     parser.add_argument("--lambda_TG", type=float, default=run_cfg["lambda_TG"], help="Weight for the terminal gradient term in the loss function")
-    parser.add_argument("--lambda_pinn", type=float, default=run_cfg["lambda_pinn"], help="Weight for the PINN term in the loss function")
+    parser.add_argument("--supervised", type=str2bool, default=run_cfg["supervised"], help="Use supervised learning using analytical solution")
 
     args = parser.parse_args()
+    args.Y_layers = run_cfg["Y_layers"]
 
     model_cfg = load_model_config(args.model_config)
 
-    # model = HJB(args, model_cfg)
     model = SimpleHJB(args, model_cfg)
-    save_path = run_cfg["save_path"] + f"_{args.architecture}_{args.activation}"
-    
+    save_dir = f"{run_cfg['save_path']}_supervised_{args.architecture}_{args.activation}" if args.supervised else f"{run_cfg['save_path']}_{args.architecture}_{args.activation}"
+    os.makedirs(save_dir, exist_ok=True)
+    save_path = os.path.join(save_dir, "model")
+
+    import warnings
+    warnings.filterwarnings("ignore", message="Attempting to run cuBLAS, but there was no current CUDA context!")
+
     if args.load_if_exists:
         try:
             load_path = save_path + "_best" if args.best else save_path
             model.load_state_dict(torch.load(load_path + ".pth", map_location=run_cfg["device"]))
             print("Model loaded successfully.")
         except FileNotFoundError:
-            print("No model found, starting training from scratch.")
+            print(f"No model found in {load_path + ".pth"}, starting training from scratch.")
 
     if args.train:
-        model.train_model(epochs=args.epochs, lr=args.lr, lr_factor=args.lr_factor, lr_patience=args.lr_patience, save_path=save_path, verbose=args.verbose, plot=args.plot_loss, adaptive=args.adaptive)
-
+        model.train_model(epochs=args.epochs, K=args.K, lr=args.lr, verbose=args.verbose, plot=args.plot_loss, adaptive=args.adaptive, save_dir=save_dir)
     
     timesteps, results = model.simulate_paths(n_sim=args.n_simulations, seed=np.random.randint(0, 1000))
-    if args.plot:
-        model.plot_approx_vs_analytic(results, timesteps)
+    model.plot_approx_vs_analytic(results, timesteps, plot=args.plot, save_dir=save_dir)
+    
+    timesteps, results = model.simulate_paths(n_sim=1000, seed=np.random.randint(0, 1000))
+    model.plot_approx_vs_analytic_expectation(results, timesteps, plot=args.plot, save_dir=save_dir)
+    model.plot_terminal_histogram(results, plot=args.plot, save_dir=save_dir)
 
 if __name__ == "__main__":
     main()
