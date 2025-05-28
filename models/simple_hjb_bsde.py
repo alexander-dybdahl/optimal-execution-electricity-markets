@@ -101,90 +101,101 @@ class SimpleHJB(FBSNN):
     def K_analytic(self, t):
         """Analytical solution to Riccati equation"""
         G = self.G
-        A = (G + 1) * np.exp(2 * (self.T - t))
+        T = torch.tensor(self.T, device=self.device)
+        A = (G + 1) * torch.exp(2 * (T - t))
         return (A + (G - 1)) / (A - (G - 1))
 
     def optimal_control_analytic(self, t, y):
         """Optimal q(t, y) = -K(t) * y"""
-        K_t = self.K_analytic(t).reshape(-1, 1)           # shape: (T, 1)
-        return -K_t * y                                  # shape: (T, N_paths)
+        K_t = self.K_analytic(t)
+        return -K_t * y
 
     def phi_analytic(self, t):
         """Analytical phi(t) from backward integral of K"""
         sigma = self.sigma_y
         G = self.G
-        def A(s): return (G + 1) * np.exp(2 * (self.T - s))
+        T = torch.tensor(self.T, device=self.device)
+        def A(s): return (G + 1) * torch.exp(2 * (T - s))
         A_t = A(t)
         A_T = A(self.T)
         log_expr = (A_T / A_t) * ((A_t - (G - 1))**2 / (A_T - (G - 1))**2)
-        phi = 0.5 * sigma**2 * np.log(log_expr)
+        phi = 0.5 * sigma**2 * torch.log(log_expr)
         return phi
 
-    def optimal_cost_analytic(self, t, y):
+    def value_function_analytic(self, t, y):
         """Analytical cost-to-go Y(t) = phi(t) + K(t) * y^2"""
-        K_t = self.K_analytic(t).reshape(-1, 1)      # shape (T, 1)
-        phi_t = self.phi_analytic(t).reshape(-1, 1)  # shape (T, 1)
-        return phi_t + K_t * y**2                    # shape (T, N)
+        K_t = self.K_analytic(t)
+        phi_t = self.phi_analytic(t)
+        return phi_t + K_t * y**2
 
     def forward_supervised(self, t_paths, W_paths):
         batch_size = self.batch_size
+        dim = self.dim
 
         t = torch.rand(batch_size, 1, device=self.device) * self.T
-        x = torch.randn(batch_size, 1, device=self.device, requires_grad=True)
+        y = torch.randn(batch_size, dim, device=self.device, requires_grad=True)
 
-        # -- Supervised loss
-        with torch.no_grad():
-            K = torch.tensor(self.K_analytic(t.cpu().numpy()), device=self.device).float()
-            phi = torch.tensor(self.phi_analytic(t.cpu().numpy()), device=self.device).float()
-            V_target = phi + K * x**2
-            dV_target = 2 * K * x
+        # -- Get V_target analytically (no need for autograd)
+        V_target = self.value_function_analytic(t, y.detach())
 
-        V_pred = self.Y_net(t, x)
+        # -- Compute dV_target using autograd
+        y_ = y.clone().detach().requires_grad_(True)
+        V_temp = self.value_function_analytic(t, y_)
+        dV_target = torch.autograd.grad(
+            outputs=V_temp,
+            inputs=y_,
+            grad_outputs=torch.ones_like(V_temp),
+            create_graph=False
+        )[0]
+
+        # -- Predict and compute losses
+        V_pred = self.Y_net(t, y)
         supervised_loss = torch.mean((V_pred - V_target)**2)
 
         dV_pred = torch.autograd.grad(
             outputs=V_pred,
-            inputs=x,
+            inputs=y,
             grad_outputs=torch.ones_like(V_pred),
             create_graph=True
         )[0]
 
         gradient_loss = torch.mean((dV_pred - dV_target)**2)
-
         Y_loss = supervised_loss + gradient_loss
 
-        # Terminal losses
+        # Terminal condition
         t_terminal = torch.full((batch_size, 1), self.T, device=self.device)
-        YT = self.Y_net(t_terminal, x)
-        terminal = self.terminal_cost(x)
+        YT = self.Y_net(t_terminal, y)
+        terminal = self.terminal_cost(y)
         terminal_loss = torch.mean(torch.pow(YT - terminal, 2))
 
-        # Terminal gradient loss
         dYT = torch.autograd.grad(
             outputs=YT,
-            inputs=x,
+            inputs=y,
             grad_outputs=torch.ones_like(YT),
             create_graph=True,
             retain_graph=True
         )[0]
-        terminal_gradient = self.terminal_cost_grad(x)
+        terminal_gradient = self.terminal_cost_grad(y)
         terminal_gradient_loss = torch.mean(torch.pow(dYT - terminal_gradient, 2))
 
-        self.λ_T, self.λ_TG = 0, 0
+        # self.λ_T, self.λ_TG = 0, 0
         self.total_Y_loss = self.λ_Y * Y_loss.detach().item()
         self.terminal_loss = self.λ_T * terminal_loss.detach().item()
         self.terminal_gradient_loss = self.λ_TG * terminal_gradient_loss.detach().item()
 
         return self.λ_Y * Y_loss + self.λ_T * terminal_loss + self.λ_TG * terminal_gradient_loss
-    
+
     def plot_approx_vs_analytic(self, results, timesteps, plot=True, save_dir=None):
         approx_q = results["q"]              # shape: (T + 1, N_paths)
         y_vals = results["y"][:, :, 0]       # shape: (T + 1, N_paths)
         Y_vals = results["Y"]                # shape: (T + 1, N_paths, 1)
 
         with torch.no_grad():
-            true_q = self.optimal_control_analytic(timesteps, y_vals)          # shape: (T + 1, N)
-            true_Y = self.optimal_cost_analytic(timesteps, y_vals)             # shape (T + 1, N)
+            t_tensor = torch.tensor(timesteps, dtype=torch.float32, device=self.device).unsqueeze(1).repeat(1, y_vals.shape[1])
+            y_tensor = torch.tensor(y_vals, dtype=torch.float32, device=self.device)
+
+            true_q = self.optimal_control_analytic(t_tensor, y_tensor)
+            true_Y = self.value_function_analytic(t_tensor, y_tensor)
 
         fig, axs = plt.subplots(2, 2, figsize=(14, 10))
         colors = cm.get_cmap("tab10", approx_q.shape[1])  # Get a colormap with enough distinct colors
@@ -192,7 +203,7 @@ class SimpleHJB(FBSNN):
         # --- Subplot 1: Learned q(t) paths ---
         for i in range(approx_q.shape[1]):
             axs[0, 0].plot(timesteps, approx_q[:, i], color=colors(i), alpha=0.6, label=f"Learned {i+1}")
-            axs[0, 0].plot(timesteps, true_q[:, i], linestyle="--", color=colors(i), alpha=0.4, label=f"Analytical {i+1}")
+            axs[0, 0].plot(timesteps, true_q[:, i].detach().cpu().numpy(), linestyle="--", color=colors(i), alpha=0.4, label=f"Analytical {i+1}")
         
         axs[0, 0].set_title("Control $q(t)$: Learned vs Analytical")
         axs[0, 0].set_xlabel("Time $t$")
@@ -200,7 +211,7 @@ class SimpleHJB(FBSNN):
         axs[0, 0].grid(True)
 
         # --- Subplot 2: Absolute Difference ---
-        diff = (approx_q.squeeze(-1) - true_q)  # (T, N_paths)
+        diff = (approx_q.squeeze(-1) - true_q.detach().cpu().numpy())  # (T, N_paths)
         for i in range(diff.shape[1]):
             axs[0, 1].plot(timesteps, diff[:, i], color=colors(i), alpha=0.6, label=f"Diff Path {i+1}")
         axs[0, 1].axhline(0, color='red', linestyle='--', linewidth=0.8)
@@ -213,7 +224,7 @@ class SimpleHJB(FBSNN):
         # --- Subplot 3: Y(t) paths ---
         for i in range(Y_vals.shape[1]):
             axs[1, 0].plot(timesteps, Y_vals[:, i, 0], color=colors(i), alpha=0.6, label=f"Learned {i+1}")
-            axs[1, 0].plot(timesteps, true_Y[:, i], linestyle="--", color=colors(i), alpha=0.4, label=f"Analytical {i+1}")
+            axs[1, 0].plot(timesteps, true_Y[:, i].detach().cpu().numpy(), linestyle="--", color=colors(i), alpha=0.4, label=f"Analytical {i+1}")
 
         axs[1, 0].set_title("Cost-to-Go $Y(t)$")
         axs[1, 0].set_xlabel("Time $t$")
@@ -240,20 +251,23 @@ class SimpleHJB(FBSNN):
         Y_vals = results["Y"]                # shape: (T + 1, N_paths, 1)
 
         with torch.no_grad():
-            true_q = self.optimal_control_analytic(timesteps, y_vals)          # shape: (T + 1, N)
-            true_Y = self.optimal_cost_analytic(timesteps, y_vals)             # shape (T + 1, N)
+            t_tensor = torch.tensor(timesteps, dtype=torch.float32, device=self.device).unsqueeze(1).repeat(1, y_vals.shape[1])
+            y_tensor = torch.tensor(y_vals, dtype=torch.float32, device=self.device)
+
+            true_q = self.optimal_control_analytic(t_tensor, y_tensor)
+            true_Y = self.value_function_analytic(t_tensor, y_tensor)
 
         mean_Y = Y_vals[:, :, 0].mean(axis=1).squeeze()
         std_Y = Y_vals[:, :, 0].std(axis=1).squeeze()
 
-        mean_true_Y = true_Y.mean(axis=1).squeeze()
-        std_true_Y = true_Y.std(axis=1).squeeze()
+        mean_true_Y = true_Y.mean(axis=1).squeeze().detach().cpu().numpy()
+        std_true_Y = true_Y.std(axis=1).squeeze().detach().cpu().numpy()
 
         mean_q = approx_q.mean(axis=1).squeeze()
         std_q = approx_q.std(axis=1).squeeze()
 
-        mean_q_true = true_q.mean(axis=1).squeeze()
-        std_q_true = true_q.std(axis=1).squeeze()
+        mean_q_true = true_q.mean(axis=1).squeeze().detach().cpu().numpy()
+        std_q_true = true_q.std(axis=1).squeeze().detach().cpu().numpy()
 
         fig, axs = plt.subplots(2, 2, figsize=(14, 10))
         colors = cm.get_cmap("tab10", approx_q.shape[1])  # Get a colormap with enough distinct colors
@@ -272,7 +286,7 @@ class SimpleHJB(FBSNN):
         axs[0, 0].legend()
 
         # --- Subplot 2: Absolute Difference ---
-        diff = (approx_q.squeeze(-1) - true_q)  # (T, N_paths)
+        diff = (approx_q.squeeze(-1) - true_q.detach().cpu().numpy())  # (T, N_paths)
         mean_diff = np.mean(diff, axis=1)
         std_diff = np.std(diff, axis=1)
         axs[0, 1].fill_between(timesteps, mean_diff - std_diff, mean_diff + std_diff, color='red', alpha=0.4, label='±1 Std Dev')
@@ -297,7 +311,7 @@ class SimpleHJB(FBSNN):
         axs[1, 0].legend()
 
         # --- Subplot 4: Difference ---
-        diff_Y = (Y_vals[:, :, 0] - true_Y)  # (T, N_paths)
+        diff_Y = (Y_vals[:, :, 0] - true_Y.detach().cpu().numpy())  # (T, N_paths)
         mean_diff_Y = np.mean(diff_Y, axis=1)
         std_diff_Y = np.std(diff_Y, axis=1)
         axs[1, 1].fill_between(timesteps, mean_diff_Y - std_diff_Y, mean_diff_Y + std_diff_Y, color='red', alpha=0.4, label='±1 Std Dev')

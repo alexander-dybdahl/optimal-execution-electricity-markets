@@ -17,6 +17,11 @@ class LSTMNet(nn.Module):
                 ResLSTMCell(input_size if i == 0 else hidden_sizes[i - 1], hidden_sizes[i], activation=activation)
                 for i in range(len(hidden_sizes))
             ])
+        elif type == 'NaisLSTM':
+            self.lstm_layers = nn.ModuleList([
+                ResLSTMCell(input_size if i == 0 else hidden_sizes[i - 1], hidden_sizes[i], stable=True, activation=activation)
+                for i in range(len(hidden_sizes))
+            ])
         else:
             self.lstm_layers = nn.ModuleList([
                 LSTMCell(input_size if i == 0 else hidden_sizes[i - 1], hidden_sizes[i])
@@ -84,6 +89,8 @@ class ResLSTMCell(nn.Module):
         if norm > delta:
             RtR = delta ** 0.5 * RtR / norm**0.5
         A = RtR + torch.eye(RtR.shape[0], device=RtR.device) * self.epsilon
+        # print shapes
+        print(f"Layer: {layer}, A shape: {A.shape}, out shape: {out.shape}")
         return F.linear(out, -A, layer.bias)
 
     def forward(self, x, hidden):

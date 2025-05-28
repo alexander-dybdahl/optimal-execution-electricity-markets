@@ -20,7 +20,7 @@ class AidIntradayLQ(FBSNN):
         P = y[:, 1:2]
         temporary_impact = self.gamma * q
         execution_price = P + temporary_impact
-        return - q * execution_price
+        return q * execution_price
 
     def terminal_cost(self, y):
         D = y[:, 2:3]
@@ -59,7 +59,7 @@ class AidIntradayLQ(FBSNN):
         dV_P = dV[:, 1:2]
         P = y[:, 1:2]
 
-        q = 0.5 / self.gamma * (dV_X + self.nu * dV_P - P)
+        q = -0.5 / self.gamma * (P + dV_X + self.nu * dV_P)
         return q
 
     def optimal_control_analytic(self, t, y):
@@ -67,7 +67,7 @@ class AidIntradayLQ(FBSNN):
         P = y[:, 1:2]
         D = y[:, 2:3]
         tau = self.T - t
-        return - (self.eta * (self.mu_D * tau + D - X) - P) / ((self.eta + self.nu) * tau + 2 * self.gamma)
+        return (self.eta * (self.mu_D * tau + D - X) - P) / ((self.eta + self.nu) * tau + 2 * self.gamma)
 
     def value_function_analytic(self, t, y):
         X = y[:, 0:1]
