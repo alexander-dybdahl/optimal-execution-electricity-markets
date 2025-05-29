@@ -221,6 +221,7 @@ class AidIntradayLQ(FBSNN):
 
         return self.λ_Y * Y_loss + self.λ_T * terminal_loss + self.λ_TG * terminal_gradient_loss
 
+
     # def forward_supervised(self, t_paths, W_paths):
     #     batch_size = self.batch_size
     #     dim = self.dim

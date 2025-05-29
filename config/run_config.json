@@ -3,7 +3,7 @@
   "config_path": "config/aid_config.json",
   "device": "cuda",
   "train": true,
-  "load_if_exists": false,
+  "load_if_exists": true,
   "best": false,
   "verbose": true,
   "plot": true,
