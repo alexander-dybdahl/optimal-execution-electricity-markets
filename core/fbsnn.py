@@ -99,8 +99,7 @@ class FBSNN(nn.Module, ABC):
         diffusion = torch.bmm(σ, dW.unsqueeze(-1)).squeeze(-1)  # shape: (batch, dim)
         return y + μ * dt + diffusion         # shape: (batch, dim)
 
-    def fetch_minibatch(self):
-        batch_size = self.batch_size
+    def fetch_minibatch(self, batch_size):
         dim_W = self.dim_W
         T = self.T
         N = self.N
@@ -231,18 +230,21 @@ class FBSNN(nn.Module, ABC):
         width = (max_widths['epoch'] + max_widths['loss'] * 4 + max_widths['lr'] + max_widths['mem'] + max_widths['time'] + max_widths['eta'] + max_widths['status'] + 8 * 3 + 1)
 
         for epoch in range(epochs):
-            optimizer.zero_grad()
-            t_paths, W_paths = self.fetch_minibatch()
-            loss = self(t_paths, W_paths)
-            loss.backward()
-            optimizer.step()
 
-            losses.append(loss.item())
-            losses_Y.append(self.total_Y_loss)
-            losses_terminal.append(self.terminal_loss)
-            losses_terminal_gradient.append(self.terminal_gradient_loss)
+            # Loop over n_paths with a batch size of self.batch_size
+            for _ in range(self.n_paths // self.batch_size):
+                optimizer.zero_grad()
+                t_paths, W_paths = self.fetch_minibatch(self.batch_size)
+                loss = self(t_paths, W_paths)
+                loss.backward()
+                optimizer.step()
 
-            scheduler.step(loss.item() if adaptive else epoch)
+                losses.append(loss.item())
+                losses_Y.append(self.total_Y_loss)
+                losses_terminal.append(self.terminal_loss)
+                losses_terminal_gradient.append(self.terminal_gradient_loss)
+
+                scheduler.step(loss.item() if adaptive else epoch)
 
             if (epoch % K == 0 or epoch == epochs - 1):
                 
