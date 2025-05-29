@@ -1,6 +1,7 @@
 import numpy as np
 import torch
 import os
+import json
 from argparse import ArgumentParser
 from utils.load_config import load_model_config, load_run_config
 from utils.tools import str2bool
@@ -45,6 +46,13 @@ def main():
     save_dir = f"{run_cfg['save_path']}_{args.architecture}_{args.activation}" # if not args.supervised else f"{run_cfg['save_path']}_supervised_{args.architecture}_{args.activation}"
     os.makedirs(save_dir, exist_ok=True)
     save_path = os.path.join(save_dir, "model")
+    
+    run_cfg_path = os.path.join(save_dir, "run_config.json")
+    model_cfg_path = os.path.join(save_dir, "model_config.json")
+    with open(run_cfg_path, 'w') as f:
+        json.dump(run_cfg, f, indent=4)
+    with open(model_cfg_path, 'w') as f:
+        json.dump(model_cfg, f, indent=4)
 
     import warnings
     warnings.filterwarnings("ignore", message="Attempting to run cuBLAS, but there was no current CUDA context!")

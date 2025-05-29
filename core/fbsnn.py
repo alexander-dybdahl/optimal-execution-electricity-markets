@@ -40,6 +40,16 @@ class FBSNN(nn.Module, ABC):
             self.activation = nn.ReLU()
         elif args.activation == "Tanh":
             self.activation = nn.Tanh()
+        elif args.activation == "LeakyReLU":
+            self.activation = nn.LeakyReLU()
+        elif args.activation == "ELU":
+            self.activation = nn.ELU()
+        elif args.activation == "Softplus":
+            self.activation = nn.Softplus()
+        elif args.activation == "Softsign":
+            self.activation = nn.Softsign()
+        elif args.activation == "GELU":
+            self.activation = nn.GELU()
         elif args.activation == "Sigmoid":
             self.activation = nn.Sigmoid()
         else:
@@ -99,6 +109,9 @@ class FBSNN(nn.Module, ABC):
         diffusion = torch.bmm(σ, dW.unsqueeze(-1)).squeeze(-1)  # shape: (batch, dim)
         return y + μ * dt + diffusion         # shape: (batch, dim)
 
+    def normalize_inputs(self, t, y):
+        return (t - self.t_mean) / self.t_std, (y - self.y_mean) / self.y_std
+    
     def fetch_minibatch(self):
         batch_size = self.batch_size
         dim_W = self.dim_W
@@ -343,114 +356,3 @@ class FBSNN(nn.Module, ABC):
             plt.show()
 
         return losses
-
-    # def train_model(self, epochs=1000, K=50, lr=1e-3, save_path="saved/", verbose=True, plot=True, adaptive=True):
-    #     self.device = next(self.parameters()).device
-    #     optimizer = torch.optim.Adam(self.parameters(), lr=lr)
-
-    #     if adaptive:
-    #         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-    #             optimizer, mode='min', factor=0.80, patience=200
-    #         )
-    #     else:
-    #         scheduler = torch.optim.lr_scheduler.StepLR(
-    #             optimizer, step_size=5000, gamma=0.5
-    #         )
-
-    #     losses = []
-    #     losses_Y = []
-    #     losses_terminal = []
-    #     losses_terminal_gradient = []
-
-    #     self.train()
-
-    #     header_printed = False
-        
-    #     init_time = time.time()
-    #     start_time = time.time()
-
-    #     if verbose:
-    #         print("\n+---------------------------+---------------------------+")
-    #         print("| Training Configuration    |                           |")
-    #         print("+---------------------------+---------------------------+")
-    #         print(f"| Epochs                    | {epochs:<25} |")
-    #         print(f"| Learning Rate             | {lr:<25} |")
-    #         print(f"| Adaptive LR               | {'True' if adaptive else 'False':<25} |")
-    #         print(f"| λ_Y (Y loss)              | {self.λ_Y:<25} |")
-    #         print(f"| λ_T (Terminal loss)       | {self.λ_T:<25} |")
-    #         print(f"| λ_TG (Gradient loss)      | {self.λ_TG:<25} |")
-    #         print(f"| Number of Paths           | {self.n_paths:<25} |")
-    #         print(f"| Batch Size                | {self.batch_size:<25} |")
-    #         print(f"| Architecture              | {self.architecture:<25} |")
-    #         print(f"| Depth                     | {len(self.Y_layers):<25} |")
-    #         print(f"| Width                     | {self.Y_layers[0]:<25} |")
-    #         print(f"| Activation                | {self.activation.__class__.__name__:<25} |")
-    #         print(f"| T                         | {self.T:<25} |")
-    #         print(f"| N                         | {self.N:<25} |")
-    #         print(f"| Supervised                | {'True' if self.supervised else 'False':<25} |")
-    #         print("+---------------------------+---------------------------+\n")
-
-    #     for epoch in range(epochs):
-    #         optimizer.zero_grad()
-    #         t_paths, W_paths = self.fetch_minibatch()
-    #         loss = self(t_paths, W_paths)
-    #         loss.backward()
-    #         optimizer.step()
-
-    #         losses.append(loss.item())
-    #         losses_Y.append(self.total_Y_loss)
-    #         losses_terminal.append(self.terminal_loss)
-    #         losses_terminal_gradient.append(self.terminal_gradient_loss)
-
-    #         if adaptive:
-    #             scheduler.step(loss.item())
-    #         else:
-    #             scheduler.step()
-
-    #         if (epoch % K == 0 or epoch == epochs - 1) and verbose and epoch > 0:
-    #             elapsed = time.time() - start_time
-    #             if not header_printed:
-    #                 print(f"{'Epoch':>8} | {'Total loss':>12} | {'Y loss':>12} | {'T. loss':>12} | {'T.G. loss':>12} | {'LR':>10} | {'Memory [MB]':>12} | {'Time [s]':>10} | {'Status'}")
-    #                 print("-" * 120)
-    #                 header_printed = True
-
-    #             mem_mb = torch.cuda.memory_allocated() / 1e6
-    #             current_lr = optimizer.param_groups[0]['lr']
-    #             status = ""
-
-    #             if "every" in self.save and (epoch % self.save_n == 0 or epoch == epochs - 1):
-    #                 torch.save(self.state_dict(), save_path + ".pth")
-    #                 status = f"Model saved ↓"
-
-    #             if "best" in self.save and np.mean(losses[-K:]) < self.lowest_loss:
-    #                 self.lowest_loss = np.mean(losses[-K:])
-    #                 torch.save(self.state_dict(), save_path + "_best.pth")
-    #                 status = "Model saved ↓ (best)"
-
-    #             print(f"{epoch:8} | {np.mean(losses[-K:]):12.6f} | {np.mean(losses_Y[-K:]):12.6f} | {np.mean(losses_terminal[-K:]):12.6f} | {np.mean(losses_terminal_gradient[-K:]):12.6f} | {current_lr:10.2e} | {mem_mb:12.2f} | {elapsed:10.2f} | {status}")
-    #             start_time = time.time()
-
-    #     if "last" in self.save:
-    #         torch.save(self.state_dict(), save_path + ".pth")
-    #         status = f"Model saved ↓"
-    #         print(f"{epoch:8} | {loss.item():12.6f} | {self.total_Y_loss:12.6f} | {self.terminal_loss:12.6f} | {self.terminal_gradient_loss:12.6f} | {current_lr:10.2e} | {mem_mb:12.2f} | {elapsed:10.2f} | {status}")
-
-    #     if verbose:
-    #         print("-" * 120)
-    #         print(f"Training completed. Lowest loss: {self.lowest_loss:.6f}. Total time: {time.time() - init_time:.2f} seconds")
-    #         print(f"Model saved to {save_path}.pth")
-
-    #     if plot:
-    #         plt.plot(losses, label="Total Loss")
-    #         plt.plot(losses_Y, label="Y Loss")
-    #         plt.plot(losses_terminal, label="Terminal Loss")
-    #         plt.plot(losses_terminal_gradient, label="Terminal Gradient Loss")
-    #         plt.xlabel("Epoch")
-    #         plt.ylabel("Loss")
-    #         plt.title("Training Loss")
-    #         plt.yscale("log")
-    #         plt.legend()
-    #         plt.grid()
-    #         plt.show()
-
-    #     return losses
