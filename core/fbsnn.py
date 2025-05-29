@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torch.distributed as dist
 import matplotlib.pyplot as plt
 import time
 import numpy as np
@@ -7,6 +8,8 @@ import os
 import logging
 from abc import ABC, abstractmethod
 from core.nnets import Sine, FCnet, Resnet, LSTMNet
+
+from torch.nn.parallel import DistributedDataParallel as DDP
 
 
 class FBSNN(nn.Module, ABC):
@@ -170,15 +173,16 @@ class FBSNN(nn.Module, ABC):
         return self.λ_Y * Y_loss + self.λ_T * terminal_loss + self.λ_TG * terminal_gradient_loss
 
     def train_model(self, epochs=1000, K=50, lr=1e-3, verbose=True, plot=True, adaptive=True, save_dir=None):
-        save_path = os.path.join(save_dir, "model")
-        log_file = os.path.join(save_dir, "training.log")
-        logging.basicConfig(filename=log_file, filemode='w', level=logging.INFO, format='%(message)s')
-        logger = logging.getLogger()
+        is_distributed = dist.is_initialized()
+        is_main = not is_distributed or dist.get_rank() == 0
 
-        def log(msg):
-            if verbose:
-                print(msg)
-            logger.info(msg)
+        if is_main:
+            save_path = os.path.join(save_dir, "model")
+            log_file = os.path.join(save_dir, "training.log")
+            logging.basicConfig(filename=log_file, filemode='w', level=logging.INFO, format='%(message)s')
+            logger = logging.getLogger()
+        else:
+            logger = None
 
         self.device = next(self.parameters()).device
         optimizer = torch.optim.Adam(self.parameters(), lr=lr)
@@ -192,49 +196,58 @@ class FBSNN(nn.Module, ABC):
         losses, losses_Y, losses_terminal, losses_terminal_gradient = [], [], [], []
         self.train()
 
-        log(f"Training started at {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())}")
-        log(f"Logging training to {log_file}")
-        log("\n+---------------------------+---------------------------+")
-        log("| Training Configuration    |                           |")
-        log("+---------------------------+---------------------------+")
-        log(f"| Epochs                    | {epochs:<25} |")
-        log(f"| Learning Rate             | {lr:<25} |")
-        log(f"| Adaptive LR               | {'True' if adaptive else 'False':<25} |")
-        log(f"| lambda_Y (Y loss)         | {self.λ_Y:<25} |")
-        log(f"| lambda_T (Terminal loss)  | {self.λ_T:<25} |")
-        log(f"| lambda_TG (Gradient loss) | {self.λ_TG:<25} |")
-        log(f"| Number of Paths           | {self.n_paths:<25} |")
-        log(f"| Batch Size                | {self.batch_size:<25} |")
-        log(f"| Architecture              | {self.architecture:<25} |")
-        log(f"| Depth                     | {len(self.Y_layers):<25} |")
-        log(f"| Width                     | {self.Y_layers[0]:<25} |")
-        log(f"| Activation                | {self.activation.__class__.__name__:<25} |")
-        log(f"| T                         | {self.T:<25} |")
-        log(f"| N                         | {self.N:<25} |")
-        log(f"| Supervised                | {'True' if self.supervised else 'False':<25} |")
-        log("+---------------------------+---------------------------+\n")
+        def log(msg):
+            if is_main:
+                if verbose:
+                    print(msg)
+                logger.info(msg)
 
-        header_printed = False
-        init_time = time.time()
-        start_time = time.time()
-        
-        max_widths = {
-            "epoch": 8,
-            "loss": 12,
-            "lr": 10,
-            "mem": 12,
-            "time": 8,
-            "eta": 8,
-            "status": 20
-        }
-        width = (max_widths['epoch'] + max_widths['loss'] * 4 + max_widths['lr'] + max_widths['mem'] + max_widths['time'] + max_widths['eta'] + max_widths['status'] + 8 * 3 + 1)
+        if is_main:
+
+            log(f"Training started at {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())}")
+            log(f"Logging training to {log_file}")
+            log("\n+---------------------------+---------------------------+")
+            log("| Training Configuration    |                           |")
+            log("+---------------------------+---------------------------+")
+            log(f"| Epochs                    | {epochs:<25} |")
+            log(f"| Learning Rate             | {lr:<25} |")
+            log(f"| Adaptive LR               | {'True' if adaptive else 'False':<25} |")
+            log(f"| lambda_Y (Y loss)         | {self.λ_Y:<25} |")
+            log(f"| lambda_T (Terminal loss)  | {self.λ_T:<25} |")
+            log(f"| lambda_TG (Gradient loss) | {self.λ_TG:<25} |")
+            log(f"| Number of Paths           | {self.n_paths:<25} |")
+            log(f"| Batch Size                | {self.batch_size:<25} |")
+            log(f"| Architecture              | {self.architecture:<25} |")
+            log(f"| Depth                     | {len(self.Y_layers):<25} |")
+            log(f"| Width                     | {self.Y_layers[0]:<25} |")
+            log(f"| Activation                | {self.activation.__class__.__name__:<25} |")
+            log(f"| T                         | {self.T:<25} |")
+            log(f"| N                         | {self.N:<25} |")
+            log(f"| Supervised                | {'True' if self.supervised else 'False':<25} |")
+            log("+---------------------------+---------------------------+\n")
+
+            header_printed = False
+            init_time = time.time()
+            start_time = time.time()
+            
+            max_widths = {
+                "epoch": 8,
+                "loss": 12,
+                "lr": 10,
+                "mem": 12,
+                "time": 8,
+                "eta": 8,
+                "status": 20
+            }
+            width = (max_widths['epoch'] + max_widths['loss'] * 4 + max_widths['lr'] + max_widths['mem'] + max_widths['time'] + max_widths['eta'] + max_widths['status'] + 8 * 3 + 1)
 
         for epoch in range(epochs):
 
             # Loop over n_paths with a batch size of self.batch_size
             for _ in range(self.n_paths // self.batch_size):
                 optimizer.zero_grad()
-                t_paths, W_paths = self.fetch_minibatch(self.batch_size)
+                fetch = self.module.fetch_minibatch if isinstance(self, DDP) else self.fetch_minibatch
+                t_paths, W_paths = fetch(self.batch_size)
                 loss = self(t_paths, W_paths)
                 loss.backward()
                 optimizer.step()
@@ -246,54 +259,83 @@ class FBSNN(nn.Module, ABC):
 
                 scheduler.step(loss.item() if adaptive else epoch)
 
-            if (epoch % K == 0 or epoch == epochs - 1):
-                
-                avg_time_per_K = (time.time() - init_time) / (epoch + 1e-8)  # avoid div-by-zero
-                eta_seconds = avg_time_per_K * (epochs - epoch) if epoch > 0 else 0
-                eta_minutes_part = eta_seconds // 60
-                eta_seconds_part = eta_seconds % 60
-                if epoch == 0:
-                    eta_str = "N/A"
-                else:
-                    eta_seconds = int(avg_time_per_K * (epochs - epoch))
+            if is_main:
+                if (epoch % K == 0 or epoch == epochs - 1):
+                    
+                    avg_time_per_K = (time.time() - init_time) / (epoch + 1e-8)  # avoid div-by-zero
+                    eta_seconds = avg_time_per_K * (epochs - epoch) if epoch > 0 else 0
                     eta_minutes_part = eta_seconds // 60
                     eta_seconds_part = eta_seconds % 60
-                    eta_str = f"{eta_minutes_part}m {eta_seconds_part:02d}s" if eta_seconds >= 60 else f"{eta_seconds}s"
+                    if epoch == 0:
+                        eta_str = "N/A"
+                    else:
+                        eta_seconds = int(avg_time_per_K * (epochs - epoch))
+                        eta_minutes_part = eta_seconds // 60
+                        eta_seconds_part = eta_seconds % 60
+                        eta_str = f"{eta_minutes_part}m {eta_seconds_part:02d}s" if eta_seconds >= 60 else f"{eta_seconds}s"
 
-                elapsed = time.time() - start_time
-                if not header_printed:
-                    log(f"{'Epoch':>{max_widths['epoch']}} | "
-                        f"{'Total loss':>{max_widths['loss']}} | "
-                        f"{'Y loss':>{max_widths['loss']}} | "
-                        f"{'T. loss':>{max_widths['loss']}} | "
-                        f"{'T.G. loss':>{max_widths['loss']}} | "
-                        f"{'LR':>{max_widths['lr']}} | "
-                        f"{'Memory [MB]':>{max_widths['mem']}} | "
-                        f"{'Time [s]':>{max_widths['time']}} | "
-                        f"{'ETA':>{max_widths['eta']}} | "
-                        f"{'Status':<{max_widths['status']}}")
-                    log("-" * width)
-                    header_printed = True
+                    elapsed = time.time() - start_time
+                    if not header_printed:
+                        log(f"{'Epoch':>{max_widths['epoch']}} | "
+                            f"{'Total loss':>{max_widths['loss']}} | "
+                            f"{'Y loss':>{max_widths['loss']}} | "
+                            f"{'T. loss':>{max_widths['loss']}} | "
+                            f"{'T.G. loss':>{max_widths['loss']}} | "
+                            f"{'LR':>{max_widths['lr']}} | "
+                            f"{'Memory [MB]':>{max_widths['mem']}} | "
+                            f"{'Time [s]':>{max_widths['time']}} | "
+                            f"{'ETA':>{max_widths['eta']}} | "
+                            f"{'Status':<{max_widths['status']}}")
+                        log("-" * width)
+                        header_printed = True
 
-                mem_mb = torch.cuda.memory_allocated() / 1e6
-                current_lr = optimizer.param_groups[0]['lr']
-                status = ""
+                    mem_mb = torch.cuda.memory_allocated() / 1e6
+                    current_lr = optimizer.param_groups[0]['lr']
+                    status = ""
 
-                if "every" in self.save and (epoch % self.save_n == 0 or epoch == epochs - 1):
-                    try:
-                        torch.save(self.state_dict(), save_path + ".pth")
-                    except Exception as e:
-                        log(f"Error saving model: {e}")
-                    status = "Model saved"
+                    if "every" in self.save and (epoch % self.save_n == 0 or epoch == epochs - 1):
+                        try:
+                            torch.save(self.module.state_dict() if isinstance(self, DDP)
+                                else self.state_dict(),
+                                save_path + ".pth")
+                        except Exception as e:
+                            log(f"Error saving model: {e}")
+                        status = "Model saved"
 
-                if "best" in self.save and np.mean(losses[-K:]) < self.lowest_loss:
-                    self.lowest_loss = np.mean(losses[-K:])
-                    try:
-                        torch.save(self.state_dict(), save_path + "_best.pth")
-                    except Exception as e:
-                        log(f"Error saving best model: {e}")
-                    status = "Model saved (best)"
+                    if "best" in self.save and np.mean(losses[-K:]) < self.lowest_loss:
+                        self.lowest_loss = np.mean(losses[-K:])
+                        try:
+                            torch.save(self.module.state_dict() if isinstance(self, DDP)
+                                else self.state_dict(),
+                                save_path + "_best.pth")
+                        except Exception as e:
+                            log(f"Error saving best model: {e}")
+                        status = "Model saved (best)"
 
+                    log(f"{epoch:>{max_widths['epoch']}} | "
+                        f"{np.mean(losses[-K:]):>{max_widths['loss']}.2e} | "
+                        f"{np.mean(losses_Y[-K:]):>{max_widths['loss']}.2e} | "
+                        f"{np.mean(losses_terminal[-K:]):>{max_widths['loss']}.2e} | "
+                        f"{np.mean(losses_terminal_gradient[-K:]):>{max_widths['loss']}.2e} | "
+                        f"{current_lr:>{max_widths['lr']}.2e} | "
+                        f"{mem_mb:>{max_widths['mem']}.2f} | "
+                        f"{elapsed:>{max_widths['time']}.2f} | "
+                        f"{eta_str:>{max_widths['eta']}} | "
+                        f"{status:<{max_widths['status']}}")
+                    start_time = time.time()
+
+        if is_main:
+            if is_distributed:
+                dist.barrier()
+
+            if "last" in self.save:
+                try:
+                    torch.save(self.module.state_dict() if isinstance(self, DDP)
+                        else self.state_dict(),
+                        save_path + ".pth")
+                except Exception as e:
+                    log(f"Error saving last model: {e}")
+                status = "Model saved"
                 log(f"{epoch:>{max_widths['epoch']}} | "
                     f"{np.mean(losses[-K:]):>{max_widths['loss']}.2e} | "
                     f"{np.mean(losses_Y[-K:]):>{max_widths['loss']}.2e} | "
@@ -304,45 +346,27 @@ class FBSNN(nn.Module, ABC):
                     f"{elapsed:>{max_widths['time']}.2f} | "
                     f"{eta_str:>{max_widths['eta']}} | "
                     f"{status:<{max_widths['status']}}")
-                start_time = time.time()
 
-        if "last" in self.save:
-            try:
-                torch.save(self.state_dict(), save_path + ".pth")
-            except Exception as e:
-                log(f"Error saving last model: {e}")
-            status = "Model saved"
-            log(f"{epoch:>{max_widths['epoch']}} | "
-                f"{np.mean(losses[-K:]):>{max_widths['loss']}.2e} | "
-                f"{np.mean(losses_Y[-K:]):>{max_widths['loss']}.2e} | "
-                f"{np.mean(losses_terminal[-K:]):>{max_widths['loss']}.2e} | "
-                f"{np.mean(losses_terminal_gradient[-K:]):>{max_widths['loss']}.2e} | "
-                f"{current_lr:>{max_widths['lr']}.2e} | "
-                f"{mem_mb:>{max_widths['mem']}.2f} | "
-                f"{elapsed:>{max_widths['time']}.2f} | "
-                f"{eta_str:>{max_widths['eta']}} | "
-                f"{status:<{max_widths['status']}}")
+            log("-" * width)
+            log(f"Training completed. Lowest loss: {self.lowest_loss:.6f}. Total time: {time.time() - init_time:.2f} seconds")
+            log(f"Model saved to {save_path}.pth")
 
-        log("-" * width)
-        log(f"Training completed. Lowest loss: {self.lowest_loss:.6f}. Total time: {time.time() - init_time:.2f} seconds")
-        log(f"Model saved to {save_path}.pth")
-
-        plt.figure(figsize=(10, 6))
-        plt.plot(losses, label="Total Loss")
-        plt.plot(losses_Y, label="Y Loss")
-        plt.plot(losses_terminal, label="Terminal Loss")
-        plt.plot(losses_terminal_gradient, label="Terminal Gradient Loss")
-        plt.xlabel("Epoch")
-        plt.ylabel("Loss")
-        plt.title("Training Loss")
-        plt.yscale("log")
-        plt.legend()
-        plt.grid()
-        plt.tight_layout()
-        if save_dir:
-            plt.savefig(f"{save_dir}/loss.png", dpi=300, bbox_inches='tight')
-        if plot:
-            plt.show()
+            plt.figure(figsize=(10, 6))
+            plt.plot(losses, label="Total Loss")
+            plt.plot(losses_Y, label="Y Loss")
+            plt.plot(losses_terminal, label="Terminal Loss")
+            plt.plot(losses_terminal_gradient, label="Terminal Gradient Loss")
+            plt.xlabel("Epoch")
+            plt.ylabel("Loss")
+            plt.title("Training Loss")
+            plt.yscale("log")
+            plt.legend()
+            plt.grid()
+            plt.tight_layout()
+            if save_dir:
+                plt.savefig(f"{save_dir}/loss.png", dpi=300, bbox_inches='tight')
+            if plot:
+                plt.show()
 
         return losses
 
