@@ -1,4 +1,4 @@
-Training started at 2025-05-30 12:40:32
+Training started at 2025-05-30 20:13:14
 Logging training to saved/simple_FC_ReLU\training.log
 
 +---------------------------+---------------------------+
@@ -8,8 +8,8 @@ Logging training to saved/simple_FC_ReLU\training.log
 | Learning Rate             | 0.001                     |
 | Adaptive LR               | True                      |
 | lambda_Y (Y loss)         | 1                         |
-| lambda_T (Terminal loss)  | 1                         |
-| lambda_TG (Gradient loss) | 1                         |
+| lambda_T (Terminal loss)  | 0                         |
+| lambda_TG (Gradient loss) | 0                         |
 | Number of Paths           | 1024                      |
 | Batch Size                | 1024                      |
 | Architecture              | FC                        |
@@ -21,29 +21,12 @@ Logging training to saved/simple_FC_ReLU\training.log
 | Supervised                | True                      |
 +---------------------------+---------------------------+
 
-   Epoch |   Total loss |       Y loss |      T. loss |    T.G. loss |         LR |  Memory [MB] | Time [s] |      ETA | Status              
--------------------------------------------------------------------------------------------------------------------------------------------
-       0 |     6.57e-01 |     6.54e-01 |     4.11e-04 |     1.88e-03 |   1.00e-03 |        20.56 |     0.33 |      N/A | Model saved (best)  
-      50 |     1.87e-01 |     1.18e-01 |     4.70e-02 |     2.19e-02 |   1.00e-03 |        20.56 |     0.69 |      19s | Model saved (best)  
-     100 |     1.30e-02 |     9.37e-03 |     4.72e-04 |     3.14e-03 |   1.00e-03 |        20.56 |     0.64 |      15s | Model saved (best)  
-     150 |     9.82e-03 |     7.31e-03 |     2.80e-04 |     2.23e-03 |   1.00e-03 |        20.56 |     0.68 |      13s | Model saved (best)  
-     200 |     7.69e-03 |     5.82e-03 |     1.06e-04 |     1.76e-03 |   1.00e-03 |        20.56 |     0.53 |      11s | Model saved (best)  
-     250 |     6.42e-03 |     4.98e-03 |     7.00e-05 |     1.36e-03 |   1.00e-03 |        20.56 |     0.71 |      10s | Model saved (best)  
-     300 |     5.78e-03 |     4.55e-03 |     6.43e-05 |     1.17e-03 |   1.00e-03 |        20.56 |     0.63 |       9s | Model saved (best)  
-     350 |     5.18e-03 |     4.09e-03 |     8.05e-05 |     1.01e-03 |   1.00e-03 |        20.56 |     0.68 |       9s | Model saved (best)  
-     400 |     4.99e-03 |     3.93e-03 |     8.76e-05 |     9.73e-04 |   1.00e-03 |        20.56 |     0.61 |       8s | Model saved (best)  
-     450 |     4.42e-03 |     3.50e-03 |     3.86e-05 |     8.81e-04 |   1.00e-03 |        20.56 |     0.74 |       7s | Model saved (best)  
-     500 |     4.23e-03 |     3.32e-03 |     7.56e-05 |     8.29e-04 |   1.00e-03 |        20.56 |     0.72 |       7s | Model saved (best)  
-     550 |     4.10e-03 |     3.20e-03 |     1.01e-04 |     7.93e-04 |   1.00e-03 |        20.56 |     0.67 |       6s | Model saved (best)  
-     600 |     4.12e-03 |     3.27e-03 |     9.94e-05 |     7.58e-04 |   1.00e-03 |        20.56 |     0.61 |       5s | Model saved         
-     650 |     3.95e-03 |     3.12e-03 |     8.39e-05 |     7.51e-04 |   1.00e-03 |        20.56 |     0.68 |       4s | Model saved (best)  
-     700 |     3.73e-03 |     2.88e-03 |     8.69e-05 |     7.65e-04 |   1.00e-03 |        20.56 |     0.53 |       4s | Model saved (best)  
-     750 |     3.45e-03 |     2.71e-03 |     7.00e-05 |     6.67e-04 |   1.00e-03 |        20.56 |     0.66 |       3s | Model saved (best)  
-     800 |     3.69e-03 |     2.87e-03 |     1.21e-04 |     6.92e-04 |   1.00e-03 |        20.56 |     0.66 |       2s | Model saved         
-     850 |     2.92e-03 |     2.26e-03 |     3.57e-05 |     6.33e-04 |   1.00e-03 |        20.56 |     0.59 |       2s | Model saved (best)  
-     900 |     3.63e-03 |     2.81e-03 |     1.60e-04 |     6.65e-04 |   1.00e-03 |        20.56 |     0.70 |       1s | Model saved         
-     950 |     3.74e-03 |     2.90e-03 |     1.42e-04 |     7.00e-04 |   1.00e-03 |        20.56 |     0.67 |       0s | Model saved         
-     999 |     2.83e-03 |     2.18e-03 |     5.59e-05 |     6.00e-04 |   1.00e-03 |        20.56 |     0.62 |       0s | Model saved (best)  
--------------------------------------------------------------------------------------------------------------------------------------------
-Training completed. Lowest loss: 0.002832. Total time: 13.50 seconds
-Model saved to saved/simple_FC_ReLU\model.pth
+   Epoch | Total loss |     Y loss |   pinn loss |         LR |  Memory [MB] | Time [s] |      ETA | Status              
+------------------------------------------------------------------------------------------------------------------
+       0 |   5.56e+02 |   5.38e+02 |    1.83e+01 |   1.00e-03 |        20.72 |     1.04 |      N/A | Model saved (best)  
+      50 |   1.13e+02 |   8.28e+01 |    2.99e+01 |   1.00e-03 |        20.72 |    27.07 |   8m 54s | Model saved (best)  
+     100 |   6.21e+01 |   1.95e+01 |    4.26e+01 |   1.00e-03 |        20.72 |    25.10 |   7m 59s | Model saved (best)  
+     150 |   6.22e+01 |   2.15e+01 |    4.07e+01 |   1.00e-03 |        20.72 |    26.05 |   7m 29s | Model saved         
+     200 |   6.17e+01 |   2.24e+01 |    3.93e+01 |   1.00e-03 |        20.72 |    26.32 |   7m 02s | Model saved (best)  
+     250 |   6.23e+01 |   2.32e+01 |    3.91e+01 |   8.00e-04 |        20.72 |    27.43 |   6m 39s | Model saved         
+     300 |   6.09e+01 |   2.28e+01 |    3.81e+01 |   8.00e-04 |        20.72 |    29.25 |   6m 18s | Model saved (best)  

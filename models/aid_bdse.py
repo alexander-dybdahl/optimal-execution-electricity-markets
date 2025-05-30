@@ -52,7 +52,8 @@ class AidIntradayLQ(FBSNN):
             outputs=Y,
             inputs=y,
             grad_outputs=torch.ones_like(Y),
-            create_graph=create_graph
+            create_graph=create_graph,
+            retain_graph=True,
         )[0]
 
         dV_X = dV[:, 0:1]
@@ -61,9 +62,6 @@ class AidIntradayLQ(FBSNN):
 
         q = -0.5 / self.gamma * (P + dV_X + self.nu * dV_P)
         return q
-
-    def pinn_loss(self, t, y, Y):
-        return super().pinn_loss(t, y, Y)
 
     def optimal_control_analytic(self, t, y):
         X = y[:, 0:1]

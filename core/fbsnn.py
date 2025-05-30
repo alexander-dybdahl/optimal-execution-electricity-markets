@@ -19,8 +19,11 @@ class FBSNN(nn.Module, ABC):
         self.n_paths = args.n_paths
         self.batch_size = args.batch_size
         self.λ_Y = args.lambda_Y
+        self.λ_dY = args.lambda_dY
+        self.λ_dYt = args.lambda_dYt
         self.λ_T = args.lambda_T
         self.λ_TG = args.lambda_TG
+        self.λ_pinn = args.lambda_pinn
         self.t0 = 0.0
         self.y0 = torch.tensor([model_cfg["y0"]], device=self.device, requires_grad=True)
         self.dim = model_cfg["dim"]
@@ -30,9 +33,12 @@ class FBSNN(nn.Module, ABC):
         self.dt = model_cfg["dt"]
         self.save = args.save
         self.save_n = args.save_n
-        self.total_Y_loss = None
-        self.terminal_loss = None
-        self.terminal_gradient_loss = None
+        self.Y_loss = 0
+        self.dY_loss = 0
+        self.dYt_loss = 0
+        self.terminal_loss = 0
+        self.terminal_gradient_loss = 0
+        self.pinn_loss = 0
 
         if args.activation == "Sine":
             self.activation = Sine()
@@ -92,13 +98,7 @@ class FBSNN(nn.Module, ABC):
     def sigma(self, t, y): pass  # shape: (batch, dim, dW_dim)
 
     @abstractmethod
-    def sigma(self, t, y): pass  # shape: (batch, dim, dW_dim)
-
-    @abstractmethod
     def trading_rate(self, t, y, Y): pass 
-
-    @abstractmethod
-    def pinn_loss(self, t, y, Y): pass
 
     @abstractmethod
     def forward_supervised(self, t_paths, W_paths): pass
@@ -111,6 +111,37 @@ class FBSNN(nn.Module, ABC):
         σ = self.sigma(t, y)                  # shape: (batch, dim, dW_dim)
         diffusion = torch.bmm(σ, dW.unsqueeze(-1)).squeeze(-1)  # shape: (batch, dim)
         return y + μ * dt + diffusion         # shape: (batch, dim)
+
+    def physics_loss(self, t, y, Y):
+        dim = y.shape[1]
+        t.requires_grad_(True)
+        y.requires_grad_(True)
+
+        dV = torch.autograd.grad(outputs=Y, inputs=y, grad_outputs=torch.ones_like(Y),
+                                create_graph=True)[0]
+
+        dV_t = torch.autograd.grad(outputs=Y, inputs=t, grad_outputs=torch.ones_like(Y),
+                                create_graph=True)[0]
+
+        # Compute Hessian H_ij = ∂²V / ∂y_i ∂y_j
+        grads = [torch.autograd.grad(outputs=dV[:, i], inputs=y,
+                                    grad_outputs=torch.ones_like(dV[:, i]),
+                                    create_graph=True)[0]
+                for i in range(dim)]
+        H = torch.stack(grads, dim=1)  # (batch, dim, dim)
+
+        q = self.trading_rate(t, y, Y)
+        mu = self.mu(t, y, q)
+        sigma = self.sigma(t, y)
+        f = self.generator(y, q)
+
+        # Trace(σ σᵀ H)
+        sigma_T = sigma.transpose(1, 2)  # (batch, dW_dim, dim)
+        sigma_sigma_T = torch.bmm(sigma, sigma_T)  # (batch, dim, dim)
+        diffusion_term = 0.5 * torch.einsum('bij,bij->b', sigma_sigma_T, H).unsqueeze(-1)  # (batch, 1)
+
+        residual = dV_t + torch.sum(mu * dV, dim=1, keepdim=True) + diffusion_term - f
+        return torch.mean(residual ** 2)
 
     def fetch_minibatch(self, batch_size):
         dim_W = self.dim_W
@@ -176,7 +207,7 @@ class FBSNN(nn.Module, ABC):
         terminal_loss = torch.sum(torch.pow(Y1 - self.terminal_cost(y1), 2))
         terminal_gradient_loss = torch.sum(torch.pow(dY1 - self.terminal_cost_grad(y1), 2))
 
-        self.total_Y_loss = self.λ_Y * Y_loss.detach().item()
+        self.Y_loss = self.λ_Y * Y_loss.detach().item()
         self.terminal_loss = self.λ_T * terminal_loss.detach().item()
         self.terminal_gradient_loss = self.λ_TG * terminal_gradient_loss.detach().item()
 
@@ -236,7 +267,7 @@ class FBSNN(nn.Module, ABC):
             torch.optim.lr_scheduler.StepLR(optimizer, step_size=5000, gamma=0.5)
         )
 
-        losses, losses_Y, losses_terminal, losses_terminal_gradient = [], [], [], []
+        losses, losses_Y, losses_dY, losses_dYt, losses_terminal, losses_terminal_gradient, losses_pinn = [], [], [], [], [], [], []
         self.train()
 
         log(f"Training started at {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())}")
@@ -265,16 +296,38 @@ class FBSNN(nn.Module, ABC):
         init_time = time.time()
         start_time = time.time()
         
+        # Dynamic width calculation based on loss components
         max_widths = {
             "epoch": 8,
-            "loss": 12,
+            "loss": 8,
             "lr": 10,
             "mem": 12,
             "time": 8,
             "eta": 8,
             "status": 20
         }
-        width = (max_widths['epoch'] + max_widths['loss'] * 4 + max_widths['lr'] + max_widths['mem'] + max_widths['time'] + max_widths['eta'] + max_widths['status'] + 8 * 3 + 1)
+        loss_components = [
+            ("Y loss", self.λ_Y, lambda: np.mean(losses_Y[-K:])),
+            ("dY loss", self.λ_dY, lambda: np.mean(losses_dY[-K:])),
+            ("dYt loss", self.λ_dYt, lambda: np.mean(losses_dYt[-K:])),
+            ("T. loss", self.λ_T, lambda: np.mean(losses_terminal[-K:])),
+            ("T.G. loss", self.λ_TG, lambda: np.mean(losses_terminal_gradient[-K:])),
+            ("pinn loss", self.λ_pinn, lambda: np.mean(losses_pinn[-K:])),
+        ]
+        active_losses = [(name, fn) for name, λ, fn in loss_components if λ > 0]
+
+        for name, _ in active_losses:
+            max_widths[name] = max(10, len(name) + 2)
+        width = (
+            max_widths["epoch"]
+            + sum(max_widths[name] for name, _ in active_losses)
+            + max_widths["lr"]
+            + max_widths["mem"]
+            + max_widths["time"]
+            + max_widths["eta"]
+            + max_widths["status"]
+            + 3 * (7 + len(active_losses))
+        )
 
         for epoch in range(epochs):
 
@@ -287,9 +340,12 @@ class FBSNN(nn.Module, ABC):
                 optimizer.step()
 
                 losses.append(loss.item())
-                losses_Y.append(self.total_Y_loss)
+                losses_Y.append(self.Y_loss)
+                losses_dY.append(self.dY_loss)
+                losses_dYt.append(self.dYt_loss)
                 losses_terminal.append(self.terminal_loss)
                 losses_terminal_gradient.append(self.terminal_gradient_loss)
+                losses_pinn.append(self.pinn_loss)
 
                 scheduler.step(loss.item() if adaptive else epoch)
 
@@ -309,16 +365,17 @@ class FBSNN(nn.Module, ABC):
 
                 elapsed = time.time() - start_time
                 if not header_printed:
-                    log(f"{'Epoch':>{max_widths['epoch']}} | "
-                        f"{'Total loss':>{max_widths['loss']}} | "
-                        f"{'Y loss':>{max_widths['loss']}} | "
-                        f"{'T. loss':>{max_widths['loss']}} | "
-                        f"{'T.G. loss':>{max_widths['loss']}} | "
-                        f"{'LR':>{max_widths['lr']}} | "
-                        f"{'Memory [MB]':>{max_widths['mem']}} | "
-                        f"{'Time [s]':>{max_widths['time']}} | "
-                        f"{'ETA':>{max_widths['eta']}} | "
-                        f"{'Status':<{max_widths['status']}}")
+                    header_parts = [f"{'Epoch':>{max_widths['epoch']}}", f"{'Total loss':>10}"]
+                    for name, _ in active_losses:
+                        header_parts.append(f"{name:>{max_widths[name]}}")
+                    header_parts += [
+                        f"{'LR':>{max_widths['lr']}}",
+                        f"{'Memory [MB]':>{max_widths['mem']}}",
+                        f"{'Time [s]':>{max_widths['time']}}",
+                        f"{'ETA':>{max_widths['eta']}}",
+                        f"{'Status':<{max_widths['status']}}",
+                    ]
+                    log(" | ".join(header_parts))
                     log("-" * width)
                     header_printed = True
 
@@ -341,16 +398,20 @@ class FBSNN(nn.Module, ABC):
                         log(f"Error saving best model: {e}")
                     status = "Model saved (best)"
 
-                log(f"{epoch:>{max_widths['epoch']}} | "
-                    f"{np.mean(losses[-K:]):>{max_widths['loss']}.2e} | "
-                    f"{np.mean(losses_Y[-K:]):>{max_widths['loss']}.2e} | "
-                    f"{np.mean(losses_terminal[-K:]):>{max_widths['loss']}.2e} | "
-                    f"{np.mean(losses_terminal_gradient[-K:]):>{max_widths['loss']}.2e} | "
-                    f"{current_lr:>{max_widths['lr']}.2e} | "
-                    f"{mem_mb:>{max_widths['mem']}.2f} | "
-                    f"{elapsed:>{max_widths['time']}.2f} | "
-                    f"{eta_str:>{max_widths['eta']}} | "
-                    f"{status:<{max_widths['status']}}")
+                row_parts = [
+                    f"{epoch:>{max_widths['epoch']}}",
+                    f"{np.mean(losses[-K:]):>10.2e}",
+                ]
+                for name, fn in active_losses:
+                    row_parts.append(f"{fn():>{max_widths[name]}.2e}")
+                row_parts += [
+                    f"{current_lr:>{max_widths['lr']}.2e}",
+                    f"{mem_mb:>{max_widths['mem']}.2f}",
+                    f"{elapsed:>{max_widths['time']}.2f}",
+                    f"{eta_str:>{max_widths['eta']}}",
+                    f"{status:<{max_widths['status']}}",
+                ]
+                log(" | ".join(row_parts))
                 start_time = time.time()
 
         if "last" in self.save:
@@ -359,17 +420,20 @@ class FBSNN(nn.Module, ABC):
             except Exception as e:
                 log(f"Error saving last model: {e}")
             status = "Model saved"
-            log(f"{epoch:>{max_widths['epoch']}} | "
-                f"{np.mean(losses[-K:]):>{max_widths['loss']}.2e} | "
-                f"{np.mean(losses_Y[-K:]):>{max_widths['loss']}.2e} | "
-                f"{np.mean(losses_terminal[-K:]):>{max_widths['loss']}.2e} | "
-                f"{np.mean(losses_terminal_gradient[-K:]):>{max_widths['loss']}.2e} | "
-                f"{current_lr:>{max_widths['lr']}.2e} | "
-                f"{mem_mb:>{max_widths['mem']}.2f} | "
-                f"{elapsed:>{max_widths['time']}.2f} | "
-                f"{eta_str:>{max_widths['eta']}} | "
-                f"{status:<{max_widths['status']}}")
-
+            row_parts = [
+                f"{epoch:>{max_widths['epoch']}}",
+                f"{np.mean(losses[-K:]):>10.2e}",
+            ]
+            for name, fn in active_losses:
+                row_parts.append(f"{fn():>{max_widths[name]}.2e}")
+            row_parts += [
+                f"{current_lr:>{max_widths['lr']}.2e}",
+                f"{mem_mb:>{max_widths['mem']}.2f}",
+                f"{elapsed:>{max_widths['time']}.2f}",
+                f"{eta_str:>{max_widths['eta']}}",
+                f"{status:<{max_widths['status']}}",
+            ]
+            log(" | ".join(row_parts))
         log("-" * width)
         log(f"Training completed. Lowest loss: {self.lowest_loss:.6f}. Total time: {time.time() - init_time:.2f} seconds")
         log(f"Model saved to {save_path}.pth")
@@ -377,8 +441,11 @@ class FBSNN(nn.Module, ABC):
         plt.figure(figsize=(10, 6))
         plt.plot(losses, label="Total Loss")
         plt.plot(losses_Y, label="Y Loss")
+        plt.plot(losses_dY, label="dY Loss")
+        plt.plot(losses_dYt, label="dYt Loss")
         plt.plot(losses_terminal, label="Terminal Loss")
         plt.plot(losses_terminal_gradient, label="Terminal Gradient Loss")
+        plt.plot(losses_pinn, label="PINN Loss")
         plt.xlabel("Epoch")
         plt.ylabel("Loss")
         plt.title("Training Loss")
@@ -393,70 +460,138 @@ class FBSNN(nn.Module, ABC):
 
         return losses
 
-    def forward_supervised(self, t_paths, W_paths):
-            batch_size = self.batch_size
-            t0 = t_paths[:, 0, :]
-            W0 = W_paths[:, 0, :]
-            y0 = self.y0.repeat(batch_size, 1).to(self.device)
-            Y0 = self.Y_net(t0, y0)
+    def forward_supervised(self, t_paths, W_paths, dY_loss=False, dYt_loss=False):
+        batch_size = self.batch_size
+        t0 = t_paths[:, 0, :]
+        W0 = W_paths[:, 0, :]
+        y0 = self.y0.repeat(batch_size, 1).to(self.device)
+        Y0 = self.Y_net(t0, y0)
 
-            Y_loss = 0.0
+        t_traj, V_pred_traj, y_traj = [], [], []
 
-            for n in range(self.N):
-                t1 = t_paths[:, n + 1, :]
-                W1 = W_paths[:, n + 1, :]
+        Y_loss = 0.0
+        dY_loss = 0.0
+        dYt_loss = 0.0
+        for n in range(self.N):
+            t1 = t_paths[:, n + 1, :].requires_grad_(True)
+            W1 = W_paths[:, n + 1, :]
 
-                q = self.trading_rate(t0, y0, Y0)
-                y1 = self.forward_dynamics(y0, q, W1 - W0, t0, t1 - t0)
+            q = self.trading_rate(t0, y0, Y0)
+            y1 = self.forward_dynamics(y0, q, W1 - W0, t0, t1 - t0)
 
-                # --- Supervised loss with analytic V and dV at t1, y1 ---
-                y1_detached = y1.detach().clone().requires_grad_(True)
-                V_target = self.value_function_analytic(t1, y1_detached)
+            V_target = self.value_function_analytic(t1, y1)
+            V_pred = self.Y_net(t1, y1)
+            if dY_loss:
                 dV_target = torch.autograd.grad(
                     outputs=V_target,
-                    inputs=y1_detached,
+                    inputs=y1,
                     grad_outputs=torch.ones_like(V_target),
                     create_graph=False,
                     retain_graph=True
                 )[0]
-
-                V_pred = self.Y_net(t1, y1)
                 dV_pred = torch.autograd.grad(
                     outputs=V_pred,
                     inputs=y1,
                     grad_outputs=torch.ones_like(V_pred),
                     create_graph=True
                 )[0]
+            if dYt_loss:
+                dV_target_t = torch.autograd.grad(
+                    outputs=V_target,
+                    inputs=t1,
+                    grad_outputs=torch.ones_like(V_target),
+                    create_graph=False,
+                    retain_graph=True
+                )[0]
+                dV_pred_t = torch.autograd.grad(
+                    outputs=V_pred,
+                    inputs=t1,
+                    grad_outputs=torch.ones_like(V_pred),
+                    create_graph=True
+                )[0]
 
-                supervised_loss = torch.mean(torch.pow(V_pred - V_target, 2))
-                gradient_loss = torch.mean(torch.pow(dV_pred - dV_target, 2))
+            Y_loss += torch.mean(torch.pow(V_pred - V_target, 2))
+            if dY_loss:
+                loss_dY = torch.mean(torch.pow(dV_pred - dV_target, 2))
+                Y_loss += loss_dY
+            if dYt_loss:
+                loss_dY_t = torch.mean(torch.pow(dV_pred_t - dV_target_t, 2))
+                Y_loss += loss_dY_t
 
-                Y_loss += supervised_loss + gradient_loss
+            t_traj.append(t1)
+            y_traj.append(y1.requires_grad_(True))
+            V_pred_traj.append(V_pred)
 
-                # Advance
-                t0, W0, y0, Y0 = t1, W1, y1, V_pred
+            t0, W0, y0, Y0 = t1, W1, y1, V_pred
 
-            t_terminal = torch.full((batch_size, 1), self.T, device=self.device)
-            YT = self.Y_net(t_terminal, y1)
-            terminal = self.terminal_cost(y1)
-            terminal_loss = torch.mean(torch.pow(YT - terminal, 2))
+        YT = self.Y_net(t1, y1)
+        terminal_loss = torch.mean(torch.pow(YT - self.terminal_cost(y1), 2))
 
-            dYT = torch.autograd.grad(
-                outputs=YT,
-                inputs=y1,
-                grad_outputs=torch.ones_like(YT),
-                create_graph=True,
-                retain_graph=True
-            )[0]
-            terminal_gradient = self.terminal_cost_grad(y1)
-            terminal_gradient_loss = torch.mean(torch.pow(dYT - terminal_gradient, 2))
+        dYT = torch.autograd.grad(
+            outputs=YT,
+            inputs=y1,
+            grad_outputs=torch.ones_like(YT),
+            create_graph=True
+        )[0]
+        terminal_gradient_loss = torch.mean(torch.pow(dYT - self.terminal_cost_grad(y1), 2))
 
-            # Log and return
-            self.total_Y_loss = self.λ_Y * Y_loss.detach().item()
-            self.terminal_loss = self.λ_T * terminal_loss.detach().item()
-            self.terminal_gradient_loss = self.λ_TG * terminal_gradient_loss.detach().item()
+        pinn_loss = 0.0
+        for t, y, V in zip(t_traj, y_traj, V_pred_traj):
+            pinn_loss += self.physics_loss(t, y, V)
+        pinn_loss /= len(t_traj)
 
-            return self.λ_Y * Y_loss + self.λ_T * terminal_loss + self.λ_TG * terminal_gradient_loss
+        self.Y_loss = self.λ_Y * Y_loss.detach().item()
+        self.terminal_loss = self.λ_T * terminal_loss.detach().item()
+        self.terminal_gradient_loss = self.λ_TG * terminal_gradient_loss.detach().item()        
+        self.pinn_loss = self.λ_pinn * pinn_loss.detach().item()
+
+        return self.λ_Y * Y_loss + self.λ_T * terminal_loss + self.λ_TG * terminal_gradient_loss + self.λ_pinn * pinn_loss
+
+    # def supervised_loss(self, y_traj, λ=1):
+    #     batch_size = self.batch_size
+    #     t_sup = torch.rand(batch_size, 1, device=self.device) * self.T
+    #     y_all = torch.stack(y_traj)
+    #     y_min = y_all.amin(dim=(0, 1))
+    #     y_max = y_all.amax(dim=(0, 1))
+    #     samples = torch.rand((batch_size, self.dim), device=self.device)
+    #     y_sup = y_min + samples * (y_max - y_min).requires_grad_(True)
+
+    #     V_sup_target = self.value_function_analytic(t_sup, y_sup)
+    #     dV_sup_target = torch.autograd.grad(
+    #         outputs=V_sup_target,
+    #         inputs=y_sup,
+    #         grad_outputs=torch.ones_like(V_sup_target),
+    #         create_graph=False,
+    #         retain_graph=True
+    #     )[0]
+    #     dV_sup_target_t = torch.autograd.grad(
+    #         outputs=V_sup_target,
+    #         inputs=t_sup,
+    #         grad_outputs=torch.ones_like(V_sup_target),
+    #         create_graph=False,
+    #         retain_graph=True
+    #     )[0]
+
+    #     V_sup_pred = self.Y_net(t_sup, y_sup)
+    #     dV_sup_pred = torch.autograd.grad(
+    #         outputs=V_sup_pred,
+    #         inputs=y_sup,
+    #         grad_outputs=torch.ones_like(V_sup_pred),
+    #         create_graph=True
+    #     )[0]
+    #     dV_sup_pred_t = torch.autograd.grad(
+    #         outputs=V_sup_pred,
+    #         inputs=t_sup,
+    #         grad_outputs=torch.ones_like(V_sup_pred),
+    #         create_graph=True
+    #     )[0]
+
+    #     loss_Y = torch.mean(torch.pow(V_sup_pred - V_sup_target, 2))
+    #     loss_dY = torch.mean(torch.pow(dV_sup_pred - dV_sup_target, 2))
+    #     loss_dY_t = torch.mean(torch.pow(dV_sup_pred_t - dV_sup_target_t, 2))
+    #     loss_sup = loss_Y + loss_dY + loss_dY_t
+
+    #     return λ * loss_sup
 
     # def forward_supervised(self, t_paths, W_paths):
     #     """
@@ -465,15 +600,10 @@ class FBSNN(nn.Module, ABC):
     #     Phase 2: compute analytic and predicted value + gradient loss on the whole trajectory
     #     """
     #     batch_size = self.batch_size
-    #     dt = self.T / self.N
-    #     device = self.device
-
-    #     # Initial state
     #     t0 = t_paths[:, 0, :]
     #     W0 = W_paths[:, 0, :]
-    #     y0 = self.y0.repeat(batch_size, 1).to(device)
+    #     y0 = self.y0.repeat(batch_size, 1).to(self.device)
 
-    #     # Collect full trajectories
     #     y_path = [y0]
     #     t_path = [t0]
 
@@ -490,112 +620,49 @@ class FBSNN(nn.Module, ABC):
 
     #         t0, W0, y0 = t1, W1, y1
 
-    #     # Phase 2: compare with analytic solution
     #     Y_loss = 0.0
-    #     dY_loss = 0.0
-    #     for i, (t_n, y_n_orig) in enumerate(zip(t_path, y_path)):
-    #         # Detach and re-enable autograd cleanly
+    #     for t_n, y_n_orig in zip(t_path, y_path):
     #         y_n = y_n_orig.detach()
     #         y_n.requires_grad_(True)
 
-    #         t_n = t_n.detach()  # just to be safe
-    #         t_n = t_n.requires_grad_(False)
-
-    #         # Compute V_pred and V_target
-    #         V_target = self.value_function_analytic(t_n, y_n).detach()  # no need to keep graph
-    #         V_pred = self.Y_net(t_n, y_n)
-
-    #         # Compute gradients
-    #         y1_ = y1.clone().detach().requires_grad_(True)
-    #         V_temp = self.value_function_analytic(t1, y1_)
+    #         yn_detached = y1.clone().detach().requires_grad_(True)
+    #         V_target = self.value_function_analytic(t_n, yn_detached)
     #         dV_target = torch.autograd.grad(
-    #             outputs=V_temp,
-    #             inputs=y1_,
-    #             grad_outputs=torch.ones_like(V_temp),
-    #             create_graph=False
+    #             outputs=V_target,
+    #             inputs=yn_detached,
+    #             grad_outputs=torch.ones_like(V_target),
+    #             create_graph=False,
+    #             retain_graph=True
     #         )[0]
             
+    #         V_pred = self.Y_net(t_n, y_n)
     #         dV_pred = torch.autograd.grad(
     #             outputs=V_pred,
     #             inputs=y_n,
     #             grad_outputs=torch.ones_like(V_pred),
-    #             create_graph=True,
-    #             retain_graph=True
-    #         )[0]
-
-    #         loss_V = torch.mean((V_pred - V_target) ** 2)
-    #         loss_dV = torch.mean((dV_pred - dV_target) ** 2)
-    #         Y_loss += loss_V
-    #         dY_loss += loss_dV
-
-    #     self.total_Y_loss = self.λ_Y * Y_loss.detach().item()
-    #     self.terminal_loss = self.λ_dY * dY_loss.detach().item()
-    #     self.terminal_gradient_loss = 0.0
-
-    #     return self.λ_Y * Y_loss + self.λ_dY * dY_loss
-
-    # def forward_supervised(self, t_paths, W_paths):
-    #     batch_size = self.batch_size
-    #     t0 = t_paths[:, 0, :]
-    #     W0 = W_paths[:, 0, :]
-    #     y0 = self.y0.repeat(batch_size, 1).to(self.device)
-    #     Y0 = self.Y_net(t0, y0)
-
-    #     Y_loss = 0.0
-
-    #     for n in range(self.N):
-    #         t1 = t_paths[:, n + 1, :]
-    #         W1 = W_paths[:, n + 1, :]
-
-    #         q = self.trading_rate(t0, y0, Y0)
-    #         y1 = self.forward_dynamics(y0, q, W1 - W0, t0, t1 - t0)
-
-    #         # --- Supervised loss with analytic V and dV at t1, y1 ---
-    #         V_target = self.value_function_analytic(t1, y1.detach())
-
-    #         y1_ = y1.clone().detach().requires_grad_(True)
-    #         V_temp = self.value_function_analytic(t1, y1_)
-    #         dV_target = torch.autograd.grad(
-    #             outputs=V_temp,
-    #             inputs=y1_,
-    #             grad_outputs=torch.ones_like(V_temp),
-    #             create_graph=False
-    #         )[0]
-
-    #         V_pred = self.Y_net(t1, y1)
-    #         supervised_loss = torch.mean(torch.pow(V_pred - V_target, 2))
-
-    #         dV_pred = torch.autograd.grad(
-    #             outputs=V_pred,
-    #             inputs=y1,
-    #             grad_outputs=torch.ones_like(V_pred),
     #             create_graph=True
     #         )[0]
-    #         gradient_loss = torch.mean(torch.pow(dV_pred - dV_target, 2))
 
-    #         Y_loss += supervised_loss + gradient_loss
+    #         loss_Y = torch.mean(torch.pow(V_pred - V_target, 2))
+    #         loss_dY = torch.mean(torch.pow(dV_pred - dV_target, 2))
 
-    #         # Advance
-    #         t0, W0, y0, Y0 = t1, W1, y1, V_pred
+    #         Y_loss += loss_Y + loss_dY
 
-    #     t_terminal = torch.full((batch_size, 1), self.T, device=self.device)
-    #     YT = self.Y_net(t_terminal, y1)
-    #     terminal = self.terminal_cost(y1)
-    #     terminal_loss = torch.mean(torch.pow(YT - terminal, 2))
+    #     YT = self.Y_net(t_n, y_n)
+    #     terminal_loss = torch.mean(torch.pow(YT - self.terminal_cost(y_n), 2))
 
     #     dYT = torch.autograd.grad(
     #         outputs=YT,
-    #         inputs=y1,
+    #         inputs=y_n,
     #         grad_outputs=torch.ones_like(YT),
     #         create_graph=True,
     #         retain_graph=True
     #     )[0]
-    #     terminal_gradient = self.terminal_cost_grad(y1)
-    #     terminal_gradient_loss = torch.mean(torch.pow(dYT - terminal_gradient, 2))
+    #     terminal_gradient_loss = torch.mean(torch.pow(dYT - self.terminal_cost_grad(y_n), 2))
 
-    #     # Log and return
-    #     self.total_Y_loss = self.λ_Y * Y_loss.detach().item()
-    #     self.terminal_loss = 0 # self.λ_T * terminal_loss.detach().item()
-    #     self.terminal_gradient_loss = 0 # self.λ_TG * terminal_gradient_loss.detach().item()
+    #     self.Y_loss = self.λ_Y * Y_loss.detach().item()
+    #     self.terminal_loss = self.λ_T * terminal_loss.detach().item()
+    #     self.terminal_gradient_loss = self.λ_TG * terminal_gradient_loss.detach().item()
 
     #     return self.λ_Y * Y_loss + self.λ_T * terminal_loss + self.λ_TG * terminal_gradient_loss
+    

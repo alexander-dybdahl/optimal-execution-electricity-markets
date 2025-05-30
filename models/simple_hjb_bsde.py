@@ -25,19 +25,16 @@ class SimpleHJB(FBSNN):
         σ[:, 0, 0] = self.sigma_y
         return σ
     
-    def trading_rate(self, t, y, Y):
+    def trading_rate(self, t, y, Y, create_graph=False):
         dV = torch.autograd.grad(
             outputs=Y,
             inputs=y,
             grad_outputs=torch.ones_like(Y),
-            create_graph=True,
-            retain_graph=True
+            create_graph=create_graph,
+            retain_graph=True,
         )[0]
         q = - 0.5 * dV
         return q
-
-    def pinn_loss(self, t, y, Y):
-        return super().pinn_loss(t, y, Y)
 
     def K_analytic(self, t):
         """Analytical solution to Riccati equation"""

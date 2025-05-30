@@ -33,8 +33,11 @@ def main():
     parser.add_argument("--train", type=str2bool, nargs='?', const=True, default=run_cfg["train"], help="Train the model")
     parser.add_argument("--best", type=str2bool, nargs='?', const=True, default=run_cfg["best"], help="Run the model using the best model found during training")
     parser.add_argument("--lambda_Y", type=float, default=run_cfg["lambda_Y"], help="Weight for the Y term in the loss function")
+    parser.add_argument("--lambda_dY", type=float, default=run_cfg["lambda_dY"], help="Weight for the dY term in the loss function")
+    parser.add_argument("--lambda_dYt", type=float, default=run_cfg["lambda_dYt"], help="Weight for the dYt term in the loss function")
     parser.add_argument("--lambda_T", type=float, default=run_cfg["lambda_T"], help="Weight for the terminal term in the loss function")
     parser.add_argument("--lambda_TG", type=float, default=run_cfg["lambda_TG"], help="Weight for the terminal gradient term in the loss function")
+    parser.add_argument("--lambda_pinn", type=float, default=run_cfg["lambda_pinn"], help="Weight for the PINN term in the loss function")
     parser.add_argument("--supervised", type=str2bool, default=run_cfg["supervised"], help="Use supervised learning using analytical solution")
 
     args = parser.parse_args()
@@ -42,7 +45,7 @@ def main():
 
     model_cfg = load_model_config(args.model_config)
 
-    model = AidIntradayLQ(args, model_cfg)
+    model = SimpleHJB(args, model_cfg)
     save_dir = f"{run_cfg['save_path']}_{args.architecture}_{args.activation}" # if not args.supervised else f"{run_cfg['save_path']}_supervised_{args.architecture}_{args.activation}"
     os.makedirs(save_dir, exist_ok=True)
     save_path = os.path.join(save_dir, "model")

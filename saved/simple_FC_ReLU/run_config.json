@@ -3,7 +3,7 @@
     "config_path": "config/simple_hjb_config.json",
     "device": "cuda",
     "train": true,
-    "load_if_exists": true,
+    "load_if_exists": false,
     "best": false,
     "verbose": true,
     "plot": true,
@@ -30,8 +30,10 @@
     "batch_size": 1024,
     "n_simulations": 5,
     "lambda_Y": 1,
-    "lambda_dY": 1,
-    "lambda_T": 1,
-    "lambda_TG": 1,
+    "lambda_dY": 0,
+    "lambda_dYt": 0,
+    "lambda_T": 0,
+    "lambda_TG": 0,
+    "lambda_pinn": 1,
     "supervised": true
 }
