@@ -287,61 +287,79 @@ class AidIntradayLQ(FBSNN):
     #     return self.λ_Y * Y_loss + self.λ_T * terminal_loss + self.λ_TG * terminal_gradient_loss
 
     def forward_supervised(self, t_paths, W_paths):
-        batch_size = self.batch_size
-        dim = self.dim
+            batch_size = self.batch_size
+            t0 = t_paths[:, 0, :]
+            W0 = W_paths[:, 0, :]
+            y0 = self.y0.repeat(batch_size, 1).to(self.device)
+            Y0 = self.Y_net(t0, y0)
 
-        t = torch.rand(batch_size, 1, device=self.device) * self.T
-        y = torch.randn(batch_size, dim, device=self.device, requires_grad=True)
+            dY0 = torch.autograd.grad(
+                outputs=Y0,
+                inputs=y0,
+                grad_outputs=torch.ones_like(Y0),
+                create_graph=True,
+                retain_graph=True
+            )[0]
 
-        # -- Get V_target analytically (no need for autograd)
-        V_target = self.value_function_analytic(t, y.detach())
+            Y_loss = 0.0
 
-        # -- Compute dV_target using autograd
-        y_ = y.clone().detach().requires_grad_(True)
-        V_temp = self.value_function_analytic(t, y_)
-        dV_target = torch.autograd.grad(
-            outputs=V_temp,
-            inputs=y_,
-            grad_outputs=torch.ones_like(V_temp),
-            create_graph=False
-        )[0]
+            for n in range(self.N):
+                t1 = t_paths[:, n + 1, :]
+                W1 = W_paths[:, n + 1, :]
 
-        # -- Predict and compute losses
-        V_pred = self.Y_net(t, y)
-        supervised_loss = torch.mean((V_pred - V_target)**2)
+                σ0 = self.sigma(t0, y0)
+                q = self.trading_rate(t0, y0, Y0)
+                y1 = self.forward_dynamics(y0, q, W1 - W0, t0, t1 - t0)
 
-        dV_pred = torch.autograd.grad(
-            outputs=V_pred,
-            inputs=y,
-            grad_outputs=torch.ones_like(V_pred),
-            create_graph=True
-        )[0]
+                # --- Supervised loss with analytic V and dV at t1, y1 ---
+                V_target = self.value_function_analytic(t1, y1.detach())
 
-        gradient_loss = torch.mean((dV_pred - dV_target)**2)
-        Y_loss = supervised_loss + gradient_loss
+                y1_ = y1.clone().detach().requires_grad_(True)
+                V_temp = self.value_function_analytic(t1, y1_)
+                dV_target = torch.autograd.grad(
+                    outputs=V_temp,
+                    inputs=y1_,
+                    grad_outputs=torch.ones_like(V_temp),
+                    create_graph=False
+                )[0]
 
-        # Terminal condition
-        t_terminal = torch.full((batch_size, 1), self.T, device=self.device)
-        YT = self.Y_net(t_terminal, y)
-        terminal = self.terminal_cost(y)
-        terminal_loss = torch.mean(torch.pow(YT - terminal, 2))
+                V_pred = self.Y_net(t1, y1)
+                supervised_loss = torch.mean(torch.pow(V_pred - V_target, 2))
 
-        dYT = torch.autograd.grad(
-            outputs=YT,
-            inputs=y,
-            grad_outputs=torch.ones_like(YT),
-            create_graph=True,
-            retain_graph=True
-        )[0]
-        terminal_gradient = self.terminal_cost_grad(y)
-        terminal_gradient_loss = torch.mean(torch.pow(dYT - terminal_gradient, 2))
+                dV_pred = torch.autograd.grad(
+                    outputs=V_pred,
+                    inputs=y1,
+                    grad_outputs=torch.ones_like(V_pred),
+                    create_graph=True
+                )[0]
+                gradient_loss = torch.mean(torch.pow(dV_pred - dV_target, 2))
 
-        self.λ_T, self.λ_TG = 0, 0
-        self.total_Y_loss = self.λ_Y * Y_loss.detach().item()
-        self.terminal_loss = self.λ_T * terminal_loss.detach().item()
-        self.terminal_gradient_loss = self.λ_TG * terminal_gradient_loss.detach().item()
+                # Advance
+                t0, W0, y0, Y0 = t1, W1, y1, V_pred
 
-        return self.λ_Y * Y_loss + self.λ_T * terminal_loss + self.λ_TG * terminal_gradient_loss
+            # Terminal condition loss (optional if λ_T, λ_TG = 0)
+            t_terminal = torch.full((batch_size, 1), self.T, device=self.device)
+            YT = self.Y_net(t_terminal, y1)
+            terminal = self.terminal_cost(y1)
+            terminal_loss = torch.mean(torch.pow(YT - terminal, 2))
+
+            dYT = torch.autograd.grad(
+                outputs=YT,
+                inputs=y1,
+                grad_outputs=torch.ones_like(YT),
+                create_graph=True,
+                retain_graph=True
+            )[0]
+            terminal_gradient = self.terminal_cost_grad(y1)
+            terminal_gradient_loss = torch.mean(torch.pow(dYT - terminal_gradient, 2))
+
+            # Log and return
+            self.λ_T, self.λ_TG = 0, 0
+            self.total_Y_loss = self.λ_Y * Y_loss.detach().item()
+            self.terminal_loss = self.λ_T * terminal_loss.detach().item()
+            self.terminal_gradient_loss = self.λ_TG * terminal_gradient_loss.detach().item()
+
+            return self.λ_Y * Y_loss + self.λ_T * terminal_loss + self.λ_TG * terminal_gradient_loss
 
     def plot_approx_vs_analytic(self, results, timesteps, plot=True, save_dir=None):
         approx_q = results["q"]
