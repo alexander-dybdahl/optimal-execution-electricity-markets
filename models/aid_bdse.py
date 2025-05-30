@@ -164,7 +164,7 @@ class AidIntradayLQ(FBSNN):
         axs[1, 1].legend(loc='upper left')
 
         x_star = np.zeros_like(true_q)
-        x_star[0] = y_vals[0, :, 0]
+        x_star[0] = y_vals[0, :, 0] * 0
         for n in range(1, self.N + 1):
             x_star[n] = x_star[n - 1] + true_q[n - 1] * self.dt
 
