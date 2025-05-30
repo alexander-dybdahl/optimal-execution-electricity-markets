@@ -21,9 +21,9 @@ class FBSNN(nn.Module, ABC):
         self.Y_layers = args.Y_layers
         self.n_paths = args.n_paths
         self.batch_size = args.batch_size
-        self.λ_Y = args.lambda_Y
-        self.λ_T = args.lambda_T
-        self.λ_TG = args.lambda_TG
+        self.lambda_Y = args.lambda_Y
+        self.lambda_T = args.lambda_T
+        self.lambda_TG = args.lambda_TG
         self.t0 = 0.0
         self.y0 = torch.tensor([model_cfg["y0"]], device=self.device, requires_grad=True)
         self.dim = model_cfg["dim"]
@@ -97,10 +97,10 @@ class FBSNN(nn.Module, ABC):
     def forward_supervised(self, t_paths, W_paths): pass
 
     def forward_dynamics(self, y, q, dW, t, dt):
-        μ = self.mu(t, y, q)                  # shape: (batch, dim)
-        σ = self.sigma(t, y)                  # shape: (batch, dim, dW_dim)
-        diffusion = torch.bmm(σ, dW.unsqueeze(-1)).squeeze(-1)  # shape: (batch, dim)
-        return y + μ * dt + diffusion         # shape: (batch, dim)
+        mu = self.mu(t, y, q)                  # shape: (batch, dim)
+        Sigma = self.sigma(t, y)                  # shape: (batch, dim, dW_dim)
+        diffusion = torch.bmm(Sigma, dW.unsqueeze(-1)).squeeze(-1)  # shape: (batch, dim)
+        return y + mu * dt + diffusion         # shape: (batch, dim)
 
     def fetch_minibatch(self, batch_size):
         dim_W = self.dim_W
@@ -143,8 +143,8 @@ class FBSNN(nn.Module, ABC):
         for n in range(self.N):
             t1 = t_paths[:, n + 1, :]
             W1 = W_paths[:, n + 1, :]
-            σ0 = self.sigma(t0, y0)
-            Z0 = torch.bmm(σ0.transpose(1, 2), dY0.unsqueeze(-1)).squeeze(-1)
+            Sigma0 = self.sigma(t0, y0)
+            Z0 = torch.bmm(Sigma0.transpose(1, 2), dY0.unsqueeze(-1)).squeeze(-1)
             q = self.trading_rate(t0, y0, Y0)
             y1 = self.forward_dynamics(y0, q, W1 - W0, t0, t1 - t0)
 
@@ -166,11 +166,11 @@ class FBSNN(nn.Module, ABC):
         terminal_loss = torch.sum(torch.pow(Y1 - self.terminal_cost(y1), 2))
         terminal_gradient_loss = torch.sum(torch.pow(dY1 - self.terminal_cost_grad(y1), 2))
 
-        self.total_Y_loss = self.λ_Y * Y_loss.detach().item()
-        self.terminal_loss = self.λ_T * terminal_loss.detach().item()
-        self.terminal_gradient_loss = self.λ_TG * terminal_gradient_loss.detach().item()
+        self.total_Y_loss = self.lambda_Y * Y_loss.detach().item()
+        self.terminal_loss = self.lambda_T * terminal_loss.detach().item()
+        self.terminal_gradient_loss = self.lambda_TG * terminal_gradient_loss.detach().item()
 
-        return self.λ_Y * Y_loss + self.λ_T * terminal_loss + self.λ_TG * terminal_gradient_loss
+        return self.lambda_Y * Y_loss + self.lambda_T * terminal_loss + self.lambda_TG * terminal_gradient_loss
 
     def train_model(self, epochs=1000, K=50, lr=1e-3, verbose=True, plot=True, adaptive=True, save_dir=None):
         is_distributed = dist.is_initialized()
@@ -212,9 +212,9 @@ class FBSNN(nn.Module, ABC):
             log(f"| Epochs                    | {epochs:<25} |")
             log(f"| Learning Rate             | {lr:<25} |")
             log(f"| Adaptive LR               | {'True' if adaptive else 'False':<25} |")
-            log(f"| lambda_Y (Y loss)         | {self.λ_Y:<25} |")
-            log(f"| lambda_T (Terminal loss)  | {self.λ_T:<25} |")
-            log(f"| lambda_TG (Gradient loss) | {self.λ_TG:<25} |")
+            log(f"| lambda_Y (Y loss)         | {self.lambda_Y:<25} |")
+            log(f"| lambda_T (Terminal loss)  | {self.lambda_T:<25} |")
+            log(f"| lambda_TG (Gradient loss) | {self.lambda_TG:<25} |")
             log(f"| Number of Paths           | {self.n_paths:<25} |")
             log(f"| Batch Size                | {self.batch_size:<25} |")
             log(f"| Architecture              | {self.architecture:<25} |")
@@ -241,13 +241,15 @@ class FBSNN(nn.Module, ABC):
             }
             width = (max_widths['epoch'] + max_widths['loss'] * 4 + max_widths['lr'] + max_widths['mem'] + max_widths['time'] + max_widths['eta'] + max_widths['status'] + 8 * 3 + 1)
 
+        rank_batch_size = self.batch_size // dist.get_world_size() if is_distributed else self.batch_size
+        call_fetch_minibatch = self.module.fetch_minibatch if isinstance(self, DDP) else self.fetch_minibatch
+
         for epoch in range(epochs):
 
             # Loop over n_paths with a batch size of self.batch_size
-            for _ in range(self.n_paths // self.batch_size):
+            for _ in range(self.n_paths // rank_batch_size):
                 optimizer.zero_grad()
-                fetch = self.module.fetch_minibatch if isinstance(self, DDP) else self.fetch_minibatch
-                t_paths, W_paths = fetch(self.batch_size)
+                t_paths, W_paths = call_fetch_minibatch(rank_batch_size)
                 loss = self(t_paths, W_paths)
                 loss.backward()
                 optimizer.step()
@@ -402,9 +404,9 @@ class FBSNN(nn.Module, ABC):
     #         print(f"| Epochs                    | {epochs:<25} |")
     #         print(f"| Learning Rate             | {lr:<25} |")
     #         print(f"| Adaptive LR               | {'True' if adaptive else 'False':<25} |")
-    #         print(f"| λ_Y (Y loss)              | {self.λ_Y:<25} |")
-    #         print(f"| λ_T (Terminal loss)       | {self.λ_T:<25} |")
-    #         print(f"| λ_TG (Gradient loss)      | {self.λ_TG:<25} |")
+    #         print(f"| lambda_Y (Y loss)              | {self.lambda_Y:<25} |")
+    #         print(f"| lambda_T (Terminal loss)       | {self.lambda_T:<25} |")
+    #         print(f"| lambda_TG (Gradient loss)      | {self.lambda_TG:<25} |")
     #         print(f"| Number of Paths           | {self.n_paths:<25} |")
     #         print(f"| Batch Size                | {self.batch_size:<25} |")
     #         print(f"| Architecture              | {self.architecture:<25} |")

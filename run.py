@@ -9,6 +9,7 @@ from models.hjb_bsde import HJB
 from models.simple_hjb_bsde import SimpleHJB
 from models.aid_bdse import AidIntradayLQ
 from torch.nn.parallel import DistributedDataParallel as DDP
+import multiprocessing as mp
 
 
 def main():
@@ -63,7 +64,9 @@ def main():
         is_distributed = False
         is_main = True
     
-    print(f"Running on device: {device}, Local rank: {local_rank}, Distributed: {is_distributed}, Main process: {is_main}")
+    if is_main:
+        print(f"Distributed training setup: RANK={env_rank}, WORLD_SIZE={env_world_size}, MASTER_ADDR={env_master_addr}, MASTER_PORT={env_master_port}")
+        print(f"Running on device: {device}, Local rank: {local_rank}, Distributed: {is_distributed}, Main process: {is_main}")
 
     model_cfg = load_model_config(args.model_config)
     model = AidIntradayLQ(args, model_cfg).to(device)
@@ -82,6 +85,9 @@ def main():
         except FileNotFoundError:
             if is_main:
                 print(f"No model found in {load_path}, starting from scratch.")
+    else:
+        if is_main:
+            print("Not loading any model, starting from scratch.")
 
     import warnings
     warnings.filterwarnings("ignore", message="Attempting to run cuBLAS, but there was no current CUDA context!")
@@ -92,18 +98,18 @@ def main():
 
     # Train
     if args.train:
-        call = model.module if isinstance(model, DDP) else model
-        call.train_model(epochs=args.epochs, K=args.K, lr=args.lr, verbose=args.verbose, plot=args.plot_loss, adaptive=args.adaptive, save_dir=save_dir if is_main else None)
+        call_model = model.module if isinstance(model, DDP) else model
+        call_model.train_model(epochs=args.epochs, K=args.K, lr=args.lr, verbose=args.verbose, plot=args.plot_loss, adaptive=args.adaptive, save_dir=save_dir if is_main else None)
 
     # Evaluate and plot only on main
     if is_main:
-        call = model.module if isinstance(model, DDP) else model
-        timesteps, results = call.simulate_paths(n_sim=args.n_simulations, seed=np.random.randint(0, 1000))
-        call.plot_approx_vs_analytic(results, timesteps, plot=args.plot, save_dir=save_dir)
+        call_model = model.module if isinstance(model, DDP) else model
+        timesteps, results = call_model.simulate_paths(n_sim=args.n_simulations, seed=np.random.randint(0, 1000))
+        call_model.plot_approx_vs_analytic(results, timesteps, plot=args.plot, save_dir=save_dir)
 
-        timesteps, results = call.simulate_paths(n_sim=1000, seed=np.random.randint(0, 1000))
-        call.plot_approx_vs_analytic_expectation(results, timesteps, plot=args.plot, save_dir=save_dir)
-        call.plot_terminal_histogram(results, plot=args.plot, save_dir=save_dir)
+        timesteps, results = call_model.simulate_paths(n_sim=1000, seed=np.random.randint(0, 1000))
+        call_model.plot_approx_vs_analytic_expectation(results, timesteps, plot=args.plot, save_dir=save_dir)
+        call_model.plot_terminal_histogram(results, plot=args.plot, save_dir=save_dir)
 
     # Sync & cleanup
     if is_distributed:

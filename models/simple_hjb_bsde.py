@@ -178,12 +178,12 @@ class SimpleHJB(FBSNN):
         terminal_gradient = self.terminal_cost_grad(y)
         terminal_gradient_loss = torch.mean(torch.pow(dYT - terminal_gradient, 2))
 
-        # self.λ_T, self.λ_TG = 0, 0
-        self.total_Y_loss = self.λ_Y * Y_loss.detach().item()
-        self.terminal_loss = self.λ_T * terminal_loss.detach().item()
-        self.terminal_gradient_loss = self.λ_TG * terminal_gradient_loss.detach().item()
+        # self.lambda_T, self.lambda_TG = 0, 0
+        self.total_Y_loss = self.lambda_Y * Y_loss.detach().item()
+        self.terminal_loss = self.lambda_T * terminal_loss.detach().item()
+        self.terminal_gradient_loss = self.lambda_TG * terminal_gradient_loss.detach().item()
 
-        return self.λ_Y * Y_loss + self.λ_T * terminal_loss + self.λ_TG * terminal_gradient_loss
+        return self.lambda_Y * Y_loss + self.lambda_T * terminal_loss + self.lambda_TG * terminal_gradient_loss
 
     def plot_approx_vs_analytic(self, results, timesteps, plot=True, save_dir=None):
         approx_q = results["q"]              # shape: (T + 1, N_paths)

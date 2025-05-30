@@ -159,7 +159,7 @@ class AidIntradayLQ(FBSNN):
                 t1 = t_paths[:, n + 1, :]
                 W1 = W_paths[:, n + 1, :]
 
-                σ0 = self.sigma(t0, y0)
+                Sigma0 = self.sigma(t0, y0)
                 q = self.trading_rate(t0, y0, Y0)
                 y1 = self.forward_dynamics(y0, q, W1 - W0, t0, t1 - t0)
 
@@ -191,7 +191,7 @@ class AidIntradayLQ(FBSNN):
                 # Advance
                 t0, W0, y0, Y0 = t1, W1, y1, V_pred
 
-            # Terminal condition loss (optional if λ_T, λ_TG = 0)
+            # Terminal condition loss (optional if lambda_T, lambda_TG = 0)
             t_terminal = torch.full((batch_size, 1), self.T, device=self.device)
             YT = self.Y_net(t_terminal, y1)
             terminal = self.terminal_cost(y1)
@@ -208,12 +208,12 @@ class AidIntradayLQ(FBSNN):
             terminal_gradient_loss = torch.mean(torch.pow(dYT - terminal_gradient, 2))
 
             # Log and return
-            self.λ_T, self.λ_TG = 0, 0
-            self.total_Y_loss = self.λ_Y * Y_loss.detach().item()
-            self.terminal_loss = self.λ_T * terminal_loss.detach().item()
-            self.terminal_gradient_loss = self.λ_TG * terminal_gradient_loss.detach().item()
+            self.lambda_T, self.lambda_TG = 0, 0
+            self.total_Y_loss = self.lambda_Y * Y_loss.detach().item()
+            self.terminal_loss = self.lambda_T * terminal_loss.detach().item()
+            self.terminal_gradient_loss = self.lambda_TG * terminal_gradient_loss.detach().item()
 
-            return self.λ_Y * Y_loss + self.λ_T * terminal_loss + self.λ_TG * terminal_gradient_loss
+            return self.lambda_Y * Y_loss + self.lambda_T * terminal_loss + self.lambda_TG * terminal_gradient_loss
 
     def plot_approx_vs_analytic(self, results, timesteps, plot=True, save_dir=None):
         approx_q = results["q"]
