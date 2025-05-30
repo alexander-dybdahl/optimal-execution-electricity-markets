@@ -50,7 +50,7 @@ def main():
         env_master_port = os.environ.get("MASTER_PORT", "23456")
 
         local_rank = int(env_rank)
-        backend = "nccl" if torch.cuda.is_available() else "gloo"
+        backend = "nccl" if args.device == "cuda" else "gloo"
         dist.init_process_group(backend=backend,
                                 world_size=int(env_world_size),
                                 rank=local_rank,
