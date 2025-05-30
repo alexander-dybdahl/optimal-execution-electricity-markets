@@ -45,7 +45,7 @@ def main():
 
     model_cfg = load_model_config(args.model_config)
 
-    model = SimpleHJB(args, model_cfg)
+    model = AidIntradayLQ(args, model_cfg)
     save_dir = f"{run_cfg['save_path']}_{args.architecture}_{args.activation}" # if not args.supervised else f"{run_cfg['save_path']}_supervised_{args.architecture}_{args.activation}"
     os.makedirs(save_dir, exist_ok=True)
     save_path = os.path.join(save_dir, "model")

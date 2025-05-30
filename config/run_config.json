@@ -1,6 +1,6 @@
 {
-  "save_path": "saved/simple",
-  "config_path": "config/simple_hjb_config.json",
+  "save_path": "saved/almgren",
+  "config_path": "config/aid_config.json",
   "device": "cuda",
   "train": true,
   "load_if_exists": false,
