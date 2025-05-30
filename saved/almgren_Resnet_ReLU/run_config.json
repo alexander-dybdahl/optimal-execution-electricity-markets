@@ -1,0 +1,36 @@
+{
+    "save_path": "saved/almgren",
+    "config_path": "config/aid_config.json",
+    "device": "cuda",
+    "train": true,
+    "load_if_exists": true,
+    "best": false,
+    "verbose": true,
+    "plot": true,
+    "plot_loss": true,
+    "save": [
+        "best",
+        "every"
+    ],
+    "save_n": 50,
+    "architecture": "Resnet",
+    "Y_layers": [
+        256,
+        256,
+        256,
+        256,
+        1
+    ],
+    "activation": "ReLU",
+    "epochs": 1000,
+    "K": 50,
+    "lr": 0.001,
+    "adaptive": true,
+    "n_paths": 1024,
+    "batch_size": 1024,
+    "n_simulations": 5,
+    "lambda_Y": 1,
+    "lambda_T": 1,
+    "lambda_TG": 1,
+    "supervised": true
+}

@@ -19,10 +19,6 @@
         256,
         256,
         256,
-        256,
-        256,
-        256,
-        256,
         1
     ],
     "activation": "ReLU",
@@ -34,6 +30,7 @@
     "batch_size": 1024,
     "n_simulations": 5,
     "lambda_Y": 1,
+    "lambda_dY": 1,
     "lambda_T": 1,
     "lambda_TG": 1,
     "supervised": true

@@ -19,6 +19,7 @@ class FBSNN(nn.Module, ABC):
         self.n_paths = args.n_paths
         self.batch_size = args.batch_size
         self.λ_Y = args.lambda_Y
+        self.λ_dY = args.lambda_dY
         self.λ_T = args.lambda_T
         self.λ_TG = args.lambda_TG
         self.t0 = 0.0
