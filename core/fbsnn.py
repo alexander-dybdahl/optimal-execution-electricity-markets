@@ -393,7 +393,6 @@ class FBSNN(nn.Module, ABC):
 
         return losses
 
-
     def forward_supervised(self, t_paths, W_paths):
             batch_size = self.batch_size
             t0 = t_paths[:, 0, :]
@@ -407,31 +406,29 @@ class FBSNN(nn.Module, ABC):
                 t1 = t_paths[:, n + 1, :]
                 W1 = W_paths[:, n + 1, :]
 
-                σ0 = self.sigma(t0, y0)
                 q = self.trading_rate(t0, y0, Y0)
                 y1 = self.forward_dynamics(y0, q, W1 - W0, t0, t1 - t0)
 
                 # --- Supervised loss with analytic V and dV at t1, y1 ---
-                V_target = self.value_function_analytic(t1, y1.detach())
-
-                y1_ = y1.clone().detach().requires_grad_(True)
-                V_temp = self.value_function_analytic(t1, y1_)
+                y1_detached = y1.detach().clone().requires_grad_(True)
+                V_target = self.value_function_analytic(t1, y1_detached)
                 dV_target = torch.autograd.grad(
-                    outputs=V_temp,
-                    inputs=y1_,
-                    grad_outputs=torch.ones_like(V_temp),
-                    create_graph=False
+                    outputs=V_target,
+                    inputs=y1_detached,
+                    grad_outputs=torch.ones_like(V_target),
+                    create_graph=False,
+                    retain_graph=True
                 )[0]
 
                 V_pred = self.Y_net(t1, y1)
-                supervised_loss = torch.mean(torch.pow(V_pred - V_target, 2))
-
                 dV_pred = torch.autograd.grad(
                     outputs=V_pred,
                     inputs=y1,
                     grad_outputs=torch.ones_like(V_pred),
                     create_graph=True
                 )[0]
+
+                supervised_loss = torch.mean(torch.pow(V_pred - V_target, 2))
                 gradient_loss = torch.mean(torch.pow(dV_pred - dV_target, 2))
 
                 Y_loss += supervised_loss + gradient_loss
