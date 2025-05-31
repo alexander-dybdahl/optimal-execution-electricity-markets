@@ -31,6 +31,22 @@ class FBSNN(nn.Module, ABC):
         self.architecture = args.architecture
         self.Y_layers = args.Y_layers      # e.g., [64, 64, 64]
 
+        # Loss Weights
+        self.lambda_Y = args.lambda_Y      # value function loss
+        self.lambda_dY = args.lambda_dY    # spatial gradient loss
+        self.lambda_dYt = args.lambda_dYt  # temporal gradient loss
+        self.lambda_T = args.lambda_T      # terminal value loss
+        self.lambda_TG = args.lambda_TG    # terminal gradient loss
+        self.lambda_pinn = args.lambda_pinn  # physics residual loss
+
+        # Loss Tracking
+        self.Y_loss = 0
+        self.dY_loss = 0
+        self.dYt_loss = 0
+        self.terminal_loss = 0
+        self.terminal_gradient_loss = 0
+        self.pinn_loss = 0
+
         # Time Discretization
         self.t0 = 0.0
         self.T = model_cfg["T"]
@@ -42,25 +58,9 @@ class FBSNN(nn.Module, ABC):
         self.dim_W = model_cfg["dim_W"]    # Brownian motion dimension
         self.y0 = torch.tensor([model_cfg["y0"]], device=self.device, requires_grad=True)
 
-        # Loss Weights
-        self.lambda_Y = args.lambda_Y      # value function loss
-        self.lambda_dY = args.lambda_dY    # spatial gradient loss
-        self.lambda_dYt = args.lambda_dYt  # temporal gradient loss
-        self.lambda_T = args.lambda_T      # terminal value loss
-        self.lambda_TG = args.lambda_TG    # terminal gradient loss
-        self.lambda_pinn = args.lambda_pinn  # physics residual loss
-
         # Saving & Checkpointing
         self.save = args.save              # e.g., "best", "every", "last"
         self.save_n = args.save_n          # save every n epochs if "every"
-
-        # Loss Tracking
-        self.Y_loss = 0
-        self.dY_loss = 0
-        self.dYt_loss = 0
-        self.terminal_loss = 0
-        self.terminal_gradient_loss = 0
-        self.pinn_loss = 0
 
         if args.activation == "Sine":
             self.activation = Sine()

@@ -71,8 +71,7 @@ def main():
         is_distributed = False
         is_main = True
     
-    if is_main:
-        print(f"Running on device: {device}, Local rank: {local_rank}, Distributed: {is_distributed}, Main process: {is_main}")
+    print(f"Running on device: {device}, Local rank: {local_rank}, Distributed: {is_distributed}, Main process: {is_main}")
 
     model_cfg = load_model_config(args.model_config)
     model = AidIntradayLQ(args, model_cfg).to(device)
