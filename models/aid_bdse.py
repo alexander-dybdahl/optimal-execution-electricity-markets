@@ -108,19 +108,13 @@ class AidIntradayLQ(FBSNN):
         return V
 
     def plot_approx_vs_analytic(self, results, timesteps, plot=True, save_dir=None):
-        approx_q = results["q"]
-        y_vals = results["y"]
-        Y_vals = results["Y"]
 
-        T, N_paths = y_vals.shape[:2]
-
-        with torch.no_grad():
-            t_grid = torch.linspace(0, self.T, self.N + 1, device=self.device).view(self.N + 1, 1).expand(self.N + 1, N_paths)  # shape: (N + 1, N_paths)
-            y_tensor = torch.tensor(results["y"], dtype=torch.float32, device=self.device)          # shape: (N + 1, N_paths, dim)
-            flat_y = y_tensor.reshape(-1, self.dim)                   # (N + 1) * n_sim, dim
-            flat_t = t_grid.reshape(-1, 1).expand_as(flat_y[:, :1])   # match shape: (N + 1) * n_sim, 1
-            true_q = self.optimal_control_analytic(flat_t, flat_y).view(self.N + 1, N_paths).detach().cpu().numpy()
-            true_Y = self.value_function_analytic(flat_t, flat_y).view(self.N + 1, N_paths).detach().cpu().numpy()
+        approx_q = results["q_learned"]
+        y_vals = results["y_learned"]
+        Y_vals = results["Y_learned"]
+        true_q = results["q_true"]
+        true_y = results["y_true"]
+        true_Y = results["Y_true"]
 
         fig, axs = plt.subplots(3, 2, figsize=(14, 10))
         colors = cm.get_cmap("tab10", approx_q.shape[1])
@@ -135,7 +129,7 @@ class AidIntradayLQ(FBSNN):
         axs[0, 0].legend(loc='upper left')
 
         for i in range(approx_q.shape[1]):
-            diff = approx_q[:, i].squeeze() - true_q[:, i].squeeze()
+            diff = approx_q[:, i] - true_q[:, i]
             axs[0, 1].plot(timesteps, diff, color=colors(i), alpha=0.6, label=f"$q_{i}(t) - q^*_{i}(t)$" if i == 0 else None)
         axs[0, 1].axhline(0, color='red', linestyle='--', linewidth=0.8)
         axs[0, 1].set_title("Difference: Learned $-$ Analytical")
@@ -146,7 +140,7 @@ class AidIntradayLQ(FBSNN):
 
         for i in range(Y_vals.shape[1]):
             axs[1, 0].plot(timesteps, Y_vals[:, i, 0], color=colors(i), alpha=0.6, label=f"Learned $Y_{i}(t)$" if i == 0 else None)
-            axs[1, 0].plot(timesteps, true_Y[:, i], linestyle="--", color=colors(i), alpha=0.4, label=f"Analytical $Y^*_{i}(t)$" if i == 0 else None)
+            axs[1, 0].plot(timesteps, true_Y[:, i, 0], linestyle="--", color=colors(i), alpha=0.4, label=f"Analytical $Y^*_{i}(t)$" if i == 0 else None)
         axs[1, 0].set_title("Cost-to-Go $Y(t)$")
         axs[1, 0].set_xlabel("Time $t$")
         axs[1, 0].set_ylabel("Y(t)")
@@ -154,7 +148,7 @@ class AidIntradayLQ(FBSNN):
         axs[1, 0].legend(loc='upper left')
 
         for i in range(Y_vals.shape[1]):
-            diff_Y = Y_vals[:, i, 0] - true_Y[:, i]
+            diff_Y = Y_vals[:, i, 0] - true_Y[:, i, 0]
             axs[1, 1].plot(timesteps, diff_Y, color=colors(i), alpha=0.6, label=f"$Y_{i}(t) - Y^*_{i}(t)$" if i == 0 else None)
         axs[1, 1].axhline(0, color='red', linestyle='--', linewidth=0.8)
         axs[1, 1].set_title("Difference: Learned $Y(t) - Y^*(t)$")
@@ -163,24 +157,19 @@ class AidIntradayLQ(FBSNN):
         axs[1, 1].grid(True)
         axs[1, 1].legend(loc='upper left')
 
-        x_star = np.zeros_like(true_q)
-        x_star[0] = y_vals[0, :, 0] * 0
-        for n in range(1, self.N + 1):
-            x_star[n] = x_star[n - 1] + true_q[n - 1] * self.dt
-
         for i in range(y_vals.shape[1]):
             axs[2, 0].plot(timesteps, y_vals[:, i, 0], color=colors(i), alpha=0.6, label=f"$x_{i}(t)$" if i == 0 else None)
-            axs[2, 0].plot(timesteps, x_star[:, i], linestyle="--", color=colors(i), alpha=0.4, label=f"$x^*_{i}(t)$" if i == 0 else None)
-            axs[2, 0].plot(timesteps, y_vals[:, i, 2], linestyle="-.", color=colors(i), alpha=0.6, label=f"$d_{i}(t)$" if i == 0 else None)
-        axs[2, 0].set_title("States")
+            axs[2, 0].plot(timesteps, true_y[:, i, 0], linestyle="--", color=colors(i), alpha=0.4, label=f"$x^*_{i}(t)$" if i == 0 else None)
+            axs[2, 0].plot(timesteps, true_y[:, i, 2], linestyle="-.", color=colors(i), alpha=0.6, label=f"$d_{i}(t)$" if i == 0 else None)
+        axs[2, 0].set_title("States: $x(t)$ and $d(t)$")
         axs[2, 0].set_xlabel("Time $t$")
-        axs[2, 0].set_ylabel("x(t)/d(t)")
+        axs[2, 0].set_ylabel("x(t), d(t)")
         axs[2, 0].grid(True)
         axs[2, 0].legend(loc='upper left')
 
         for i in range(y_vals.shape[1]):
-            axs[2, 1].plot(timesteps, y_vals[:, i, 1], color=colors(i), alpha=0.6, label=f"$p_{i}(t)$" if i == 0 else None)
-        axs[2, 1].set_title("States")
+            axs[2, 1].plot(timesteps, true_y[:, i, 1], color=colors(i), alpha=0.6, label=f"$p_{i}(t)$" if i == 0 else None)
+        axs[2, 1].set_title("State: $p(t)$")
         axs[2, 1].set_xlabel("Time $t$")
         axs[2, 1].set_ylabel("p(t)")
         axs[2, 1].grid(True)

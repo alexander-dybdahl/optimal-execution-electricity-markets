@@ -213,38 +213,154 @@ class FBSNN(nn.Module, ABC):
 
         return self.λ_Y * Y_loss + self.λ_T * terminal_loss + self.λ_TG * terminal_gradient_loss
 
+    def forward_supervised(self, t_paths, W_paths):
+        batch_size = self.batch_size
+        device = self.device
+        y0 = self.y0.repeat(batch_size, 1).to(device)
+
+        # === 1. Precompute optimal trajectory ===
+        y_traj, t_traj = [y0], []
+        t0 = t_paths[:, 0, :]
+        W0 = W_paths[:, 0, :]
+
+        for n in range(self.N):
+            t1 = t_paths[:, n + 1, :]
+            W1 = W_paths[:, n + 1, :]
+            dW = W1 - W0
+
+            V = self.value_function_analytic(t0, y0)
+            q = self.trading_rate(t0, y0, V, create_graph=False)
+            y1 = self.forward_dynamics(y0, q, dW, t0, t1 - t0)
+
+            t_traj.append(t1)
+            y_traj.append(y1)
+
+            t0, W0, y0 = t1, W1, y1
+
+        t_traj = torch.cat(t_traj, dim=0).requires_grad_(True)            # shape: [N * batch_size, 1]
+        y_traj = torch.cat(y_traj[1:], dim=0).requires_grad_(True)        # shape: [N * batch_size, state_dim]
+
+        # === 2. Compute target value + gradients ===
+        V_target = self.value_function_analytic(t_traj, y_traj)
+        V_pred = self.Y_net(t_traj, y_traj)
+
+        Y_loss = torch.mean((V_pred - V_target)**2)
+
+        dY_loss, dYt_loss = 0.0, 0.0
+
+        if self.λ_dY > 0:
+            dV_target = torch.autograd.grad(
+                V_target, y_traj, grad_outputs=torch.ones_like(V_target),
+                create_graph=False, retain_graph=True
+            )[0]
+            dV_pred = torch.autograd.grad(
+                V_pred, y_traj, grad_outputs=torch.ones_like(V_pred),
+                create_graph=True
+            )[0]
+            dY_loss = torch.mean((dV_pred - dV_target)**2)
+
+        if self.λ_dYt > 0:
+            dV_target_t = torch.autograd.grad(
+                V_target, t_traj, grad_outputs=torch.ones_like(V_target),
+                create_graph=False, retain_graph=True
+            )[0]
+            dV_pred_t = torch.autograd.grad(
+                V_pred, t_traj, grad_outputs=torch.ones_like(V_pred),
+                create_graph=True
+            )[0]
+            dYt_loss = torch.mean((dV_pred_t - dV_target_t)**2)
+
+        # === 3. Terminal supervision ===
+        terminal_loss, terminal_gradient_loss = 0.0, 0.0
+        if self.λ_T > 0:
+            YT = self.Y_net(t1, y1)
+            terminal_loss = torch.mean((YT - self.terminal_cost(y1))**2)
+            self.terminal_loss = self.λ_T * terminal_loss.detach().item()
+        if self.λ_TG > 0:
+            dYT = torch.autograd.grad(
+                YT, y1, grad_outputs=torch.ones_like(YT), create_graph=True
+            )[0]
+            terminal_gradient_loss = torch.mean((dYT - self.terminal_cost_grad(y1))**2)
+            self.terminal_gradient_loss = self.λ_TG * terminal_gradient_loss.detach().item()
+
+        # === 4. Optional physics-based loss ===
+        pinn_loss = 0.0
+        if self.λ_pinn > 0:
+            with torch.enable_grad():
+                for i in range(self.N):
+                    idx = slice(i * batch_size, (i + 1) * batch_size)
+                    t_i, y_i, V_i = t_traj[idx], y_traj[idx], V_pred[idx]
+                    pinn_loss += self.physics_loss(t_i, y_i, V_i)
+                pinn_loss /= self.N
+                self.pinn_loss = self.λ_pinn * pinn_loss.detach().item()
+
+        # === 5. Log losses ===
+        if self.λ_Y > 0: self.Y_loss = self.λ_Y * Y_loss.detach().item()
+        if self.λ_dY > 0: self.dY_loss = self.λ_dY * dY_loss.detach().item()
+        if self.λ_dYt > 0: self.dYt_loss = self.λ_dYt * dYt_loss.detach().item()
+
+        return (
+            self.λ_Y * Y_loss +
+            self.λ_dY * dY_loss +
+            self.λ_dYt * dYt_loss +
+            self.λ_T * terminal_loss +
+            self.λ_TG * terminal_gradient_loss +
+            self.λ_pinn * pinn_loss
+        )
+
     def simulate_paths(self, n_sim=5, seed=42, y0_single=None):
         torch.manual_seed(seed)
         self.eval()
 
-        y = y0_single.repeat(n_sim, 1) if y0_single is not None else self.y0.repeat(n_sim, 1)
-        t = torch.zeros(n_sim, 1, device=self.device)
-  
-        q_traj, Y_traj, y_traj = [], [], []
+        y0 = y0_single.repeat(n_sim, 1) if y0_single is not None else self.y0.repeat(n_sim, 1)
+        t_scalar = 0.0
 
-        Y = self.Y_net(t, y)
-        q = self.trading_rate(t, y, Y, create_graph=False)
+        # Initialize both
+        y_learned = y0.clone()
+        y_analytic = y0.clone()
 
-        q_traj.append(q.detach().cpu().numpy())
-        Y_traj.append(Y.detach().cpu().numpy())
-        y_traj.append(y.detach().cpu().numpy())
+        y_learned_traj = []
+        q_learned_traj = []
+        Y_learned_traj = []
+        if self.supervised:
+            y_true_traj = []
+            q_true_traj = []
+            Y_true_traj = []
 
-        for _ in range(self.N):
-            dW = torch.randn(n_sim, self.dim_W, device=self.device) * self.dt**0.5
-            y = self.forward_dynamics(y, q, dW, t, self.dt)
-            t += self.dt
+        for step in range(self.N + 1):
+            t_tensor = torch.full((n_sim, 1), t_scalar, device=self.device)
 
-            Y = self.Y_net(t, y)
-            q = self.trading_rate(t, y, Y, create_graph=False)
+            # Predict Y and compute control
+            Y_learned = self.Y_net(t_tensor, y_learned)
+            q_learned = self.trading_rate(t_tensor, y_learned, Y_learned, create_graph=False)
+            if self.supervised:
+                Y_true = self.value_function_analytic(t_tensor, y_analytic)
+                q_true = self.trading_rate(t_tensor, y_analytic, Y_true, create_graph=False)
 
-            q_traj.append(q.detach().cpu().numpy())
-            Y_traj.append(Y.detach().cpu().numpy())
-            y_traj.append(y.detach().cpu().numpy())
+            # Save states and controls
+            q_learned_traj.append(q_learned.detach().cpu().numpy())
+            y_learned_traj.append(y_learned.detach().cpu().numpy())
+            Y_learned_traj.append(Y_learned.detach().cpu().numpy())
+
+            if self.supervised:
+                q_true_traj.append(q_true.detach().cpu().numpy())
+                y_true_traj.append(y_analytic.detach().cpu().numpy())
+                Y_true_traj.append(Y_true.detach().cpu().numpy())
+
+            if step < self.N:
+                dW = torch.randn(n_sim, self.dim_W, device=self.device) * self.dt**0.5
+                y_learned = self.forward_dynamics(y_learned, q_learned, dW, t_tensor, self.dt)
+                if self.supervised:
+                    y_analytic = self.forward_dynamics(y_analytic, q_true, dW, t_tensor, self.dt)
+                t_scalar += self.dt
 
         return torch.linspace(0, self.T, self.N + 1).cpu().numpy(), {
-            "q": np.stack(q_traj),
-            "Y": np.stack(Y_traj),
-            "y": np.stack(y_traj)
+            "y_learned": np.stack(y_learned_traj),
+            "q_learned": np.stack(q_learned_traj),
+            "Y_learned": np.stack(Y_learned_traj),
+            "y_true": np.stack(y_true_traj) if self.supervised else None,
+            "q_true": np.stack(q_true_traj) if self.supervised else None,
+            "Y_true": np.stack(Y_true_traj) if self.supervised else None
         }
 
     def train_model(self, epochs=1000, K=50, lr=1e-3, verbose=True, plot=True, adaptive=True, save_dir=None):
@@ -279,8 +395,11 @@ class FBSNN(nn.Module, ABC):
         log(f"| Learning Rate             | {lr:<25} |")
         log(f"| Adaptive LR               | {'True' if adaptive else 'False':<25} |")
         log(f"| lambda_Y (Y loss)         | {self.λ_Y:<25} |")
+        log(f"| lambda_dY (dY loss)       | {self.λ_dY:<25} |")
+        log(f"| lambda_dYt (dYt loss)     | {self.λ_dYt:<25} |")
         log(f"| lambda_T (Terminal loss)  | {self.λ_T:<25} |")
         log(f"| lambda_TG (Gradient loss) | {self.λ_TG:<25} |")
+        log(f"| lambda_pinn (PINN loss)   | {self.λ_pinn:<25} |")
         log(f"| Number of Paths           | {self.n_paths:<25} |")
         log(f"| Batch Size                | {self.batch_size:<25} |")
         log(f"| Architecture              | {self.architecture:<25} |")
@@ -460,108 +579,108 @@ class FBSNN(nn.Module, ABC):
 
         return losses
 
-    def forward_supervised(self, t_paths, W_paths):
-        batch_size = self.batch_size
-        t0 = t_paths[:, 0, :]
-        W0 = W_paths[:, 0, :]
-        y0 = self.y0.repeat(batch_size, 1).to(self.device)
-        Y0 = self.Y_net(t0, y0)
+    # def forward_supervised(self, t_paths, W_paths):
+    #     batch_size = self.batch_size
+    #     t0 = t_paths[:, 0, :]
+    #     W0 = W_paths[:, 0, :]
+    #     y0 = self.y0.repeat(batch_size, 1).to(self.device)
+    #     Y0 = self.Y_net(t0, y0)
 
-        t_traj, V_pred_traj, y_traj = [], [], []
+    #     t_traj, V_pred_traj, y_traj = [], [], []
 
-        Y_loss = 0.0
-        dY_loss = 0.0
-        dYt_loss = 0.0
-        for n in range(self.N):
-            t1 = t_paths[:, n + 1, :].requires_grad_(True)
-            W1 = W_paths[:, n + 1, :]
+    #     Y_loss = 0.0
+    #     dY_loss = 0.0
+    #     dYt_loss = 0.0
+    #     for n in range(self.N):
+    #         t1 = t_paths[:, n + 1, :].requires_grad_(True)
+    #         W1 = W_paths[:, n + 1, :]
 
-            q = self.trading_rate(t0, y0, Y0)
-            y1 = self.forward_dynamics(y0, q, W1 - W0, t0, t1 - t0)
+    #         q = self.trading_rate(t0, y0, Y0)
+    #         y1 = self.forward_dynamics(y0, q, W1 - W0, t0, t1 - t0)
 
-            V_target = self.value_function_analytic(t1, y1)
-            V_pred = self.Y_net(t1, y1)
-            if self.λ_dY > 0:
-                dV_target = torch.autograd.grad(
-                    outputs=V_target,
-                    inputs=y1,
-                    grad_outputs=torch.ones_like(V_target),
-                    create_graph=False,
-                    retain_graph=True
-                )[0]
-                dV_pred = torch.autograd.grad(
-                    outputs=V_pred,
-                    inputs=y1,
-                    grad_outputs=torch.ones_like(V_pred),
-                    create_graph=True
-                )[0]
-            if self.λ_dYt > 0:
-                dV_target_t = torch.autograd.grad(
-                    outputs=V_target,
-                    inputs=t1,
-                    grad_outputs=torch.ones_like(V_target),
-                    create_graph=False,
-                    retain_graph=True
-                )[0]
-                dV_pred_t = torch.autograd.grad(
-                    outputs=V_pred,
-                    inputs=t1,
-                    grad_outputs=torch.ones_like(V_pred),
-                    create_graph=True
-                )[0]
+    #         V_target = self.value_function_analytic(t1, y1)
+    #         V_pred = self.Y_net(t1, y1)
+    #         if self.λ_dY > 0:
+    #             dV_target = torch.autograd.grad(
+    #                 outputs=V_target,
+    #                 inputs=y1,
+    #                 grad_outputs=torch.ones_like(V_target),
+    #                 create_graph=False,
+    #                 retain_graph=True
+    #             )[0]
+    #             dV_pred = torch.autograd.grad(
+    #                 outputs=V_pred,
+    #                 inputs=y1,
+    #                 grad_outputs=torch.ones_like(V_pred),
+    #                 create_graph=True
+    #             )[0]
+    #         if self.λ_dYt > 0:
+    #             dV_target_t = torch.autograd.grad(
+    #                 outputs=V_target,
+    #                 inputs=t1,
+    #                 grad_outputs=torch.ones_like(V_target),
+    #                 create_graph=False,
+    #                 retain_graph=True
+    #             )[0]
+    #             dV_pred_t = torch.autograd.grad(
+    #                 outputs=V_pred,
+    #                 inputs=t1,
+    #                 grad_outputs=torch.ones_like(V_pred),
+    #                 create_graph=True
+    #             )[0]
 
-            Y_loss += torch.mean(torch.pow(V_pred - V_target, 2))
-            if self.λ_dY > 0:
-                dY_loss += torch.mean(torch.pow(dV_pred - dV_target, 2))
-            if self.λ_dYt > 0:
-                dYt_loss += torch.mean(torch.pow(dV_pred_t - dV_target_t, 2))
+    #         Y_loss += torch.mean(torch.pow(V_pred - V_target, 2))
+    #         if self.λ_dY > 0:
+    #             dY_loss += torch.mean(torch.pow(dV_pred - dV_target, 2))
+    #         if self.λ_dYt > 0:
+    #             dYt_loss += torch.mean(torch.pow(dV_pred_t - dV_target_t, 2))
 
-            t_traj.append(t1)
-            y_traj.append(y1.requires_grad_(True))
-            V_pred_traj.append(V_pred)
+    #         t_traj.append(t1)
+    #         y_traj.append(y1.requires_grad_(True))
+    #         V_pred_traj.append(V_pred)
 
-            t0, W0, y0, Y0 = t1, W1, y1, V_pred
+    #         t0, W0, y0, Y0 = t1, W1, y1, V_pred
 
-        if self.λ_Y > 0:
-            self.Y_loss = self.λ_Y * Y_loss.detach().item()
+    #     if self.λ_Y > 0:
+    #         self.Y_loss = self.λ_Y * Y_loss.detach().item()
 
-        if self.λ_dY > 0:
-            self.dY_loss = self.λ_dY * dY_loss.detach().item()
+    #     if self.λ_dY > 0:
+    #         self.dY_loss = self.λ_dY * dY_loss.detach().item()
 
-        if self.λ_dYt > 0:
-            self.dYt_loss = self.λ_dYt * dYt_loss.detach().item()
+    #     if self.λ_dYt > 0:
+    #         self.dYt_loss = self.λ_dYt * dYt_loss.detach().item()
 
-        terminal_loss = 0.0
-        if self.λ_T > 0:
-            YT = self.Y_net(t1, y1)
-            terminal_loss = torch.mean(torch.pow(YT - self.terminal_cost(y1), 2))
-            self.terminal_loss = self.λ_T * terminal_loss.detach().item()
+    #     terminal_loss = 0.0
+    #     if self.λ_T > 0:
+    #         YT = self.Y_net(t1, y1)
+    #         terminal_loss = torch.mean(torch.pow(YT - self.terminal_cost(y1), 2))
+    #         self.terminal_loss = self.λ_T * terminal_loss.detach().item()
 
-        terminal_gradient_loss = 0.0
-        if self.λ_TG > 0:
-            dYT = torch.autograd.grad(
-                outputs=YT,
-                inputs=y1,
-                grad_outputs=torch.ones_like(YT),
-                create_graph=True
-            )[0]
-            terminal_gradient_loss = torch.mean(torch.pow(dYT - self.terminal_cost_grad(y1), 2))
-            self.terminal_gradient_loss = self.λ_TG * terminal_gradient_loss.detach().item()      
+    #     terminal_gradient_loss = 0.0
+    #     if self.λ_TG > 0:
+    #         dYT = torch.autograd.grad(
+    #             outputs=YT,
+    #             inputs=y1,
+    #             grad_outputs=torch.ones_like(YT),
+    #             create_graph=True
+    #         )[0]
+    #         terminal_gradient_loss = torch.mean(torch.pow(dYT - self.terminal_cost_grad(y1), 2))
+    #         self.terminal_gradient_loss = self.λ_TG * terminal_gradient_loss.detach().item()      
 
-        pinn_loss = 0.0
-        if self.λ_pinn > 0:
-            for t, y, V in zip(t_traj, y_traj, V_pred_traj):
-                pinn_loss += self.physics_loss(t, y, V)
-            pinn_loss /= len(t_traj)
-            self.pinn_loss = self.λ_pinn * pinn_loss.detach().item()
+    #     pinn_loss = 0.0
+    #     if self.λ_pinn > 0:
+    #         for t, y, V in zip(t_traj, y_traj, V_pred_traj):
+    #             pinn_loss += self.physics_loss(t, y, V)
+    #         pinn_loss /= len(t_traj)
+    #         self.pinn_loss = self.λ_pinn * pinn_loss.detach().item()
 
-        return (self.λ_Y * Y_loss 
-                + self.λ_dY * dY_loss 
-                + self.λ_dYt * dYt_loss 
-                + self.λ_T * terminal_loss 
-                + self.λ_TG * terminal_gradient_loss 
-                + self.λ_pinn * pinn_loss
-                )
+    #     return (self.λ_Y * Y_loss 
+    #             + self.λ_dY * dY_loss 
+    #             + self.λ_dYt * dYt_loss 
+    #             + self.λ_T * terminal_loss 
+    #             + self.λ_TG * terminal_gradient_loss 
+    #             + self.λ_pinn * pinn_loss
+    #             )
 
     # def supervised_loss(self, y_traj, λ=1):
     #     batch_size = self.batch_size

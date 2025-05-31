@@ -74,9 +74,9 @@ def main():
     timesteps, results = model.simulate_paths(n_sim=args.n_simulations, seed=np.random.randint(0, 1000))
     model.plot_approx_vs_analytic(results, timesteps, plot=args.plot, save_dir=save_dir)
     
-    timesteps, results = model.simulate_paths(n_sim=1000, seed=np.random.randint(0, 1000))
-    model.plot_approx_vs_analytic_expectation(results, timesteps, plot=args.plot, save_dir=save_dir)
-    model.plot_terminal_histogram(results, plot=args.plot, save_dir=save_dir)
+    # timesteps, results = model.simulate_paths(n_sim=1000, seed=np.random.randint(0, 1000))
+    # model.plot_approx_vs_analytic_expectation(results, timesteps, plot=args.plot, save_dir=save_dir)
+    # model.plot_terminal_histogram(results, plot=args.plot, save_dir=save_dir)
 
 if __name__ == "__main__":
     main()
