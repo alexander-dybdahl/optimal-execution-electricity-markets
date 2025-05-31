@@ -1,6 +1,6 @@
 {
-  "device": "cpu",
-  "parallel": false,
+  "device": "cuda",
+  "parallel": true,
   "epochs": 1000,
   "K": 50,
   "n_paths": 1012,
