@@ -71,7 +71,10 @@ def main():
         is_distributed = False
         is_main = True
     
-    print(f"Running on device: {device}, Local rank: {local_rank}, Distributed: {is_distributed}, Main process: {is_main}")
+    if is_distributed:
+        print(f"Running on device: {device}, Local rank: {local_rank}, Distributed: {is_distributed}, Main process: {is_main}")
+    else:
+        print(f"Running on device: {device}, Parallel training disabled")
 
     model_cfg = load_model_config(args.model_config)
     model = AidIntradayLQ(args, model_cfg).to(device)
