@@ -40,8 +40,8 @@
     "lambda_Y": 1,
     "lambda_dY": 0.1,
     "lambda_dYt": 0,
-    "lambda_T": 0,
-    "lambda_TG": 0,
+    "lambda_T": 0.001,
+    "lambda_TG": 0.001,
     "lambda_pinn": 0,
     "supervised": true
 }

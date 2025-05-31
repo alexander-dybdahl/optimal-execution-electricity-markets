@@ -3,7 +3,7 @@
   "config_path": "config/aid_config.json",
   "device": "cuda",
   "train": true,
-  "load_if_exists": false,
+  "load_if_exists": true,
   "best": false,
   "verbose": true,
   "plot": true,
@@ -23,8 +23,8 @@
   "lambda_Y": 1,
   "lambda_dY": 0.1,
   "lambda_dYt": 0,
-  "lambda_T": 0,
-  "lambda_TG": 0,
+  "lambda_T": 0.001,
+  "lambda_TG": 0.001,
   "lambda_pinn": 0,
   "supervised": true
 }
