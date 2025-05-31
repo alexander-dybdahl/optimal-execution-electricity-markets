@@ -54,6 +54,8 @@ def main():
         env_master_addr = os.environ.get("MASTER_ADDR", "localhost")
         env_master_port = os.environ.get("MASTER_PORT", "23456")
 
+        args.batch_size //= int(env_world_size)
+
         local_rank = int(env_rank)
         backend = "nccl" if args.device == "cuda" else "gloo"
         dist.init_process_group(backend=backend,
@@ -121,6 +123,7 @@ def main():
     # Evaluate and plot only on main
     if is_main:
         call_model = model.module if isinstance(model, DDP) else model
+        model.eval()
         timesteps, results = call_model.simulate_paths(n_sim=args.n_simulations, seed=np.random.randint(0, 1000))
         call_model.plot_approx_vs_analytic(results, timesteps, plot=args.plot, save_dir=save_dir)
 

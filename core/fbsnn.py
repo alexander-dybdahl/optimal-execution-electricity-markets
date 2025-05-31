@@ -227,6 +227,7 @@ class FBSNN(nn.Module, ABC):
             return self.forward_fc(t_paths, W_paths)
 
     def forward_fc(self, t_paths, W_paths):
+        self.Y_net.eval()
         batch_size = self.batch_size
         t0 = t_paths[:, 0, :]
         W0 = W_paths[:, 0, :]
@@ -277,6 +278,8 @@ class FBSNN(nn.Module, ABC):
             self.lambda_TG * terminal_gradient_loss.detach().item()
         )
 
+        self.Y_net.train()
+
         return (
             self.lambda_Y * Y_loss
             + self.lambda_T * terminal_loss
@@ -284,6 +287,7 @@ class FBSNN(nn.Module, ABC):
         )
 
     def forward_supervised(self, t_paths, W_paths):
+        self.Y_net.eval()
         batch_size = self.batch_size
         device = self.device
         y0 = self.y0.repeat(batch_size, 1).to(device)
@@ -383,6 +387,8 @@ class FBSNN(nn.Module, ABC):
             self.dY_loss = self.lambda_dY * dY_loss.detach().item()
         if self.lambda_dYt > 0:
             self.dYt_loss = self.lambda_dYt * dYt_loss.detach().item()
+
+        self.Y_net.train()
 
         return (
             self.lambda_Y * Y_loss
@@ -611,11 +617,6 @@ class FBSNN(nn.Module, ABC):
             log(" | ".join(header_parts))
             log("-" * width)
 
-        rank_batch_size = (
-            self.batch_size // self.world_size
-            if self.is_distributed
-            else self.batch_size
-        )
         call_fetch_minibatch = (
             self.module.fetch_minibatch
             if isinstance(self, DDP)
@@ -623,23 +624,21 @@ class FBSNN(nn.Module, ABC):
         )
 
         for epoch in range(1, epochs + 1):
-            # Loop over n_paths with a batch size of self.batch_size
-            for _ in range(self.n_paths // rank_batch_size):
-                optimizer.zero_grad()
-                t_paths, W_paths = call_fetch_minibatch(rank_batch_size)
-                loss = self(t_paths, W_paths)
-                loss.backward()
-                optimizer.step()
+            optimizer.zero_grad()
+            t_paths, W_paths = call_fetch_minibatch(self.batch_size)
+            loss = self(t_paths, W_paths)
+            loss.backward()
+            optimizer.step()
 
-                losses.append(loss.item())
-                losses_Y.append(self.Y_loss)
-                losses_dY.append(self.dY_loss)
-                losses_dYt.append(self.dYt_loss)
-                losses_terminal.append(self.terminal_loss)
-                losses_terminal_gradient.append(self.terminal_gradient_loss)
-                losses_pinn.append(self.pinn_loss)
+            losses.append(loss.item())
+            losses_Y.append(self.Y_loss)
+            losses_dY.append(self.dY_loss)
+            losses_dYt.append(self.dYt_loss)
+            losses_terminal.append(self.terminal_loss)
+            losses_terminal_gradient.append(self.terminal_gradient_loss)
+            losses_pinn.append(self.pinn_loss)
 
-                scheduler.step(loss.item() if adaptive else epoch)
+            scheduler.step(loss.item() if adaptive else epoch)
 
             if self.is_main:
                 if epoch % K == 0 or epoch == 1:
