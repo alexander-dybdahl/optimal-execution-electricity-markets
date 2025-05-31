@@ -1,4 +1,4 @@
-Training started at 2025-05-31 12:07:08
+Training started at 2025-05-31 14:21:21
 Logging training to saved/almgren_FC_ReLU\training.log
 
 +---------------------------+---------------------------+
@@ -12,7 +12,7 @@ Logging training to saved/almgren_FC_ReLU\training.log
 | lambda_dYt (dYt loss)     | 0                         |
 | lambda_T (Terminal loss)  | 0.001                     |
 | lambda_TG (Gradient loss) | 0.001                     |
-| lambda_pinn (PINN loss)   | 0                         |
+| lambda_pinn (PINN loss)   | 0.001                     |
 | Number of Paths           | 1024                      |
 | Batch Size                | 1024                      |
 | Architecture              | FC                        |
@@ -24,6 +24,7 @@ Logging training to saved/almgren_FC_ReLU\training.log
 | Supervised                | True                      |
 +---------------------------+---------------------------+
 
-   Epoch | Total loss |     Y loss |    dY loss |    T. loss |   T.G. loss |         LR |  Memory [MB] | Time [s] |      ETA | Status              
---------------------------------------------------------------------------------------------------------------------------------------------
-       0 |   7.18e-03 |   8.36e-04 |   6.11e-03 |   2.24e-06 |    2.31e-04 |   1.00e-03 |        29.48 |     0.64 |      N/A | Model saved (best)  
+   Epoch | Total loss |     Y loss |    dY loss |    T. loss |   T.G. loss |   pinn loss |         LR |  Memory [MB] | Time [s] |      ETA | Status              
+----------------------------------------------------------------------------------------------------------------------------------------------------------
+       0 |   2.97e-03 |   1.09e-04 |   4.76e-04 |   5.61e-07 |    7.57e-05 |    2.31e-03 |   1.00e-03 |        30.79 |     1.91 |      N/A | Model saved (best)  
+      50 |   3.36e-03 |   6.29e-04 |   1.72e-03 |   2.52e-06 |    2.75e-04 |    7.34e-04 |   1.00e-03 |        30.79 |    86.04 |  27m 51s | Model saved         
