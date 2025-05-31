@@ -15,6 +15,7 @@ class FBSNN(nn.Module, ABC):
         self.device = args.device
         self.architecture = args.architecture
         self.supervised = args.supervised
+        self.analytical_known = args.analytical_known
         self.Y_layers = args.Y_layers
         self.n_paths = args.n_paths
         self.batch_size = args.batch_size
@@ -188,9 +189,10 @@ class FBSNN(nn.Module, ABC):
     def forward_fc(self, t_paths, W_paths):
 
         batch_size = self.batch_size
+        y0 = self.y0.repeat(batch_size, 1).to(self.device)
+        y_traj, t_traj = [y0], []
         t0 = t_paths[:, 0, :]
         W0 = W_paths[:, 0, :]
-        y0 = self.y0.repeat(batch_size, 1).to(self.device)
         Y0 = self.Y_net(t0, y0)
 
         dY0 = torch.autograd.grad(
@@ -203,6 +205,7 @@ class FBSNN(nn.Module, ABC):
 
         Y_loss = 0.0
 
+        # === 1. Compute fbsnn loss ===
         for n in range(self.N):
             t1 = t_paths[:, n + 1, :]
             W1 = W_paths[:, n + 1, :]
@@ -224,10 +227,42 @@ class FBSNN(nn.Module, ABC):
             Y1_tilde = Y0 - f * (t1 - t0) + (Z0 * (W1 - W0)).sum(dim=1, keepdim=True)
             Y_loss += torch.sum(torch.pow(Y1 - Y1_tilde, 2))
 
+            t_traj.append(t1)
+            y_traj.append(y1)
+
             t0, W0, y0, Y0, dY0 = t1, W1, y1, Y1, dY1
 
-        terminal_loss = torch.sum(torch.pow(Y1 - self.terminal_cost(y1), 2))
-        terminal_gradient_loss = torch.sum(torch.pow(dY1 - self.terminal_cost_grad(y1), 2))
+        # === 2. Terminal supervision ===
+        terminal_loss, terminal_gradient_loss = 0.0, 0.0
+        if self.λ_T > 0:
+            YT = self.Y_net(t1, y1)
+            terminal_loss = torch.mean((YT - self.terminal_cost(y1))**2)
+            self.terminal_loss = self.λ_T * terminal_loss.detach().item()
+        if self.λ_TG > 0:
+            dYT = torch.autograd.grad(
+                YT, 
+                y1, 
+                grad_outputs=torch.ones_like(YT), 
+                create_graph=True
+            )[0]
+            terminal_gradient_loss = torch.mean((dYT - self.terminal_cost_grad(y1))**2)
+            self.terminal_gradient_loss = self.λ_TG * terminal_gradient_loss.detach().item()
+
+        # === 3. Optional physics-based loss ===
+        t_traj = torch.cat(t_traj, dim=0).requires_grad_(True)            # shape: [N * batch_size, 1]
+        y_traj = torch.cat(y_traj[1:], dim=0).requires_grad_(True)        # shape: [N * batch_size, state_dim]
+
+        pinn_loss = 0.0
+        if self.λ_pinn > 0:
+            with torch.enable_grad():
+                for i in range(self.N):
+                    idx = slice(i * batch_size, (i + 1) * batch_size)
+                    t_i = t_traj[idx].detach().clone().requires_grad_(True)
+                    y_i = y_traj[idx].detach().clone().requires_grad_(True)
+                    V_i = self.Y_net(t_i, y_i)
+                    pinn_loss += self.physics_loss(t_i, y_i, V_i)
+                pinn_loss /= self.N
+                self.pinn_loss = self.λ_pinn * pinn_loss.detach().item()
 
         self.Y_loss = self.λ_Y * Y_loss.detach().item()
         self.terminal_loss = self.λ_T * terminal_loss.detach().item()
@@ -359,7 +394,7 @@ class FBSNN(nn.Module, ABC):
         y_learned_traj = []
         q_learned_traj = []
         Y_learned_traj = []
-        if self.supervised:
+        if self.analytical_known:
             y_true_traj = []
             q_true_traj = []
             Y_true_traj = []
@@ -370,7 +405,7 @@ class FBSNN(nn.Module, ABC):
             # Predict Y and compute control
             Y_learned = self.Y_net(t_tensor, y_learned)
             q_learned = self.trading_rate(t_tensor, y_learned, Y_learned, create_graph=False)
-            if self.supervised:
+            if self.analytical_known:
                 Y_true = self.value_function_analytic(t_tensor, y_analytic)
                 q_true = self.trading_rate(t_tensor, y_analytic, Y_true, create_graph=False)
 
@@ -379,7 +414,7 @@ class FBSNN(nn.Module, ABC):
             y_learned_traj.append(y_learned.detach().cpu().numpy())
             Y_learned_traj.append(Y_learned.detach().cpu().numpy())
 
-            if self.supervised:
+            if self.analytical_known:
                 q_true_traj.append(q_true.detach().cpu().numpy())
                 y_true_traj.append(y_analytic.detach().cpu().numpy())
                 Y_true_traj.append(Y_true.detach().cpu().numpy())
@@ -387,7 +422,7 @@ class FBSNN(nn.Module, ABC):
             if step < self.N:
                 dW = torch.randn(n_sim, self.dim_W, device=self.device) * self.dt**0.5
                 y_learned = self.forward_dynamics(y_learned, q_learned, dW, t_tensor, self.dt)
-                if self.supervised:
+                if self.analytical_known:
                     y_analytic = self.forward_dynamics(y_analytic, q_true, dW, t_tensor, self.dt)
                 t_scalar += self.dt
 
@@ -395,9 +430,9 @@ class FBSNN(nn.Module, ABC):
             "y": np.stack(y_learned_traj),
             "q": np.stack(q_learned_traj),
             "Y": np.stack(Y_learned_traj),
-            "y_true": np.stack(y_true_traj) if self.supervised else None,
-            "q_true": np.stack(q_true_traj) if self.supervised else None,
-            "Y_true": np.stack(Y_true_traj) if self.supervised else None
+            "y_true": np.stack(y_true_traj) if self.analytical_known else None,
+            "q_true": np.stack(q_true_traj) if self.analytical_known else None,
+            "Y_true": np.stack(Y_true_traj) if self.analytical_known else None
         }
 
     def train_model(self, epochs=1000, K=50, lr=1e-3, verbose=True, plot=True, adaptive=True, save_dir=None):
