@@ -2,8 +2,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-import torch
-import torch.nn as nn
 
 class LSTMNet(nn.Module):
     def __init__(self, layers, activation, type='LSTM'):

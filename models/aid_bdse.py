@@ -1,8 +1,10 @@
-import torch
-import numpy as np
-from core.fbsnn import FBSNN
-import matplotlib.pyplot as plt
 import matplotlib.cm as cm
+import matplotlib.pyplot as plt
+import numpy as np
+import torch
+
+from core.fbsnn import FBSNN
+
 
 class AidIntradayLQ(FBSNN):
     def __init__(self, args, model_cfg):
@@ -47,12 +49,13 @@ class AidIntradayLQ(FBSNN):
         Sigma[:, 2, 1] = (1 - self.rho**2)**0.5 * self.sigma_D # dD = ... dW2
         return Sigma
 
-    def trading_rate(self, t, y, Y, create_graph=True):
+    def optimal_control(self, t, y, Y, create_graph=True):
         dV = torch.autograd.grad(
             outputs=Y,
             inputs=y,
             grad_outputs=torch.ones_like(Y),
-            create_graph=create_graph
+            create_graph=create_graph,
+            retain_graph=True,
         )[0]
 
         dV_X = dV[:, 0:1]
@@ -79,159 +82,41 @@ class AidIntradayLQ(FBSNN):
         nu = self.nu
         gamma = self.gamma
         mu = self.mu_D
-        sigma_0 = self.sigma_P
+        sigma_p = self.sigma_P
         sigma_d = self.sigma_D
         rho = self.rho
 
         tau = T - t
-        eps = 1e-8
         denom = (eta + nu) * tau + 2 * gamma
 
-        term1 = (eta * (0.5 * nu * tau + gamma) / denom) * ((D - X)**2 + 2 * mu * tau * (D - X))
-        term2 = (tau / denom) * (-0.5 * P**2 + eta * mu * tau * P)
-        term3 = (eta * tau / denom) * (D - X) * P
+        # Coefficient functions
+        A = eta * (0.5 * nu * tau + gamma) / denom
+        B = -0.5 * tau / denom
+        F = eta * tau / denom
+        G = 2 * mu * tau * A
+        H = -2 * eta * mu * tau * B
 
-        log_term = gamma * (sigma_0**2 + sigma_d**2 * eta**2 - 2 * rho * sigma_0 * sigma_d * eta) / (eta + nu)**2
+        # Constant K(t)
+        log_term = gamma * (sigma_p**2 + sigma_d**2 * eta**2 - 2 * rho * sigma_p * sigma_d * eta) / (eta + nu)**2
         log_expr = 1 + ((eta + nu) * tau) / (2 * gamma)
-        term4 = log_term * torch.log(log_expr)
+        K1 = log_term * torch.log(log_expr)
 
-        term5 = (sigma_d**2 * eta * nu + 2 * rho * sigma_0 * sigma_d * eta - sigma_0**2) / (2 * (eta + nu)) * tau
+        K2 = (sigma_d**2 * eta * nu + 2 * rho * sigma_p * sigma_d * eta - sigma_p**2) / (2 * (eta + nu)) * tau
+        K3 = eta * mu**2 * tau**2 * (0.5 * nu * tau + gamma) / denom
+        K = K1 + K2 + K3
 
-        term6 = (eta * mu**2 * tau**2 * (0.5 * nu * tau + gamma)) / denom
-
-        return term1 + term2 + term3 + term4 + term5 + term6
-
-    def pinn_loss(self, t, y, Y):
-        return super().pinn_loss(t, y, Y)
-
-    def simulate_paths(self, n_sim=5, seed=42, y0_single=None):
-        torch.manual_seed(seed)
-        self.eval()
-
-        y = y0_single.repeat(n_sim, 1) if y0_single is not None else self.y0.repeat(n_sim, 1)
-        t = torch.zeros(n_sim, 1, device=self.device)
-  
-        q_traj, Y_traj, y_traj = [], [], []
-
-        Y = self.Y_net(t, y)
-        q = self.trading_rate(t, y, Y, create_graph=False)
-
-        q_traj.append(q.detach().cpu().numpy())
-        Y_traj.append(Y.detach().cpu().numpy())
-        y_traj.append(y.detach().cpu().numpy())
-
-        for _ in range(self.N):
-            dW = torch.randn(n_sim, self.dim_W, device=self.device) * self.dt**0.5
-            y = self.forward_dynamics(y, q, dW, t, self.dt)
-            t += self.dt
-
-            Y = self.Y_net(t, y)
-            q = self.trading_rate(t, y, Y, create_graph=False)
-
-            q_traj.append(q.detach().cpu().numpy())
-            Y_traj.append(Y.detach().cpu().numpy())
-            y_traj.append(y.detach().cpu().numpy())
-
-        return torch.linspace(0, self.T, self.N + 1).cpu().numpy(), {
-            "q": np.stack(q_traj),
-            "Y": np.stack(Y_traj),
-            "y": np.stack(y_traj)
-        }
-
-    def forward_supervised(self, t_paths, W_paths):
-            batch_size = self.batch_size
-            t0 = t_paths[:, 0, :]
-            W0 = W_paths[:, 0, :]
-            y0 = self.y0.repeat(batch_size, 1).to(self.device)
-            Y0 = self.Y_net(t0, y0)
-
-            dY0 = torch.autograd.grad(
-                outputs=Y0,
-                inputs=y0,
-                grad_outputs=torch.ones_like(Y0),
-                create_graph=True,
-                retain_graph=True
-            )[0]
-
-            Y_loss = 0.0
-
-            for n in range(self.N):
-                t1 = t_paths[:, n + 1, :]
-                W1 = W_paths[:, n + 1, :]
-
-                Sigma0 = self.sigma(t0, y0)
-                q = self.trading_rate(t0, y0, Y0)
-                y1 = self.forward_dynamics(y0, q, W1 - W0, t0, t1 - t0)
-
-                # --- Supervised loss with analytic V and dV at t1, y1 ---
-                V_target = self.value_function_analytic(t1, y1.detach())
-
-                y1_ = y1.clone().detach().requires_grad_(True)
-                V_temp = self.value_function_analytic(t1, y1_)
-                dV_target = torch.autograd.grad(
-                    outputs=V_temp,
-                    inputs=y1_,
-                    grad_outputs=torch.ones_like(V_temp),
-                    create_graph=False
-                )[0]
-
-                V_pred = self.Y_net(t1, y1)
-                supervised_loss = torch.mean(torch.pow(V_pred - V_target, 2))
-
-                dV_pred = torch.autograd.grad(
-                    outputs=V_pred,
-                    inputs=y1,
-                    grad_outputs=torch.ones_like(V_pred),
-                    create_graph=True
-                )[0]
-                gradient_loss = torch.mean(torch.pow(dV_pred - dV_target, 2))
-
-                Y_loss += supervised_loss + gradient_loss
-
-                # Advance
-                t0, W0, y0, Y0 = t1, W1, y1, V_pred
-
-            # Terminal condition loss (optional if lambda_T, lambda_TG = 0)
-            t_terminal = torch.full((batch_size, 1), self.T, device=self.device)
-            YT = self.Y_net(t_terminal, y1)
-            terminal = self.terminal_cost(y1)
-            terminal_loss = torch.mean(torch.pow(YT - terminal, 2))
-
-            dYT = torch.autograd.grad(
-                outputs=YT,
-                inputs=y1,
-                grad_outputs=torch.ones_like(YT),
-                create_graph=True,
-                retain_graph=True
-            )[0]
-            terminal_gradient = self.terminal_cost_grad(y1)
-            terminal_gradient_loss = torch.mean(torch.pow(dYT - terminal_gradient, 2))
-
-            # Log and return
-            self.lambda_T, self.lambda_TG = 0, 0
-            self.total_Y_loss = self.lambda_Y * Y_loss.detach().item()
-            self.terminal_loss = self.lambda_T * terminal_loss.detach().item()
-            self.terminal_gradient_loss = self.lambda_TG * terminal_gradient_loss.detach().item()
-
-            return self.lambda_Y * Y_loss + self.lambda_T * terminal_loss + self.lambda_TG * terminal_gradient_loss
+        z = D - X
+        V = A * z**2 + B * P**2 + F * z * P + G * z + H * P + K
+        return V
 
     def plot_approx_vs_analytic(self, results, timesteps, plot=True, save_dir=None):
-        approx_q = results["q"]
-        y_vals = results["y"]
-        Y_vals = results["Y"]
 
-        T, N_paths = y_vals.shape[:2]
-
-        with torch.no_grad():
-            t_grid = torch.linspace(0, self.T, self.N + 1, device=self.device).view(self.N + 1, 1).expand(self.N + 1, N_paths)  # shape: (N + 1, N_paths)
-            y_tensor = torch.tensor(results["y"], dtype=torch.float32, device=self.device)          # shape: (N + 1, N_paths, dim)
-            flat_y = y_tensor.reshape(-1, self.dim)                   # (N + 1) * n_sim, dim
-            flat_t = t_grid.reshape(-1, 1).expand_as(flat_y[:, :1])   # match shape: (N + 1) * n_sim, 1
-            true_q = self.optimal_control_analytic(flat_t, flat_y).view(self.N + 1, N_paths)
-            true_Y = self.value_function_analytic(flat_t, flat_y).view(self.N + 1, N_paths)
-
-        true_q = true_q.cpu().numpy()
-        true_Y = true_Y.cpu().numpy()
+        approx_q = results["q_learned"]
+        y_vals = results["y_learned"]
+        Y_vals = results["Y_learned"]
+        true_q = results["q_true"]
+        true_y = results["y_true"]
+        true_Y = results["Y_true"]
 
         fig, axs = plt.subplots(3, 2, figsize=(14, 10))
         colors = cm.get_cmap("tab10", approx_q.shape[1])
@@ -246,7 +131,7 @@ class AidIntradayLQ(FBSNN):
         axs[0, 0].legend(loc='upper left')
 
         for i in range(approx_q.shape[1]):
-            diff = approx_q[:, i].squeeze() - true_q[:, i].squeeze()
+            diff = approx_q[:, i] - true_q[:, i]
             axs[0, 1].plot(timesteps, diff, color=colors(i), alpha=0.6, label=f"$q_{i}(t) - q^*_{i}(t)$" if i == 0 else None)
         axs[0, 1].axhline(0, color='red', linestyle='--', linewidth=0.8)
         axs[0, 1].set_title("Difference: Learned $-$ Analytical")
@@ -257,7 +142,7 @@ class AidIntradayLQ(FBSNN):
 
         for i in range(Y_vals.shape[1]):
             axs[1, 0].plot(timesteps, Y_vals[:, i, 0], color=colors(i), alpha=0.6, label=f"Learned $Y_{i}(t)$" if i == 0 else None)
-            axs[1, 0].plot(timesteps, true_Y[:, i], linestyle="--", color=colors(i), alpha=0.4, label=f"Analytical $Y^*_{i}(t)$" if i == 0 else None)
+            axs[1, 0].plot(timesteps, true_Y[:, i, 0], linestyle="--", color=colors(i), alpha=0.4, label=f"Analytical $Y^*_{i}(t)$" if i == 0 else None)
         axs[1, 0].set_title("Cost-to-Go $Y(t)$")
         axs[1, 0].set_xlabel("Time $t$")
         axs[1, 0].set_ylabel("Y(t)")
@@ -265,7 +150,7 @@ class AidIntradayLQ(FBSNN):
         axs[1, 0].legend(loc='upper left')
 
         for i in range(Y_vals.shape[1]):
-            diff_Y = Y_vals[:, i, 0] - true_Y[:, i]
+            diff_Y = Y_vals[:, i, 0] - true_Y[:, i, 0]
             axs[1, 1].plot(timesteps, diff_Y, color=colors(i), alpha=0.6, label=f"$Y_{i}(t) - Y^*_{i}(t)$" if i == 0 else None)
         axs[1, 1].axhline(0, color='red', linestyle='--', linewidth=0.8)
         axs[1, 1].set_title("Difference: Learned $Y(t) - Y^*(t)$")
@@ -276,18 +161,19 @@ class AidIntradayLQ(FBSNN):
 
         for i in range(y_vals.shape[1]):
             axs[2, 0].plot(timesteps, y_vals[:, i, 0], color=colors(i), alpha=0.6, label=f"$x_{i}(t)$" if i == 0 else None)
-            axs[2, 0].plot(timesteps, y_vals[:, i, 2], linestyle="--", color=colors(i), alpha=0.6, label=f"$d_{i}(t)$" if i == 0 else None)
-        axs[2, 0].set_title("States")
+            axs[2, 0].plot(timesteps, true_y[:, i, 0], linestyle="--", color=colors(i), alpha=0.4, label=f"$x^*_{i}(t)$" if i == 0 else None)
+            axs[2, 0].plot(timesteps, true_y[:, i, 2], linestyle="-.", color=colors(i), alpha=0.6, label=f"$d_{i}(t)$" if i == 0 else None)
+        axs[2, 0].set_title("States: $x(t)$ and $d(t)$")
         axs[2, 0].set_xlabel("Time $t$")
-        axs[2, 0].set_ylabel("x(t)/p(t)/d(t)")
+        axs[2, 0].set_ylabel("x(t), d(t)")
         axs[2, 0].grid(True)
         axs[2, 0].legend(loc='upper left')
 
         for i in range(y_vals.shape[1]):
-            axs[2, 1].plot(timesteps, y_vals[:, i, 1], color=colors(i), alpha=0.6, label=f"$p_{i}(t)$" if i == 0 else None)
-        axs[2, 1].set_title("States")
+            axs[2, 1].plot(timesteps, true_y[:, i, 1], color=colors(i), alpha=0.6, label=f"$p_{i}(t)$" if i == 0 else None)
+        axs[2, 1].set_title("State: $p(t)$")
         axs[2, 1].set_xlabel("Time $t$")
-        axs[2, 1].set_ylabel("x(t)/p(t)/d(t)")
+        axs[2, 1].set_ylabel("p(t)")
         axs[2, 1].grid(True)
         axs[2, 1].legend(loc='upper left')
 
@@ -298,17 +184,17 @@ class AidIntradayLQ(FBSNN):
             plt.show()
 
     def plot_approx_vs_analytic_expectation(self, results, timesteps, plot=True, save_dir=None):
-        approx_q = results["q"]
-        y_vals = results["y"]
-        Y_vals = results["Y"]
+        approx_q = results["q_learned"]
+        y_vals = results["y_learned"]
+        Y_vals = results["Y_learned"]
 
         T, N_paths = y_vals.shape[:2]
 
         with torch.no_grad():
             t_grid = torch.linspace(0, self.T, self.N + 1, device=self.device).view(self.N + 1, 1).expand(self.N + 1, N_paths)  # shape: (N + 1, N_paths)
-            y_tensor = torch.tensor(results["y"], dtype=torch.float32, device=self.device)          # shape: (N + 1, N_paths, dim)
-            flat_y = y_tensor.reshape(-1, self.dim)                   # (N + 1) * n_sim, dim
-            flat_t = t_grid.reshape(-1, 1).expand_as(flat_y[:, :1])   # match shape: (N + 1) * n_sim, 1
+            y_tensor = torch.tensor(results["y_true"], dtype=torch.float32, device=self.device)                                 # shape: (N + 1, N_paths, dim)
+            flat_y = y_tensor.reshape(-1, self.dim)                                                                             # (N + 1) * n_sim, dim
+            flat_t = t_grid.reshape(-1, 1).expand_as(flat_y[:, :1])                                                             # match shape: (N + 1) * n_sim, 1
             true_q = self.optimal_control_analytic(flat_t, flat_y).view(self.N + 1, N_paths)
             true_Y = self.value_function_analytic(flat_t, flat_y).view(self.N + 1, N_paths)
 
@@ -378,8 +264,8 @@ class AidIntradayLQ(FBSNN):
             plt.show()
         
     def plot_terminal_histogram(self, results, plot=True, save_dir=None):
-        y_vals = results["y"]  # shape: (T+1, N_paths, dim)
-        Y_vals = results["Y"]  # shape: (T+1, N_paths, 1)
+        y_vals = results["y_learned"]  # shape: (T+1, N_paths, dim)
+        Y_vals = results["Y_learned"]  # shape: (T+1, N_paths, 1)
 
         Y_T_approx = Y_vals[-1, :, 0]
         y_T = y_vals[-1, :, :]  # full final states

@@ -1,15 +1,17 @@
+import json
+import os
+from argparse import ArgumentParser
+
 import numpy as np
 import torch
 import torch.distributed as dist
-import os
-from argparse import ArgumentParser
-from utils.load_config import load_model_config, load_run_config
-from utils.tools import str2bool
+from torch.nn.parallel import DistributedDataParallel as DDP
+
+from models.aid_bdse import AidIntradayLQ
 from models.hjb_bsde import HJB
 from models.simple_hjb_bsde import SimpleHJB
-from models.aid_bdse import AidIntradayLQ
-from torch.nn.parallel import DistributedDataParallel as DDP
-import multiprocessing as mp
+from utils.load_config import load_model_config, load_run_config
+from utils.tools import str2bool
 
 
 def main():
@@ -37,8 +39,11 @@ def main():
     parser.add_argument("--train", type=str2bool, nargs='?', const=True, default=run_cfg["train"], help="Train the model")
     parser.add_argument("--best", type=str2bool, nargs='?', const=True, default=run_cfg["best"], help="Run the model using the best model found during training")
     parser.add_argument("--lambda_Y", type=float, default=run_cfg["lambda_Y"], help="Weight for the Y term in the loss function")
+    parser.add_argument("--lambda_dY", type=float, default=run_cfg["lambda_dY"], help="Weight for the dY term in the loss function")
+    parser.add_argument("--lambda_dYt", type=float, default=run_cfg["lambda_dYt"], help="Weight for the dYt term in the loss function")
     parser.add_argument("--lambda_T", type=float, default=run_cfg["lambda_T"], help="Weight for the terminal term in the loss function")
     parser.add_argument("--lambda_TG", type=float, default=run_cfg["lambda_TG"], help="Weight for the terminal gradient term in the loss function")
+    parser.add_argument("--lambda_pinn", type=float, default=run_cfg["lambda_pinn"], help="Weight for the PINN term in the loss function")
     parser.add_argument("--supervised", type=str2bool, default=run_cfg["supervised"], help="Use supervised learning using analytical solution")
     args = parser.parse_args()
     args.Y_layers = run_cfg["Y_layers"]
@@ -58,6 +63,8 @@ def main():
         device = torch.device(f"cuda:{local_rank}" if torch.cuda.is_available() else "cpu")
         is_distributed = True
         is_main = dist.get_rank() == 0
+        if is_main:
+            print(f"Distributed training setup: RANK={env_rank}, WORLD_SIZE={env_world_size}, MASTER_ADDR={env_master_addr}, MASTER_PORT={env_master_port}")
     else:
         local_rank = 0
         device = torch.device(args.device)
@@ -65,7 +72,6 @@ def main():
         is_main = True
     
     if is_main:
-        print(f"Distributed training setup: RANK={env_rank}, WORLD_SIZE={env_world_size}, MASTER_ADDR={env_master_addr}, MASTER_PORT={env_master_port}")
         print(f"Running on device: {device}, Local rank: {local_rank}, Distributed: {is_distributed}, Main process: {is_main}")
 
     model_cfg = load_model_config(args.model_config)
@@ -74,7 +80,16 @@ def main():
     save_dir = f"{args.save_path}_{args.architecture}_{args.activation}"
     os.makedirs(save_dir, exist_ok=True)
     save_path = os.path.join(save_dir, "model")
+    
+    if is_main:
+        run_cfg_path = os.path.join(save_dir, "run_config.json")
+        model_cfg_path = os.path.join(save_dir, "model_config.json")
+        with open(run_cfg_path, 'w') as f:
+            json.dump(run_cfg, f, indent=4)
+        with open(model_cfg_path, 'w') as f:
+            json.dump(model_cfg, f, indent=4)
 
+    # Determine whether to load a model
     if args.load_if_exists:
         load_path = save_path + "_best.pth" if args.best else save_path + ".pth"
         try:
