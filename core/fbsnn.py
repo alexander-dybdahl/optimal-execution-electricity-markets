@@ -455,9 +455,9 @@ class FBSNN(nn.Module, ABC):
             "y_learned": np.stack(y_learned_traj),
             "q_learned": np.stack(q_learned_traj),
             "Y_learned": np.stack(Y_learned_traj),
-            "y_true": np.stack(y_true_traj) if self.supervised else None,
-            "q_true": np.stack(q_true_traj) if self.supervised else None,
-            "Y_true": np.stack(Y_true_traj) if self.supervised else None,
+            "y_true": np.stack(y_true_traj),
+            "q_true": np.stack(q_true_traj),
+            "Y_true": np.stack(Y_true_traj),
         }
     
     def _save_model(self, save_path):
