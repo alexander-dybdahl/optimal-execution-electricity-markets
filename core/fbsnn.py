@@ -40,12 +40,12 @@ class FBSNN(nn.Module, ABC):
         self.lambda_pinn = args.lambda_pinn  # physics residual loss
 
         # Loss Tracking
-        self.Y_loss = 0
-        self.dY_loss = 0
-        self.dYt_loss = 0
-        self.terminal_loss = 0
-        self.terminal_gradient_loss = 0
-        self.pinn_loss = 0
+        self.Y_loss = torch.tensor(0.0, device=self.device)
+        self.dY_loss = torch.tensor(0.0, device=self.device)
+        self.dYt_loss = torch.tensor(0.0, device=self.device)
+        self.terminal_loss = torch.tensor(0.0, device=self.device)
+        self.terminal_gradient_loss = torch.tensor(0.0, device=self.device)
+        self.pinn_loss = torch.tensor(0.0, device=self.device)
 
         # Time Discretization
         self.t0 = 0.0
@@ -268,15 +268,12 @@ class FBSNN(nn.Module, ABC):
             t0, W0, y0, Y0, dY0 = t1, W1, y1, Y1, dY1
 
         terminal_loss = torch.sum(torch.pow(Y1 - self.terminal_cost(y1), 2))
-        terminal_gradient_loss = torch.sum(
-            torch.pow(dY1 - self.terminal_cost_grad(y1), 2)
-        )
+        terminal_gradient_loss = torch.sum(torch.pow(dY1 - self.terminal_cost_grad(y1), 2))
 
-        self.total_Y_loss = self.lambda_Y * Y_loss.detach().item()
-        self.terminal_loss = self.lambda_T * terminal_loss.detach().item()
-        self.terminal_gradient_loss = (
-            self.lambda_TG * terminal_gradient_loss.detach().item()
-        )
+        # Record losses while maintaining location on device
+        self.Y_loss = self.lambda_Y * Y_loss.detach()
+        self.terminal_loss = self.lambda_T * terminal_loss.detach()
+        self.terminal_gradient_loss = self.lambda_TG * terminal_gradient_loss.detach()
 
         self.Y_net.train()
 
@@ -292,7 +289,7 @@ class FBSNN(nn.Module, ABC):
         device = self.device
         y0 = self.y0.repeat(batch_size, 1).to(device)
 
-        # === 1. Precompute optimal trajectory ===
+        # === Precompute optimal trajectory ===
         y_traj, t_traj = [y0], []
         t0 = t_paths[:, 0, :]
         W0 = W_paths[:, 0, :]
@@ -318,14 +315,15 @@ class FBSNN(nn.Module, ABC):
             True
         )                                   # shape: (N * batch_size, dim)
 
-        # === 2. Compute target value + gradients ===
+        # === Compute target value and gradients ===
         V_target = self.value_function_analytic(t_traj, y_traj)
         V_pred = self.Y_net(t_traj, y_traj)
 
-        Y_loss = torch.mean((V_pred - V_target) ** 2)
+        Y_loss = torch.mean(torch.pow(V_pred - V_target, 2))
+        if self.lambda_Y > 0:
+            self.Y_loss = self.lambda_Y * Y_loss.detach()
 
         dY_loss, dYt_loss = 0.0, 0.0
-
         if self.lambda_dY > 0:
             dV_target = torch.autograd.grad(
                 V_target,
@@ -337,7 +335,8 @@ class FBSNN(nn.Module, ABC):
             dV_pred = torch.autograd.grad(
                 V_pred, y_traj, grad_outputs=torch.ones_like(V_pred), create_graph=True
             )[0]
-            dY_loss = torch.mean((dV_pred - dV_target) ** 2)
+            dY_loss = torch.mean(torch.pow(dV_pred - dV_target, 2))
+            self.dY_loss = self.lambda_dY * dY_loss.detach()
 
         if self.lambda_dYt > 0:
             dV_target_t = torch.autograd.grad(
@@ -350,26 +349,24 @@ class FBSNN(nn.Module, ABC):
             dV_pred_t = torch.autograd.grad(
                 V_pred, t_traj, grad_outputs=torch.ones_like(V_pred), create_graph=True
             )[0]
-            dYt_loss = torch.mean((dV_pred_t - dV_target_t) ** 2)
+            dYt_loss = torch.mean(torch.pow(dV_pred_t - dV_target_t, 2))
+            self.dYt_loss = self.lambda_dYt * dYt_loss.detach()
 
-        # === 3. Terminal supervision ===
+        # === Terminal supervision ===
         terminal_loss, terminal_gradient_loss = 0.0, 0.0
         if self.lambda_T > 0:
             YT = self.Y_net(t1, y1)
-            terminal_loss = torch.mean((YT - self.terminal_cost(y1)) ** 2)
-            self.terminal_loss = self.lambda_T * terminal_loss.detach().item()
+            terminal_loss = torch.mean(torch.pow(YT - self.terminal_cost(y1), 2))
+            self.terminal_loss = self.lambda_T * terminal_loss.detach()
+        
         if self.lambda_TG > 0:
             dYT = torch.autograd.grad(
                 YT, y1, grad_outputs=torch.ones_like(YT), create_graph=True
             )[0]
-            terminal_gradient_loss = torch.mean(
-                (dYT - self.terminal_cost_grad(y1)) ** 2
-            )
-            self.terminal_gradient_loss = (
-                self.lambda_TG * terminal_gradient_loss.detach().item()
-            )
+            terminal_gradient_loss = torch.mean(torch.pow(dYT - self.terminal_cost_grad(y1), 2))
+            self.terminal_gradient_loss = self.lambda_TG * terminal_gradient_loss.detach()
 
-        # === 4. Optional physics-based loss ===
+        # === Optional physics-based loss ===
         pinn_loss = 0.0
         if self.lambda_pinn > 0:
             with torch.enable_grad():
@@ -378,15 +375,7 @@ class FBSNN(nn.Module, ABC):
                     t_i, y_i, V_i = t_traj[idx], y_traj[idx], V_pred[idx]
                     pinn_loss += self.physics_loss(t_i, y_i, V_i)
                 pinn_loss /= self.N
-                self.pinn_loss = self.lambda_pinn * pinn_loss.detach().item()
-
-        # === 5. Log losses ===
-        if self.lambda_Y > 0:
-            self.Y_loss = self.lambda_Y * Y_loss.detach().item()
-        if self.lambda_dY > 0:
-            self.dY_loss = self.lambda_dY * dY_loss.detach().item()
-        if self.lambda_dYt > 0:
-            self.dYt_loss = self.lambda_dYt * dYt_loss.detach().item()
+                self.pinn_loss = self.lambda_pinn * pinn_loss.detach()
 
         self.Y_net.train()
 
@@ -629,18 +618,39 @@ class FBSNN(nn.Module, ABC):
             loss = self(t_paths, W_paths)
             loss.backward()
             optimizer.step()
-
-            losses.append(loss.item())
-            losses_Y.append(self.Y_loss)
-            losses_dY.append(self.dY_loss)
-            losses_dYt.append(self.dYt_loss)
-            losses_terminal.append(self.terminal_loss)
-            losses_terminal_gradient.append(self.terminal_gradient_loss)
-            losses_pinn.append(self.pinn_loss)
-
             scheduler.step(loss.item() if adaptive else epoch)
 
+            # Reduce losses across all processes if distributed
+            Y_loss = self.Y_loss
+            dY_loss = self.dY_loss
+            dYt_loss = self.dYt_loss
+            terminal_loss = self.terminal_loss
+            terminal_gradient_loss = self.terminal_gradient_loss
+            pinn_loss = self.pinn_loss
+
+            if self.is_distributed:
+                tensors = [
+                    loss,
+                    Y_loss,
+                    dY_loss,
+                    dYt_loss,
+                    terminal_loss,
+                    terminal_gradient_loss,
+                    pinn_loss
+                ]
+                for t in tensors:
+                    dist.all_reduce(t, op=dist.ReduceOp.SUM)
+                    t /= self.world_size
+
             if self.is_main:
+                losses.append(loss.item())
+                losses_Y.append(Y_loss.item())
+                losses_dY.append(dY_loss.item())
+                losses_dYt.append(dYt_loss.item())
+                losses_terminal.append(terminal_loss.item())
+                losses_terminal_gradient.append(terminal_gradient_loss.item())
+                losses_pinn.append(pinn_loss.item())
+
                 if epoch % K == 0 or epoch == 1:
                     status = ""
 
