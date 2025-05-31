@@ -69,9 +69,9 @@ class SimpleHJB(FBSNN):
         return phi_t + K_t * y**2
 
     def plot_approx_vs_analytic(self, results, timesteps, plot=True, save_dir=None):
-        approx_q = results["q"]              # shape: (T + 1, N_paths)
-        y_vals = results["y"][:, :, 0]       # shape: (T + 1, N_paths)
-        Y_vals = results["Y"]                # shape: (T + 1, N_paths, 1)
+        approx_q = results["q_learned"]              # shape: (T + 1, N_paths)
+        y_vals = results["y_true"][:, :, 0]       # shape: (T + 1, N_paths)
+        Y_vals = results["Y_true"]                # shape: (T + 1, N_paths, 1)
 
         with torch.no_grad():
             t_tensor = torch.tensor(timesteps, dtype=torch.float32, device=self.device).unsqueeze(1).repeat(1, y_vals.shape[1])
@@ -126,9 +126,9 @@ class SimpleHJB(FBSNN):
             plt.show()
 
     def plot_approx_vs_analytic_expectation(self, results, timesteps, plot=True, save_dir=None):
-        approx_q = results["q"]              # shape: (T + 1, N_paths)
-        y_vals = results["y"][:, :, 0]       # shape: (T + 1, N_paths)
-        Y_vals = results["Y"]                # shape: (T + 1, N_paths, 1)
+        approx_q = results["q_learned"]              # shape: (T + 1, N_paths)
+        y_vals = results["y_true"][:, :, 0]       # shape: (T + 1, N_paths)
+        Y_vals = results["Y_true"]                # shape: (T + 1, N_paths, 1)
 
         with torch.no_grad():
             t_tensor = torch.tensor(timesteps, dtype=torch.float32, device=self.device).unsqueeze(1).repeat(1, y_vals.shape[1])
@@ -207,8 +207,8 @@ class SimpleHJB(FBSNN):
             plt.show()
 
     def plot_terminal_histogram(self, results, plot=True, save_dir=None):
-        y_vals = results["y"][:, :, 0]       # shape: (T + 1, N_paths)
-        Y_vals = results["Y"]                # shape: (T + 1, N_paths, 1)
+        y_vals = results["y_true"][:, :, 0]       # shape: (T + 1, N_paths)
+        Y_vals = results["Y_learned"]                # shape: (T + 1, N_paths, 1)
 
         Y_T_approx = Y_vals[-1, :, 0]  # shape: (N_paths,)
         y_T = y_vals[-1, :]            # shape: (N_paths,)
