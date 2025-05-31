@@ -72,6 +72,9 @@ def main():
         device = torch.device(args.device)
         is_distributed = False
         is_main = True
+
+    if is_main and torch.cuda.is_available() and args.device != "cuda":
+        print("Warning: CUDA is available but the config file does not set device to cuda.") 
     
     if is_distributed:
         print(f"Running on device: {device}, Local rank: {local_rank}, Distributed: {is_distributed}, Main process: {is_main}")
