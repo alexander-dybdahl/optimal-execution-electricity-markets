@@ -236,7 +236,7 @@ class FBSNN(nn.Module, ABC):
         terminal_loss, terminal_gradient_loss = 0.0, 0.0
         if self.λ_T > 0:
             YT = self.Y_net(t1, y1)
-            terminal_loss = torch.mean((YT - self.terminal_cost(y1))**2)
+            terminal_loss = torch.sum(torch.pow(YT - self.terminal_cost(y1), 2))
             self.terminal_loss = self.λ_T * terminal_loss.detach().item()
         if self.λ_TG > 0:
             dYT = torch.autograd.grad(
@@ -245,7 +245,7 @@ class FBSNN(nn.Module, ABC):
                 grad_outputs=torch.ones_like(YT), 
                 create_graph=True
             )[0]
-            terminal_gradient_loss = torch.mean((dYT - self.terminal_cost_grad(y1))**2)
+            terminal_gradient_loss = torch.sum(torch.pow(dYT - self.terminal_cost_grad(y1), 2))
             self.terminal_gradient_loss = self.λ_TG * terminal_gradient_loss.detach().item()
 
         # === 3. Optional physics-based loss ===
@@ -301,7 +301,7 @@ class FBSNN(nn.Module, ABC):
         V_target = self.value_function_analytic(t_traj, y_traj)
         V_pred = self.Y_net(t_traj, y_traj)
 
-        Y_loss = torch.mean((V_pred - V_target)**2)
+        Y_loss = torch.mean(torch.pow(V_pred - V_target, 2))
 
         dY_loss, dYt_loss = 0.0, 0.0
 
@@ -319,7 +319,7 @@ class FBSNN(nn.Module, ABC):
                 grad_outputs=torch.ones_like(V_pred),
                 create_graph=True
             )[0]
-            dY_loss = torch.mean((dV_pred - dV_target)**2)
+            dY_loss = torch.mean(torch.pow(dV_pred - dV_target, 2))
 
         if self.λ_dYt > 0:
             dV_target_t = torch.autograd.grad(
@@ -335,13 +335,13 @@ class FBSNN(nn.Module, ABC):
                 grad_outputs=torch.ones_like(V_pred),
                 create_graph=True
             )[0]
-            dYt_loss = torch.mean((dV_pred_t - dV_target_t)**2)
+            dYt_loss = torch.mean(torch.pow(dV_pred_t - dV_target_t, 2))
 
         # === 3. Terminal supervision ===
         terminal_loss, terminal_gradient_loss = 0.0, 0.0
         if self.λ_T > 0:
             YT = self.Y_net(t1, y1)
-            terminal_loss = torch.mean((YT - self.terminal_cost(y1))**2)
+            terminal_loss = torch.mean(torch.pow(YT - self.terminal_cost(y1), 2))
             self.terminal_loss = self.λ_T * terminal_loss.detach().item()
         if self.λ_TG > 0:
             dYT = torch.autograd.grad(
@@ -350,7 +350,7 @@ class FBSNN(nn.Module, ABC):
                 grad_outputs=torch.ones_like(YT), 
                 create_graph=True
             )[0]
-            terminal_gradient_loss = torch.mean((dYT - self.terminal_cost_grad(y1))**2)
+            terminal_gradient_loss = torch.mean(torch.pow(dYT - self.terminal_cost_grad(y1), 2))
             self.terminal_gradient_loss = self.λ_TG * terminal_gradient_loss.detach().item()
 
         # === 4. Optional physics-based loss ===
