@@ -490,9 +490,9 @@ class FBSNN(nn.Module, ABC):
                 t_scalar += self.dt
 
         return torch.linspace(0, self.T, self.N + 1).cpu().numpy(), {
-            "y": np.stack(y_learned_traj),
-            "q": np.stack(q_learned_traj),
-            "Y": np.stack(Y_learned_traj),
+            "y_learned": np.stack(y_learned_traj),
+            "q_learned": np.stack(q_learned_traj),
+            "Y_learned": np.stack(Y_learned_traj),
             "y_true": np.stack(y_true_traj) if self.analytical_known else None,
             "q_true": np.stack(q_true_traj) if self.analytical_known else None,
             "Y_true": np.stack(Y_true_traj) if self.analytical_known else None
