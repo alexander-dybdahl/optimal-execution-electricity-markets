@@ -2,8 +2,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-import torch
-import torch.nn as nn
 
 class LSTMNet(nn.Module):
     def __init__(self, layers, activation, type='LSTM'):
@@ -15,6 +13,11 @@ class LSTMNet(nn.Module):
         if type == 'ResLSTM':
             self.lstm_layers = nn.ModuleList([
                 ResLSTMCell(input_size if i == 0 else hidden_sizes[i - 1], hidden_sizes[i], activation=activation)
+                for i in range(len(hidden_sizes))
+            ])
+        elif type == 'NaisLSTM':
+            self.lstm_layers = nn.ModuleList([
+                ResLSTMCell(input_size if i == 0 else hidden_sizes[i - 1], hidden_sizes[i], stable=True, activation=activation)
                 for i in range(len(hidden_sizes))
             ])
         else:
@@ -84,6 +87,8 @@ class ResLSTMCell(nn.Module):
         if norm > delta:
             RtR = delta ** 0.5 * RtR / norm**0.5
         A = RtR + torch.eye(RtR.shape[0], device=RtR.device) * self.epsilon
+        # print shapes
+        print(f"Layer: {layer}, A shape: {A.shape}, out shape: {out.shape}")
         return F.linear(out, -A, layer.bias)
 
     def forward(self, x, hidden):
