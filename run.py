@@ -61,7 +61,7 @@ def main():
         dist.init_process_group(backend=backend,
                                 world_size=env_world_size,
                                 rank=env_rank,
-                                init_method=f"tcp://{env_master_addr}:{env_master_port}?use_libuv=0")
+                                init_method=f"tcp://{env_master_addr}:{env_master_port}")
         local_rank = dist.get_rank()
         device = torch.device(f"cuda:{local_rank}" if args.device == "cuda" else "cpu")
         is_distributed = dist.is_initialized()
@@ -80,7 +80,7 @@ def main():
     if is_main:
         os.makedirs(save_dir, exist_ok=True)
 
-    logger = Logger(save_dir=save_path, is_main=is_main, verbose=args.verbose, filename="training.log", overwrite=args.train)
+    logger = Logger(save_dir=save_dir, is_main=is_main, verbose=args.verbose, filename="training.log", overwrite=args.train)
 
     if torch.cuda.is_available() and args.device != "cuda":
         logger.log("Warning: CUDA is available but the config file does not set device to cuda.") 
