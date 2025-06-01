@@ -1,4 +1,3 @@
-import logging
 import os
 import time
 from abc import ABC, abstractmethod
@@ -8,9 +7,9 @@ import numpy as np
 import torch
 import torch.distributed as dist
 import torch.nn as nn
-from torch.nn.parallel import DistributedDataParallel as DDP
 
 from core.nnets import FCnet, LSTMNet, Resnet, Sine
+from utils.logger import Logger
 
 
 class FBSNN(nn.Module, ABC):
@@ -18,14 +17,12 @@ class FBSNN(nn.Module, ABC):
         super().__init__()
         # System & Execution Settings
         self.is_distributed = dist.is_initialized()
-        self.device = dist.get_rank() if self.is_distributed else args.device
-        self.is_distributed = dist.is_initialized()
+        self.device = torch.device(f"cuda:{dist.get_rank()}" if args.device == "cuda" else "cpu") if self.is_distributed else torch.device(args.device)
         self.world_size = dist.get_world_size() if self.is_distributed else 1
         self.is_main = not self.is_distributed or dist.get_rank() == 0
 
         # Data & Batch Settings
-        self.batch_size = args.batch_size
-        self.n_paths = args.n_paths
+        self.batch_size = args.batch_size_per_rank
         self.supervised = args.supervised
         self.simulate_true = args.simulate_true
 
@@ -278,8 +275,6 @@ class FBSNN(nn.Module, ABC):
         self.terminal_loss = self.lambda_T * terminal_loss.detach()
         self.terminal_gradient_loss = self.lambda_TG * terminal_gradient_loss.detach()
 
-        self.Y_net.train()
-
         return (
             self.lambda_Y * Y_loss
             + self.lambda_T * terminal_loss
@@ -287,7 +282,6 @@ class FBSNN(nn.Module, ABC):
         )
 
     def forward_supervised(self, t_paths, W_paths):
-        self.Y_net.eval()
         batch_size = self.batch_size
         device = self.device
         y0 = self.y0.repeat(batch_size, 1).to(device)
@@ -380,8 +374,6 @@ class FBSNN(nn.Module, ABC):
                 pinn_loss /= self.N
                 self.pinn_loss = self.lambda_pinn * pinn_loss.detach()
 
-        self.Y_net.train()
-
         return (
             self.lambda_Y * Y_loss
             + self.lambda_dY * dY_loss
@@ -393,7 +385,6 @@ class FBSNN(nn.Module, ABC):
 
     def simulate_paths(self, n_sim=5, seed=42, y0_single=None):
         torch.manual_seed(seed)
-        self.eval()
 
         y0 = (
             y0_single.repeat(n_sim, 1)
@@ -465,10 +456,7 @@ class FBSNN(nn.Module, ABC):
         return torch.linspace(0, self.T, self.N + 1).cpu().numpy(), out
     
     def _save_model(self, save_path):
-        if isinstance(self, DDP):
-            state_dict = self.module.state_dict()
-        else:
-            state_dict = self.state_dict()
+        state_dict = self.state_dict()
 
         try:
             torch.save(state_dict, save_path + ".pth")
@@ -486,50 +474,12 @@ class FBSNN(nn.Module, ABC):
         plot=True,
         adaptive=True,
         save_dir=None,
+        logger=None,
     ):
 
-        self.device = next(self.parameters()).device
-        optimizer = torch.optim.Adam(self.parameters(), lr=lr)
-
-        scheduler = (
-            torch.optim.lr_scheduler.ReduceLROnPlateau(
-                optimizer, mode="min", factor=self.adaptive_factor, patience=200
-            )
-            if adaptive
-            else torch.optim.lr_scheduler.StepLR(optimizer, step_size=5000, gamma=0.5)
-        )
-
-        (
-            losses,
-            losses_Y,
-            losses_dY,
-            losses_dYt,
-            losses_terminal,
-            losses_terminal_gradient,
-            losses_pinn,
-        ) = [], [], [], [], [], [], []
-        self.train()
-
         # Prepare save directory and logging
-        if self.is_main:
-            save_path = os.path.join(save_dir, "model")
-            log_file = os.path.join(save_dir, "training.log")
-            logging.basicConfig(
-                filename=log_file,
-                filemode="w",
-                level=logging.INFO,
-                format="%(message)s",
-            )
-            logger = logging.getLogger()
-        else:
-            logger = None
-
-        # Logging function
-        def log(msg):
-            if self.is_main:
-                if verbose:
-                    print(msg)
-                logger.info(msg)
+        save_path = os.path.join(save_dir, "model")
+        logger = logger if logger is not None else Logger(save_dir, is_main=self.is_main, verbose=verbose, filename="training.log")
         
         # Dynamic width calculation based on loss components
         max_widths = {
@@ -541,6 +491,16 @@ class FBSNN(nn.Module, ABC):
             "eta": 8,
             "status": 20,
         }
+
+        (
+            losses,
+            losses_Y,
+            losses_dY,
+            losses_dYt,
+            losses_terminal,
+            losses_terminal_gradient,
+            losses_pinn,
+        ) = [], [], [], [], [], [], []
 
         # Define active loss components
         loss_components = [
@@ -571,29 +531,30 @@ class FBSNN(nn.Module, ABC):
 
         if self.is_main:
             ### Log training configuration
-            log(
+            logger.log(
                 f"Training started at {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())}"
             )
-            log(f"Logging training to {log_file}")
-            log("\n+---------------------------+---------------------------+")
-            log("| Training Configuration    |                           |")
-            log("+---------------------------+---------------------------+")
-            log(f"| Epochs                    | {epochs:<25} |")
-            log(f"| Learning Rate             | {lr:<25} |")
-            log(f"| Adaptive LR               | {'True' if adaptive else 'False':<25} |")
-            log(f"| lambda_Y (Y loss)         | {self.lambda_Y:<25} |")
-            log(f"| lambda_T (Terminal loss)  | {self.lambda_T:<25} |")
-            log(f"| lambda_TG (Gradient loss) | {self.lambda_TG:<25} |")
-            log(f"| Number of Paths           | {self.n_paths:<25} |")
-            log(f"| Batch Size                | {self.batch_size:<25} |")
-            log(f"| Architecture              | {self.architecture:<25} |")
-            log(f"| Depth                     | {len(self.Y_layers):<25} |")
-            log(f"| Width                     | {self.Y_layers[0]:<25} |")
-            log(f"| Activation                | {self.activation.__class__.__name__:<25} |")
-            log(f"| T                         | {self.T:<25} |")
-            log(f"| N                         | {self.N:<25} |")
-            log(f"| Supervised                | {'True' if self.supervised else 'False':<25} |")
-            log("+---------------------------+---------------------------+\n")
+            logger.log(f"Logging training to {logger.log_path}")
+            logger.log("\n+---------------------------+---------------------------+")
+            logger.log("| Training Configuration    |                           |")
+            logger.log("+---------------------------+---------------------------+")
+            logger.log(f"| Epochs                    | {epochs:<25} |")
+            logger.log(f"| Learning Rate             | {lr:<25} |")
+            logger.log(f"| Adaptive LR               | {'True' if adaptive else 'False':<25} |")
+            logger.log(f"| Adaptive Factor           | {self.adaptive_factor:<25} |")
+            logger.log(f"| lambda_Y (Y loss)         | {self.lambda_Y:<25} |")
+            logger.log(f"| lambda_T (Terminal loss)  | {self.lambda_T:<25} |")
+            logger.log(f"| lambda_TG (Gradient loss) | {self.lambda_TG:<25} |")
+            logger.log(f"| Batch Size per Epoch      | {self.batch_size * self.world_size:<25} |")
+            logger.log(f"| Batch Size per Rank       | {self.batch_size:<25} |")
+            logger.log(f"| Architecture              | {self.architecture:<25} |")
+            logger.log(f"| Depth                     | {len(self.Y_layers):<25} |")
+            logger.log(f"| Width                     | {self.Y_layers[0]:<25} |")
+            logger.log(f"| Activation                | {self.activation.__class__.__name__:<25} |")
+            logger.log(f"| T                         | {self.T:<25} |")
+            logger.log(f"| N                         | {self.N:<25} |")
+            logger.log(f"| Supervised                | {'True' if self.supervised else 'False':<25} |")
+            logger.log("+---------------------------+---------------------------+\n")
 
             init_time = time.time()
             start_time = time.time()
@@ -612,18 +573,22 @@ class FBSNN(nn.Module, ABC):
                 f"{'ETA':>{max_widths['eta']}}",
                 f"{'Status':<{max_widths['status']}}",
             ]
-            log(" | ".join(header_parts))
-            log("-" * width)
+            logger.log(" | ".join(header_parts))
+            logger.log("-" * width)
 
-        call_fetch_minibatch = (
-            self.module.fetch_minibatch
-            if isinstance(self, DDP)
-            else self.fetch_minibatch
+        self.train()
+        optimizer = torch.optim.Adam(self.parameters(), lr=lr)
+        scheduler = (
+            torch.optim.lr_scheduler.ReduceLROnPlateau(
+                optimizer, mode="min", factor=self.adaptive_factor, patience=200
+            )
+            if adaptive
+            else torch.optim.lr_scheduler.StepLR(optimizer, step_size=5000, gamma=0.5)
         )
 
         for epoch in range(1, epochs + 1):
             optimizer.zero_grad()
-            t_paths, W_paths = call_fetch_minibatch(self.batch_size)
+            t_paths, W_paths = self.fetch_minibatch(self.batch_size)
             loss = self(t_paths, W_paths)
             loss.backward()
             optimizer.step()
@@ -709,15 +674,15 @@ class FBSNN(nn.Module, ABC):
                         f"{eta_str:>{max_widths['eta']}}",
                         f"{status:<{max_widths['status']}}",
                     ]
-                    log(" | ".join(row_parts))
+                    logger.log(" | ".join(row_parts))
                     start_time = time.time()
 
         if self.is_main:
             if self.is_distributed:
                 dist.barrier()
 
-            log(f"Training completed. Lowest loss: {self.lowest_loss:.6f}. Total time: {time.time() - init_time:.2f} seconds")
-            log(f"Model saved to {save_path}.pth")
+            logger.log(f"Training completed. Lowest loss: {self.lowest_loss:.6f}. Total time: {time.time() - init_time:.2f} seconds")
+            logger.log(f"Model saved to {save_path}.pth")
 
             # Plotting losses
             plt.figure(figsize=(10, 6))

@@ -3,7 +3,6 @@
   "parallel": true,
   "epochs": 1000,
   "K": 50,
-  "n_paths": 1024,
   "batch_size": 1024,
   "supervised": false,
   "architecture": "FC",
@@ -26,8 +25,8 @@
   "save_n": 50,
   "best": true,
   "verbose": true,
-  "plot": true,
-  "plot_loss": true,
+  "plot": false,
+  "plot_loss": false,
   "simulate_true": true,
   "n_simulations": 5
 }

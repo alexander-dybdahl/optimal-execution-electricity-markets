@@ -1,5 +1,6 @@
 __pycache__/
 __init__.py
 *.csv
-# saved/*
+saved/temp/*
+!saved/temp/.gitkeep
 !saved/.gitkeep
