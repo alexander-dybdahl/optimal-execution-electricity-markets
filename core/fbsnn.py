@@ -261,7 +261,6 @@ class FBSNN(nn.Module, ABC):
                     y_i = y_traj[idx].detach().clone().requires_grad_(True)
                     V_i = self.Y_net(t_i, y_i)
                     pinn_loss += self.physics_loss(t_i, y_i, V_i)
-                pinn_loss /= self.N
                 self.pinn_loss = self.λ_pinn * pinn_loss.detach().item()
 
         self.Y_loss = self.λ_Y * Y_loss.detach().item()
