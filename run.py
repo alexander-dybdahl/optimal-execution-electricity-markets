@@ -29,10 +29,12 @@ def main():
     parser.add_argument("--architecture", type=str, default=run_cfg["architecture"], help="Neural network architecture to use")
     parser.add_argument("--activation", type=str, default=run_cfg["activation"], help="Activation function to use")
     parser.add_argument("--adaptive", type=str2bool, nargs='?', const=True, default=run_cfg["adaptive"], help="Use adaptive learning rate")
+    parser.add_argument("--adaptive_factor", type=float, default=run_cfg["adaptive_factor"], help="Adaptive factor")
     parser.add_argument("--parallel", type=str2bool, nargs='?', const=True, default=run_cfg["parallel"], help="Use data parallelism")
     parser.add_argument("--verbose", type=str2bool, nargs='?', const=True, default=run_cfg["verbose"], help="Print training progress")
     parser.add_argument("--plot", type=str2bool, nargs='?', const=True, default=run_cfg["plot"], help="Plot after training")
     parser.add_argument("--plot_loss", type=str2bool, nargs='?', const=True, default=run_cfg["plot_loss"], help="Plot loss after training")
+    parser.add_argument("--simulate_true", type=str2bool, nargs='?', const=True, default=run_cfg["simulate_true"], help="Simulate true")
     parser.add_argument("--save", nargs="+", default=run_cfg["save"], help="Model saving strategy: choose from 'best', 'every'")
     parser.add_argument("--save_n", type=int, default=run_cfg["save_n"], help="If 'every' is selected, save every n epochs")
     parser.add_argument("--load_if_exists", type=str2bool, nargs='?', const=True, default=run_cfg["load_if_exists"], help="Load model if it exists")
@@ -126,7 +128,7 @@ def main():
     # Evaluate and plot only on main
     if is_main:
         call_model = model.module if isinstance(model, DDP) else model
-        model.eval()
+        call_model.eval()
         timesteps, results = call_model.simulate_paths(n_sim=args.n_simulations, seed=np.random.randint(0, 1000))
         call_model.plot_approx_vs_analytic(results, timesteps, plot=args.plot, save_dir=save_dir)
 

@@ -27,10 +27,12 @@ class FBSNN(nn.Module, ABC):
         self.batch_size = args.batch_size
         self.n_paths = args.n_paths
         self.supervised = args.supervised
+        self.simulate_true = args.simulate_true
 
         # Network Architecture
         self.architecture = args.architecture
         self.Y_layers = args.Y_layers      # e.g., [64, 64, 64]
+        self.adaptive_factor = args.adaptive_factor
 
         # Loss Weights
         self.lambda_Y = args.lambda_Y      # value function loss
@@ -407,7 +409,7 @@ class FBSNN(nn.Module, ABC):
         y_learned_traj = []
         q_learned_traj = []
         Y_learned_traj = []
-        if self.supervised:
+        if self.simulate_true:
             y_true_traj = []
             q_true_traj = []
             Y_true_traj = []
@@ -420,7 +422,7 @@ class FBSNN(nn.Module, ABC):
             q_learned = self.optimal_control(
                 t_tensor, y_learned, Y_learned, create_graph=False
             )
-            if self.supervised:
+            if self.simulate_true:
                 Y_true = self.value_function_analytic(t_tensor, y_analytic)
                 q_true = self.optimal_control(
                     t_tensor, y_analytic, Y_true, create_graph=False
@@ -431,7 +433,7 @@ class FBSNN(nn.Module, ABC):
             y_learned_traj.append(y_learned.detach().cpu().numpy())
             Y_learned_traj.append(Y_learned.detach().cpu().numpy())
 
-            if self.supervised:
+            if self.simulate_true:
                 q_true_traj.append(q_true.detach().cpu().numpy())
                 y_true_traj.append(y_analytic.detach().cpu().numpy())
                 Y_true_traj.append(Y_true.detach().cpu().numpy())
@@ -453,7 +455,7 @@ class FBSNN(nn.Module, ABC):
                 "Y_learned": np.stack(Y_learned_traj),
             }
 
-            if self.supervised:
+            if self.simulate_true:
                 out.update({
                     "y_true": np.stack(y_true_traj),
                     "q_true": np.stack(q_true_traj),
@@ -491,7 +493,7 @@ class FBSNN(nn.Module, ABC):
 
         scheduler = (
             torch.optim.lr_scheduler.ReduceLROnPlateau(
-                optimizer, mode="min", factor=0.80, patience=200
+                optimizer, mode="min", factor=self.adaptive_factor, patience=200
             )
             if adaptive
             else torch.optim.lr_scheduler.StepLR(optimizer, step_size=5000, gamma=0.5)
