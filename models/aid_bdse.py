@@ -184,8 +184,8 @@ class AidIntradayLQ(FBSNN):
             plt.show()
 
     def plot_approx_vs_analytic_expectation(self, results, timesteps, plot=True, save_dir=None):
-        approx_q = results["q"]
-        Y_vals = results["Y"]
+        approx_q = results["q_learned"]
+        Y_vals = results["Y_learned"]
         true_q = results["q_true"]
         true_Y = results["Y_true"]
 

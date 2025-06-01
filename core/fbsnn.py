@@ -1,4 +1,3 @@
-import logging
 import os
 import time
 from abc import ABC, abstractmethod
@@ -8,7 +7,6 @@ import numpy as np
 import torch
 import torch.distributed as dist
 import torch.nn as nn
-from torch.nn.parallel import DistributedDataParallel as DDP
 
 from core.nnets import FCnet, LSTMNet, Resnet, Sine
 from utils.logger import Logger
@@ -26,7 +24,6 @@ class FBSNN(nn.Module, ABC):
         # Data & Batch Settings
         self.batch_size = args.batch_size_per_rank
         self.supervised = args.supervised
-        self.simulate_true = args.simulate_true
 
         # Network Architecture
         self.architecture = args.architecture
@@ -260,9 +257,8 @@ class FBSNN(nn.Module, ABC):
             retain_graph=True,
         )[0]
 
-        Y_loss = 0.0
-
         # === 1. Compute fbsnn loss ===
+        Y_loss = 0.0
         for n in range(self.N):
             t1 = t_paths[:, n + 1, :]
             W1 = W_paths[:, n + 1, :]
@@ -289,12 +285,14 @@ class FBSNN(nn.Module, ABC):
 
             t0, W0, y0, Y0, dY0 = t1, W1, y1, Y1, dY1
 
+        self.Y_loss = self.lambda_Y * Y_loss.detach()
+
         # === 2. Terminal supervision ===
         terminal_loss, terminal_gradient_loss = 0.0, 0.0
         if self.lambda_T > 0:
             YT = self.Y_net(t1, y1)
             terminal_loss = torch.sum(torch.pow(YT - self.terminal_cost(y1), 2))
-            self.terminal_loss = self.lambda_T * terminal_loss.detach().item()
+            self.terminal_loss = self.lambda_T * terminal_loss.detach()
         if self.lambda_TG > 0:
             dYT = torch.autograd.grad(
                 YT, 
@@ -303,7 +301,7 @@ class FBSNN(nn.Module, ABC):
                 create_graph=True
             )[0]
             terminal_gradient_loss = torch.sum(torch.pow(dYT - self.terminal_cost_grad(y1), 2))
-            self.terminal_gradient_loss = self.lambda_TG * terminal_gradient_loss.detach().item()
+            self.terminal_gradient_loss = self.lambda_TG * terminal_gradient_loss.detach()
 
         # === 3. Optional physics-based loss ===
         t_traj = torch.cat(t_traj, dim=0).requires_grad_(True)            # shape: [N * batch_size, 1]
@@ -318,11 +316,7 @@ class FBSNN(nn.Module, ABC):
                     y_i = y_traj[idx].detach().clone().requires_grad_(True)
                     V_i = self.Y_net(t_i, y_i)
                     pinn_loss += self.physics_loss(t_i, y_i, V_i)
-                self.pinn_loss = self.lambda_pinn * pinn_loss.detach().item()
-
-        self.Y_loss = self.lambda_Y * Y_loss.detach().item()
-        self.terminal_loss = self.lambda_T * terminal_loss.detach().item()
-        self.terminal_gradient_loss = self.lambda_TG * terminal_gradient_loss.detach().item()
+                self.pinn_loss = self.lambda_pinn * pinn_loss.detach()
 
         return (
             self.lambda_Y * Y_loss
@@ -331,7 +325,6 @@ class FBSNN(nn.Module, ABC):
         )
 
     def forward_supervised(self, t_paths, W_paths):
-        self.Y_net.eval()
         batch_size = self.batch_size
         device = self.device
         y0 = self.y0.repeat(batch_size, 1).to(device)
@@ -373,19 +366,20 @@ class FBSNN(nn.Module, ABC):
         dY_loss, dYt_loss = 0.0, 0.0
         if self.lambda_dY > 0:
             dV_target = torch.autograd.grad(
-                V_target, 
-                y_traj, 
+                V_target,
+                y_traj,
                 grad_outputs=torch.ones_like(V_target),
-                create_graph=False, 
-                retain_graph=True
+                create_graph=False,
+                retain_graph=True,
             )[0]
             dV_pred = torch.autograd.grad(
-                V_pred, 
-                y_traj, 
+                V_pred,
+                y_traj,
                 grad_outputs=torch.ones_like(V_pred),
                 create_graph=True
             )[0]
             dY_loss = torch.sum(torch.pow(dV_pred - dV_target, 2))
+            self.dY_loss = self.lambda_dY * dY_loss.detach()
 
         if self.lambda_dYt > 0:
             dV_target_t = torch.autograd.grad(
@@ -402,13 +396,14 @@ class FBSNN(nn.Module, ABC):
                 create_graph=True
             )[0]
             dYt_loss = torch.sum(torch.pow(dV_pred_t - dV_target_t, 2))
+            self.dYt_loss = self.lambda_dYt * dYt_loss.detach()
 
         # === Terminal supervision ===
         terminal_loss, terminal_gradient_loss = 0.0, 0.0
         if self.lambda_T > 0:
             YT = self.Y_net(t1, y1)
             terminal_loss = torch.sum(torch.pow(YT - self.terminal_cost(y1), 2))
-            self.terminal_loss = self.lambda_T * terminal_loss.detach().item()
+            self.terminal_loss = self.lambda_T * terminal_loss.detach()
         if self.lambda_TG > 0:
             dYT = torch.autograd.grad(
                 YT, 
@@ -417,7 +412,7 @@ class FBSNN(nn.Module, ABC):
                 create_graph=True
             )[0]
             terminal_gradient_loss = torch.sum(torch.pow(dYT - self.terminal_cost_grad(y1), 2))
-            self.terminal_gradient_loss = self.lambda_TG * terminal_gradient_loss.detach().item()
+            self.terminal_gradient_loss = self.lambda_TG * terminal_gradient_loss.detach()
 
         # === Optional physics-based loss ===
         pinn_loss = 0.0
@@ -430,17 +425,7 @@ class FBSNN(nn.Module, ABC):
                     V_i = self.Y_net(t_i, y_i)
                     pinn_loss += self.physics_loss(t_i, y_i, V_i)
                 pinn_loss /= self.N
-                self.pinn_loss = self.lambda_pinn * pinn_loss.detach().item()
-
-        # === 5. Log losses ===
-        if self.lambda_Y > 0:
-            self.Y_loss = self.lambda_Y * Y_loss.detach().item()
-        if self.lambda_dY > 0:
-            self.dY_loss = self.lambda_dY * dY_loss.detach().item()
-        if self.lambda_dYt > 0:
-            self.dYt_loss = self.lambda_dYt * dYt_loss.detach().item()
-
-        self.Y_net.train()
+                self.pinn_loss = self.lambda_pinn * pinn_loss.detach()
 
         return (
             self.lambda_Y * Y_loss
@@ -453,7 +438,6 @@ class FBSNN(nn.Module, ABC):
 
     def simulate_paths(self, n_sim=5, seed=42, y0_single=None):
         torch.manual_seed(seed)
-        self.eval()
 
         y0 = (
             y0_single.repeat(n_sim, 1)
@@ -479,7 +463,9 @@ class FBSNN(nn.Module, ABC):
 
             # Predict Y and compute control
             Y_learned = self.Y_net(t_tensor, y_learned)
-            q_learned = self.optimal_control(t_tensor, y_learned, Y_learned, create_graph=False)
+            q_learned = self.optimal_control(
+                t_tensor, y_learned, Y_learned, create_graph=False
+            )
             if self.analytical_known:
                 Y_true = self.value_function_analytic(t_tensor, y_analytic)
                 q_true = self.optimal_control(
@@ -513,10 +499,7 @@ class FBSNN(nn.Module, ABC):
         }
     
     def _save_model(self, save_path):
-        if isinstance(self, DDP):
-            state_dict = self.module.state_dict()
-        else:
-            state_dict = self.state_dict()
+        state_dict = self.state_dict()
 
         try:
             torch.save(state_dict, save_path + ".pth")
@@ -534,50 +517,12 @@ class FBSNN(nn.Module, ABC):
         plot=True,
         adaptive=True,
         save_dir=None,
+        logger=None,
     ):
 
-        self.device = next(self.parameters()).device
-        optimizer = torch.optim.Adam(self.parameters(), lr=lr)
-
-        scheduler = (
-            torch.optim.lr_scheduler.ReduceLROnPlateau(
-                optimizer, mode="min", factor=0.80, patience=200
-            )
-            if adaptive
-            else torch.optim.lr_scheduler.StepLR(optimizer, step_size=5000, gamma=0.5)
-        )
-
-        (
-            losses,
-            losses_Y,
-            losses_dY,
-            losses_dYt,
-            losses_terminal,
-            losses_terminal_gradient,
-            losses_pinn,
-        ) = [], [], [], [], [], [], []
-        self.train()
-
         # Prepare save directory and logging
-        if self.is_main:
-            save_path = os.path.join(save_dir, "model")
-            log_file = os.path.join(save_dir, "training.log")
-            logging.basicConfig(
-                filename=log_file,
-                filemode="w",
-                level=logging.INFO,
-                format="%(message)s",
-            )
-            logger = logging.getLogger()
-        else:
-            logger = None
-
-        # Logging function
-        def log(msg):
-            if self.is_main:
-                if verbose:
-                    print(msg)
-                logger.info(msg)
+        save_path = os.path.join(save_dir, "model")
+        logger = logger if logger is not None else Logger(save_dir, is_main=self.is_main, verbose=verbose, filename="training.log")
         
         # Dynamic width calculation based on loss components
         max_widths = {
