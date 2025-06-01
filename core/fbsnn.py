@@ -241,9 +241,7 @@ class FBSNN(nn.Module, ABC):
             return self.forward_fc(t_paths, W_paths)
 
     def forward_fc(self, t_paths, W_paths):
-        self.Y_net.eval()
-        batch_size = self.batch_size
-        y0 = self.y0.repeat(batch_size, 1).to(self.device)
+        y0 = self.y0.repeat(self.batch_size, 1).to(self.device)
         y_traj, t_traj = [y0], []
         t0 = t_paths[:, 0, :]
         W0 = W_paths[:, 0, :]
@@ -257,7 +255,7 @@ class FBSNN(nn.Module, ABC):
             retain_graph=True,
         )[0]
 
-        # === 1. Compute fbsnn loss ===
+        # === Compute fbsnn loss ===
         Y_loss = 0.0
         for n in range(self.N):
             t1 = t_paths[:, n + 1, :]
@@ -287,7 +285,7 @@ class FBSNN(nn.Module, ABC):
 
         self.Y_loss = self.lambda_Y * Y_loss.detach()
 
-        # === 2. Terminal supervision ===
+        # === Terminal supervision ===
         terminal_loss, terminal_gradient_loss = 0.0, 0.0
         if self.lambda_T > 0:
             YT = self.Y_net(t1, y1)
@@ -303,7 +301,7 @@ class FBSNN(nn.Module, ABC):
             terminal_gradient_loss = torch.sum(torch.pow(dYT - self.terminal_cost_grad(y1), 2))
             self.terminal_gradient_loss = self.lambda_TG * terminal_gradient_loss.detach()
 
-        # === 3. Optional physics-based loss ===
+        # === Optional physics-based loss ===
         t_traj = torch.cat(t_traj, dim=0).requires_grad_(True)            # shape: [N * batch_size, 1]
         y_traj = torch.cat(y_traj[1:], dim=0).requires_grad_(True)        # shape: [N * batch_size, state_dim]
 
@@ -311,7 +309,7 @@ class FBSNN(nn.Module, ABC):
         if self.lambda_pinn > 0:
             with torch.enable_grad():
                 for i in range(self.N):
-                    idx = slice(i * batch_size, (i + 1) * batch_size)
+                    idx = slice(i * self.batch_size, (i + 1) * self.batch_size)
                     t_i = t_traj[idx].detach().clone().requires_grad_(True)
                     y_i = y_traj[idx].detach().clone().requires_grad_(True)
                     V_i = self.Y_net(t_i, y_i)
@@ -322,12 +320,11 @@ class FBSNN(nn.Module, ABC):
             self.lambda_Y * Y_loss
             + self.lambda_T * terminal_loss
             + self.lambda_TG * terminal_gradient_loss
+            + self.lambda_pinn * pinn_loss
         )
 
     def forward_supervised(self, t_paths, W_paths):
-        batch_size = self.batch_size
-        device = self.device
-        y0 = self.y0.repeat(batch_size, 1).to(device)
+        y0 = self.y0.repeat(self.batch_size, 1).to(self.device)
 
         # === Precompute optimal trajectory ===
         y_traj, t_traj = [y0], []
@@ -419,7 +416,7 @@ class FBSNN(nn.Module, ABC):
         if self.lambda_pinn > 0:
             with torch.enable_grad():
                 for i in range(self.N):
-                    idx = slice(i * batch_size, (i + 1) * batch_size)
+                    idx = slice(i * self.batch_size, (i + 1) * self.batch_size)
                     t_i = t_traj[idx].detach().clone().requires_grad_(True)
                     y_i = y_traj[idx].detach().clone().requires_grad_(True)
                     V_i = self.Y_net(t_i, y_i)
