@@ -17,7 +17,8 @@ class FBSNN(nn.Module, ABC):
     def __init__(self, args, model_cfg):
         super().__init__()
         # System & Execution Settings
-        self.device = args.device
+        self.is_distributed = dist.is_initialized()
+        self.device = dist.get_rank() if self.is_distributed else args.device
         self.is_distributed = dist.is_initialized()
         self.world_size = dist.get_world_size() if self.is_distributed else 1
         self.is_main = not self.is_distributed or dist.get_rank() == 0
@@ -446,14 +447,20 @@ class FBSNN(nn.Module, ABC):
                     )
                 t_scalar += self.dt
 
-        return torch.linspace(0, self.T, self.N + 1).cpu().numpy(), {
-            "y_learned": np.stack(y_learned_traj),
-            "q_learned": np.stack(q_learned_traj),
-            "Y_learned": np.stack(Y_learned_traj),
-            "y_true": np.stack(y_true_traj),
-            "q_true": np.stack(q_true_traj),
-            "Y_true": np.stack(Y_true_traj),
-        }
+            out = {
+                "y_learned": np.stack(y_learned_traj),
+                "q_learned": np.stack(q_learned_traj),
+                "Y_learned": np.stack(Y_learned_traj),
+            }
+
+            if self.supervised:
+                out.update({
+                    "y_true": np.stack(y_true_traj),
+                    "q_true": np.stack(q_true_traj),
+                    "Y_true": np.stack(Y_true_traj),
+                })
+
+        return torch.linspace(0, self.T, self.N + 1).cpu().numpy(), out
     
     def _save_model(self, save_path):
         if isinstance(self, DDP):
@@ -629,18 +636,21 @@ class FBSNN(nn.Module, ABC):
             pinn_loss = self.pinn_loss
 
             if self.is_distributed:
-                tensors = [
-                    loss,
-                    Y_loss,
-                    dY_loss,
-                    dYt_loss,
-                    terminal_loss,
-                    terminal_gradient_loss,
-                    pinn_loss
-                ]
-                for t in tensors:
-                    dist.all_reduce(t, op=dist.ReduceOp.SUM)
-                    t /= self.world_size
+                dist.reduce(loss, op=dist.ReduceOp.SUM, dst=0)
+                dist.reduce(Y_loss, op=dist.ReduceOp.SUM, dst=0)
+                dist.reduce(dY_loss, op=dist.ReduceOp.SUM, dst=0)
+                dist.reduce(dYt_loss, op=dist.ReduceOp.SUM, dst=0)
+                dist.reduce(terminal_loss, op=dist.ReduceOp.SUM, dst=0)
+                dist.reduce(terminal_gradient_loss, op=dist.ReduceOp.SUM, dst=0)
+                dist.reduce(pinn_loss, op=dist.ReduceOp.SUM, dst=0)
+
+                loss /= self.world_size
+                Y_loss /= self.world_size
+                dY_loss /= self.world_size
+                dYt_loss /= self.world_size
+                terminal_loss /= self.world_size
+                terminal_gradient_loss /= self.world_size
+                pinn_loss /= self.world_size
 
             if self.is_main:
                 losses.append(loss.item())
