@@ -1,5 +1,5 @@
 {
-  "device": "cpu",
+  "device": "cuda",
   "parallel": false,
   "epochs": 1000,
   "K": 50,
@@ -16,7 +16,6 @@
   "lambda_T": 1,
   "lambda_TG": 0.1,
   "lambda_pinn": 0.01,
-  "analytical_known": true,
   "supervised": false,
   "train": true,
   "load_if_exists": false,
