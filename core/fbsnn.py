@@ -11,25 +11,27 @@ import torch.nn as nn
 from torch.nn.parallel import DistributedDataParallel as DDP
 
 from core.nnets import FCnet, LSTMNet, Resnet, Sine
+from utils.logger import Logger
 
 
 class FBSNN(nn.Module, ABC):
     def __init__(self, args, model_cfg):
         super().__init__()
         # System & Execution Settings
-        self.device = args.device
         self.is_distributed = dist.is_initialized()
+        self.device = torch.device(f"cuda:{dist.get_rank()}" if args.device == "cuda" else "cpu") if self.is_distributed else torch.device(args.device)
         self.world_size = dist.get_world_size() if self.is_distributed else 1
         self.is_main = not self.is_distributed or dist.get_rank() == 0
 
         # Data & Batch Settings
-        self.batch_size = args.batch_size
-        self.n_paths = args.n_paths
+        self.batch_size = args.batch_size_per_rank
         self.supervised = args.supervised
+        self.simulate_true = args.simulate_true
 
         # Network Architecture
         self.architecture = args.architecture
         self.Y_layers = args.Y_layers      # e.g., [64, 64, 64]
+        self.adaptive_factor = args.adaptive_factor
 
         # Loss Weights
         self.lambda_Y = args.lambda_Y      # value function loss
@@ -40,12 +42,12 @@ class FBSNN(nn.Module, ABC):
         self.lambda_pinn = args.lambda_pinn  # physics residual loss
 
         # Loss Tracking
-        self.Y_loss = 0
-        self.dY_loss = 0
-        self.dYt_loss = 0
-        self.terminal_loss = 0
-        self.terminal_gradient_loss = 0
-        self.pinn_loss = 0
+        self.Y_loss = torch.tensor(0.0, device=self.device)
+        self.dY_loss = torch.tensor(0.0, device=self.device)
+        self.dYt_loss = torch.tensor(0.0, device=self.device)
+        self.terminal_loss = torch.tensor(0.0, device=self.device)
+        self.terminal_gradient_loss = torch.tensor(0.0, device=self.device)
+        self.pinn_loss = torch.tensor(0.0, device=self.device)
 
         # Time Discretization
         self.t0 = 0.0
@@ -334,7 +336,7 @@ class FBSNN(nn.Module, ABC):
         device = self.device
         y0 = self.y0.repeat(batch_size, 1).to(device)
 
-        # === 1. Precompute optimal trajectory ===
+        # === Precompute optimal trajectory ===
         y_traj, t_traj = [y0], []
         t0 = t_paths[:, 0, :]
         W0 = W_paths[:, 0, :]
@@ -360,14 +362,15 @@ class FBSNN(nn.Module, ABC):
             True
         )                                   # shape: (N * batch_size, dim)
 
-        # === 2. Compute target value + gradients ===
+        # === Compute target value and gradients ===
         V_target = self.value_function_analytic(t_traj, y_traj)
         V_pred = self.Y_net(t_traj, y_traj)
 
         Y_loss = torch.sum(torch.pow(V_pred - V_target, 2))
+        if self.lambda_Y > 0:
+            self.Y_loss = self.lambda_Y * Y_loss.detach()
 
         dY_loss, dYt_loss = 0.0, 0.0
-
         if self.lambda_dY > 0:
             dV_target = torch.autograd.grad(
                 V_target, 
@@ -400,7 +403,7 @@ class FBSNN(nn.Module, ABC):
             )[0]
             dYt_loss = torch.sum(torch.pow(dV_pred_t - dV_target_t, 2))
 
-        # === 3. Terminal supervision ===
+        # === Terminal supervision ===
         terminal_loss, terminal_gradient_loss = 0.0, 0.0
         if self.lambda_T > 0:
             YT = self.Y_net(t1, y1)
@@ -416,7 +419,7 @@ class FBSNN(nn.Module, ABC):
             terminal_gradient_loss = torch.sum(torch.pow(dYT - self.terminal_cost_grad(y1), 2))
             self.terminal_gradient_loss = self.lambda_TG * terminal_gradient_loss.detach().item()
 
-        # === 4. Optional physics-based loss ===
+        # === Optional physics-based loss ===
         pinn_loss = 0.0
         if self.lambda_pinn > 0:
             with torch.enable_grad():
@@ -587,6 +590,16 @@ class FBSNN(nn.Module, ABC):
             "status": 20,
         }
 
+        (
+            losses,
+            losses_Y,
+            losses_dY,
+            losses_dYt,
+            losses_terminal,
+            losses_terminal_gradient,
+            losses_pinn,
+        ) = [], [], [], [], [], [], []
+
         # Define active loss components
         loss_components = [
             ("Y loss", self.lambda_Y, lambda: np.mean(losses_Y[-K:])),
@@ -616,29 +629,30 @@ class FBSNN(nn.Module, ABC):
 
         if self.is_main:
             ### Log training configuration
-            log(
+            logger.log(
                 f"Training started at {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())}"
             )
-            log(f"Logging training to {log_file}")
-            log("\n+---------------------------+---------------------------+")
-            log("| Training Configuration    |                           |")
-            log("+---------------------------+---------------------------+")
-            log(f"| Epochs                    | {epochs:<25} |")
-            log(f"| Learning Rate             | {lr:<25} |")
-            log(f"| Adaptive LR               | {'True' if adaptive else 'False':<25} |")
-            log(f"| lambda_Y (Y loss)         | {self.lambda_Y:<25} |")
-            log(f"| lambda_T (Terminal loss)  | {self.lambda_T:<25} |")
-            log(f"| lambda_TG (Gradient loss) | {self.lambda_TG:<25} |")
-            log(f"| Number of Paths           | {self.n_paths:<25} |")
-            log(f"| Batch Size                | {self.batch_size:<25} |")
-            log(f"| Architecture              | {self.architecture:<25} |")
-            log(f"| Depth                     | {len(self.Y_layers):<25} |")
-            log(f"| Width                     | {self.Y_layers[0]:<25} |")
-            log(f"| Activation                | {self.activation.__class__.__name__:<25} |")
-            log(f"| T                         | {self.T:<25} |")
-            log(f"| N                         | {self.N:<25} |")
-            log(f"| Supervised                | {'True' if self.supervised else 'False':<25} |")
-            log("+---------------------------+---------------------------+\n")
+            logger.log(f"Logging training to {logger.log_path}")
+            logger.log("\n+---------------------------+---------------------------+")
+            logger.log("| Training Configuration    |                           |")
+            logger.log("+---------------------------+---------------------------+")
+            logger.log(f"| Epochs                    | {epochs:<25} |")
+            logger.log(f"| Learning Rate             | {lr:<25} |")
+            logger.log(f"| Adaptive LR               | {'True' if adaptive else 'False':<25} |")
+            logger.log(f"| Adaptive Factor           | {self.adaptive_factor:<25} |")
+            logger.log(f"| lambda_Y (Y loss)         | {self.lambda_Y:<25} |")
+            logger.log(f"| lambda_T (Terminal loss)  | {self.lambda_T:<25} |")
+            logger.log(f"| lambda_TG (Gradient loss) | {self.lambda_TG:<25} |")
+            logger.log(f"| Batch Size per Epoch      | {self.batch_size * self.world_size:<25} |")
+            logger.log(f"| Batch Size per Rank       | {self.batch_size:<25} |")
+            logger.log(f"| Architecture              | {self.architecture:<25} |")
+            logger.log(f"| Depth                     | {len(self.Y_layers):<25} |")
+            logger.log(f"| Width                     | {self.Y_layers[0]:<25} |")
+            logger.log(f"| Activation                | {self.activation.__class__.__name__:<25} |")
+            logger.log(f"| T                         | {self.T:<25} |")
+            logger.log(f"| N                         | {self.N:<25} |")
+            logger.log(f"| Supervised                | {'True' if self.supervised else 'False':<25} |")
+            logger.log("+---------------------------+---------------------------+\n")
 
             init_time = time.time()
             start_time = time.time()
@@ -657,33 +671,61 @@ class FBSNN(nn.Module, ABC):
                 f"{'ETA':>{max_widths['eta']}}",
                 f"{'Status':<{max_widths['status']}}",
             ]
-            log(" | ".join(header_parts))
-            log("-" * width)
+            logger.log(" | ".join(header_parts))
+            logger.log("-" * width)
 
-        call_fetch_minibatch = (
-            self.module.fetch_minibatch
-            if isinstance(self, DDP)
-            else self.fetch_minibatch
+        self.train()
+        optimizer = torch.optim.Adam(self.parameters(), lr=lr)
+        scheduler = (
+            torch.optim.lr_scheduler.ReduceLROnPlateau(
+                optimizer, mode="min", factor=self.adaptive_factor, patience=200
+            )
+            if adaptive
+            else torch.optim.lr_scheduler.StepLR(optimizer, step_size=5000, gamma=0.5)
         )
 
         for epoch in range(1, epochs + 1):
             optimizer.zero_grad()
-            t_paths, W_paths = call_fetch_minibatch(self.batch_size)
+            t_paths, W_paths = self.fetch_minibatch(self.batch_size)
             loss = self(t_paths, W_paths)
             loss.backward()
             optimizer.step()
-
-            losses.append(loss.item())
-            losses_Y.append(self.Y_loss)
-            losses_dY.append(self.dY_loss)
-            losses_dYt.append(self.dYt_loss)
-            losses_terminal.append(self.terminal_loss)
-            losses_terminal_gradient.append(self.terminal_gradient_loss)
-            losses_pinn.append(self.pinn_loss)
-
             scheduler.step(loss.item() if adaptive else epoch)
 
+            # Reduce losses across all processes if distributed
+            Y_loss = self.Y_loss
+            dY_loss = self.dY_loss
+            dYt_loss = self.dYt_loss
+            terminal_loss = self.terminal_loss
+            terminal_gradient_loss = self.terminal_gradient_loss
+            pinn_loss = self.pinn_loss
+
+            if self.is_distributed:
+                dist.reduce(loss, op=dist.ReduceOp.SUM, dst=0)
+                dist.reduce(Y_loss, op=dist.ReduceOp.SUM, dst=0)
+                dist.reduce(dY_loss, op=dist.ReduceOp.SUM, dst=0)
+                dist.reduce(dYt_loss, op=dist.ReduceOp.SUM, dst=0)
+                dist.reduce(terminal_loss, op=dist.ReduceOp.SUM, dst=0)
+                dist.reduce(terminal_gradient_loss, op=dist.ReduceOp.SUM, dst=0)
+                dist.reduce(pinn_loss, op=dist.ReduceOp.SUM, dst=0)
+
+                loss /= self.world_size
+                Y_loss /= self.world_size
+                dY_loss /= self.world_size
+                dYt_loss /= self.world_size
+                terminal_loss /= self.world_size
+                terminal_gradient_loss /= self.world_size
+                pinn_loss /= self.world_size
+
             if self.is_main:
+                losses.append(loss.item())
+                losses_Y.append(Y_loss.item())
+                losses_dY.append(dY_loss.item())
+                losses_dYt.append(dYt_loss.item())
+                losses_terminal.append(terminal_loss.item())
+                losses_terminal_gradient.append(terminal_gradient_loss.item())
+                losses_pinn.append(pinn_loss.item())
+
                 if epoch % K == 0 or epoch == 1:
                     status = ""
 
@@ -730,15 +772,15 @@ class FBSNN(nn.Module, ABC):
                         f"{eta_str:>{max_widths['eta']}}",
                         f"{status:<{max_widths['status']}}",
                     ]
-                    log(" | ".join(row_parts))
+                    logger.log(" | ".join(row_parts))
                     start_time = time.time()
 
         if self.is_main:
             if self.is_distributed:
                 dist.barrier()
 
-            log(f"Training completed. Lowest loss: {self.lowest_loss:.6f}. Total time: {time.time() - init_time:.2f} seconds")
-            log(f"Model saved to {save_path}.pth")
+            logger.log(f"Training completed. Lowest loss: {self.lowest_loss:.6f}. Total time: {time.time() - init_time:.2f} seconds")
+            logger.log(f"Model saved to {save_path}.pth")
 
             # Plotting losses
             plt.figure(figsize=(10, 6))
