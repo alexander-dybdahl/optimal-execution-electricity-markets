@@ -185,21 +185,9 @@ class AidIntradayLQ(FBSNN):
 
     def plot_approx_vs_analytic_expectation(self, results, timesteps, plot=True, save_dir=None):
         approx_q = results["q_learned"]
-        y_vals = results["y_learned"]
         Y_vals = results["Y_learned"]
-
-        T, N_paths = y_vals.shape[:2]
-
-        with torch.no_grad():
-            t_grid = torch.linspace(0, self.T, self.N + 1, device=self.device).view(self.N + 1, 1).expand(self.N + 1, N_paths)  # shape: (N + 1, N_paths)
-            y_tensor = torch.tensor(results["y_true"], dtype=torch.float32, device=self.device)                                 # shape: (N + 1, N_paths, dim)
-            flat_y = y_tensor.reshape(-1, self.dim)                                                                             # (N + 1) * n_sim, dim
-            flat_t = t_grid.reshape(-1, 1).expand_as(flat_y[:, :1])                                                             # match shape: (N + 1) * n_sim, 1
-            true_q = self.optimal_control_analytic(flat_t, flat_y).view(self.N + 1, N_paths)
-            true_Y = self.value_function_analytic(flat_t, flat_y).view(self.N + 1, N_paths)
-
-        true_q = true_q.cpu().numpy()
-        true_Y = true_Y.cpu().numpy()
+        true_q = results["q_true"]
+        true_Y = results["Y_true"]
 
         # Learned results
         mean_q = approx_q.mean(axis=1).squeeze()

@@ -12,6 +12,7 @@ from models.aid_bdse import AidIntradayLQ
 from models.hjb_bsde import HJB
 from models.simple_hjb_bsde import SimpleHJB
 from utils.load_config import load_model_config, load_run_config
+from utils.logger import Logger
 from utils.tools import str2bool
 
 

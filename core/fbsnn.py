@@ -316,7 +316,7 @@ class FBSNN(nn.Module, ABC):
         V_target = self.value_function_analytic(t_traj, y_traj)
         V_pred = self.Y_net(t_traj, y_traj)
 
-        Y_loss = torch.mean(torch.pow(V_pred - V_target, 2))
+        Y_loss = torch.sum(torch.pow(V_pred - V_target, 2))
         if self.lambda_Y > 0:
             self.Y_loss = self.lambda_Y * Y_loss.detach()
 
@@ -332,7 +332,7 @@ class FBSNN(nn.Module, ABC):
             dV_pred = torch.autograd.grad(
                 V_pred, y_traj, grad_outputs=torch.ones_like(V_pred), create_graph=True
             )[0]
-            dY_loss = torch.mean(torch.pow(dV_pred - dV_target, 2))
+            dY_loss = torch.sum(torch.pow(dV_pred - dV_target, 2))
             self.dY_loss = self.lambda_dY * dY_loss.detach()
 
         if self.lambda_dYt > 0:
@@ -346,7 +346,7 @@ class FBSNN(nn.Module, ABC):
             dV_pred_t = torch.autograd.grad(
                 V_pred, t_traj, grad_outputs=torch.ones_like(V_pred), create_graph=True
             )[0]
-            dYt_loss = torch.mean(torch.pow(dV_pred_t - dV_target_t, 2))
+            dYt_loss = torch.sum(torch.pow(dV_pred_t - dV_target_t, 2))
             self.dYt_loss = self.lambda_dYt * dYt_loss.detach()
 
         # === Terminal supervision ===
@@ -413,7 +413,7 @@ class FBSNN(nn.Module, ABC):
             q_learned = self.optimal_control(
                 t_tensor, y_learned, Y_learned, create_graph=False
             )
-            if self.simulate_true:
+            if self.analytical_known:
                 Y_true = self.value_function_analytic(t_tensor, y_analytic)
                 q_true = self.optimal_control(
                     t_tensor, y_analytic, Y_true, create_graph=False
@@ -440,20 +440,14 @@ class FBSNN(nn.Module, ABC):
                     )
                 t_scalar += self.dt
 
-            out = {
-                "y_learned": np.stack(y_learned_traj),
-                "q_learned": np.stack(q_learned_traj),
-                "Y_learned": np.stack(Y_learned_traj),
-            }
-
-            if self.simulate_true:
-                out.update({
-                    "y_true": np.stack(y_true_traj),
-                    "q_true": np.stack(q_true_traj),
-                    "Y_true": np.stack(Y_true_traj),
-                })
-
-        return torch.linspace(0, self.T, self.N + 1).cpu().numpy(), out
+        return torch.linspace(0, self.T, self.N + 1).cpu().numpy(), {
+            "y_learned": np.stack(y_learned_traj),
+            "q_learned": np.stack(q_learned_traj),
+            "Y_learned": np.stack(Y_learned_traj),
+            "y_true": np.stack(y_true_traj) if self.analytical_known else None,
+            "q_true": np.stack(q_true_traj) if self.analytical_known else None,
+            "Y_true": np.stack(Y_true_traj) if self.analytical_known else None
+        }
     
     def _save_model(self, save_path):
         state_dict = self.state_dict()
