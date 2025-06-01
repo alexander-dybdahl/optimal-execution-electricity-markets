@@ -57,6 +57,7 @@ class FBSNN(nn.Module, ABC):
         self.dim = model_cfg["dim"]        # state space dimension
         self.dim_W = model_cfg["dim_W"]    # Brownian motion dimension
         self.y0 = torch.tensor([model_cfg["y0"]], device=self.device, requires_grad=True)
+        self.analytical_known = args.analytical_known
 
         # Saving & Checkpointing
         self.save = args.save              # e.g., "best", "every", "last"
