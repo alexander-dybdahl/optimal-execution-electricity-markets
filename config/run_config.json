@@ -5,7 +5,7 @@
   "K": 50,
   "batch_size": 1024,
   "supervised": false,
-  "architecture": "FC",
+  "architecture": "NaisLSTM",
   "activation": "ReLU",
   "Y_layers": [256, 256, 256, 256, 1],
   "adaptive": true,

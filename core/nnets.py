@@ -79,17 +79,19 @@ class ResLSTMCell(nn.Module):
         self.h2h = nn.Linear(hidden_size, 4 * hidden_size)
         self.residual = nn.Linear(input_size, hidden_size)
 
-    def stable_forward(self, layer, out):
-        W = layer.weight
-        delta = 1 - 2 * self.epsilon
-        RtR = torch.matmul(W.t(), W)
-        norm = torch.norm(RtR)
-        if norm > delta:
-            RtR = delta ** 0.5 * RtR / norm**0.5
-        A = RtR + torch.eye(RtR.shape[0], device=RtR.device) * self.epsilon
-        # print shapes
-        print(f"Layer: {layer}, A shape: {A.shape}, out shape: {out.shape}")
-        return F.linear(out, -A, layer.bias)
+    def stable_forward(self, layer, x):
+        # Stabilize the weight matrix W using its spectral norm
+        W = layer.weight  # shape: [hidden_size, input_size]
+        b = layer.bias
+
+        # Compute spectral norm regularization
+        with torch.no_grad():
+            W_norm = torch.norm(W, p=2)
+            if W_norm > (1 - self.epsilon):
+                W = W * ((1 - self.epsilon) / W_norm)
+
+        # Use the stabilized weight for a manual forward pass
+        return F.linear(x, W, b)
 
     def forward(self, x, hidden):
         h_prev, c_prev = hidden

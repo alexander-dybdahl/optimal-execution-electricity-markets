@@ -314,6 +314,7 @@ class FBSNN(nn.Module, ABC):
                     y_i = y_traj[idx].detach().clone().requires_grad_(True)
                     V_i = self.Y_net(t_i, y_i)
                     pinn_loss += self.physics_loss(t_i, y_i, V_i)
+                pinn_loss /= self.N
                 self.pinn_loss = self.lambda_pinn * pinn_loss.detach()
 
         return (
@@ -583,8 +584,11 @@ class FBSNN(nn.Module, ABC):
             logger.log(f"| Adaptive LR               | {'True' if adaptive else 'False':<25} |")
             logger.log(f"| Adaptive Factor           | {self.adaptive_factor:<25} |")
             logger.log(f"| lambda_Y (Y loss)         | {self.lambda_Y:<25} |")
+            logger.log(f"| lambda_dY (Spatial loss)  | {self.lambda_dY:<25} |")
+            logger.log(f"| lambda_dYt (Temporal loss)| {self.lambda_dYt:<25} |")
             logger.log(f"| lambda_T (Terminal loss)  | {self.lambda_T:<25} |")
             logger.log(f"| lambda_TG (Gradient loss) | {self.lambda_TG:<25} |")
+            logger.log(f"| lambda_pinn (PINN loss)   | {self.lambda_pinn:<25} |")
             logger.log(f"| Batch Size per Epoch      | {self.batch_size * self.world_size:<25} |")
             logger.log(f"| Batch Size per Rank       | {self.batch_size:<25} |")
             logger.log(f"| Architecture              | {self.architecture:<25} |")
