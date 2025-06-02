@@ -1,31 +1,30 @@
 #!/bin/bash
 #SBATCH --job-name="optimal-execution-electricity-markets"
 #SBATCH --partition=GPUQ
-#SBATCH --nodes=1
-#SBATCH --ntasks-per-node=4
-#SBATCH --gres=gpu:4
+#SBATCH --nodes=2
+#SBATCH --ntasks-per-node=2
+#SBATCH --gres=gpu:2
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=1000G
 
-source "/cluster/home/christdy/.cache/pypoetry/virtualenvs/optimal-execution-electricity-markets-PWlYJeun-py3.11/bin/activate"
+# Load modules
+module purge
+module load Python/3.11.5-GCCcore-13.2.0
 
-export MASTER_ADDR=$(scontrol show hostname $SLURM_JOB_NODELIST | head -n 1)
+# Activate poetry environment
+source $(poetry env info --path)/bin/activate
+
+# Set rendezvous config
+export MASTER_ADDR=$(scontrol show hostnames $SLURM_NODELIST | head -n 1)
 export MASTER_PORT=29500
-export WORLD_SIZE=$((SLURM_NTASKS_PER_NODE * SLURM_NNODES))
+export OMP_NUM_THREADS=4
 
-echo $MASTER_ADDR
-echo $MASTER_PORT
-echo $WORLD_SIZE
-
-poetry run torchrun \
-  --nproc-per-node=$SLURM_NTASKS_PER_NODE \
-  --nnodes=$SLURM_JOB_NUM_NODES \
-  # --node_rank=$SLURM_NODEID \
-  # --master-addr=$MASTER_ADDR \
-  # --master-port=$MASTER_PORT \
-  --rdzv_id=$SLURM_JOB_ID \
-  --rdzv_backend=c10d \
-  --rdzv_endpoint=$MASTER_ADDR:$MASTER_PORT \
+# Launch torchrun
+srun \
+  python \
   run.py \
+  --device cuda \
   --parallel True \
   --supervised False \
-  --load_if_exists True \
+  --load_if_exists False \
   --epochs 10000

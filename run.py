@@ -59,7 +59,8 @@ def main():
         backend = "nccl" if args.device == "cuda" else "gloo"
         dist.init_process_group(backend=backend,
                                 world_size=env_world_size,
-                                rank=env_rank)
+                                rank=env_rank,
+                                init_method='env://')
         device = torch.device(f"cuda:{env_local_rank}" if args.device == "cuda" else "cpu")
         is_distributed = dist.is_initialized()
         is_main = env_rank == 0
