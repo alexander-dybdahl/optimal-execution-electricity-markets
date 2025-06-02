@@ -68,7 +68,7 @@ class SimpleHJB(FBSNN):
         phi_t = self.phi_analytic(t)
         return phi_t + K_t * y**2
 
-    def plot_approx_vs_analytic(self, results, timesteps, plot=True, save_dir=None):
+    def plot_approx_vs_analytic(self, results, timesteps, plot=True, save_dir=None, num=None):
 
         approx_q = results["q_learned"]
         Y_vals = results["Y_learned"]
@@ -118,11 +118,14 @@ class SimpleHJB(FBSNN):
 
         plt.tight_layout()
         if save_dir:
-            plt.savefig(f"{save_dir}/approx_vs_analytic.png", dpi=300, bbox_inches='tight')
+            if num:
+                plt.savefig(f"{save_dir}/approx_vs_analytic_{num}.png", dpi=300, bbox_inches='tight')
+            else:
+                plt.savefig(f"{save_dir}/approx_vs_analytic.png", dpi=300, bbox_inches='tight')
         if plot:
             plt.show()
 
-    def plot_approx_vs_analytic_expectation(self, results, timesteps, plot=True, save_dir=None):
+    def plot_approx_vs_analytic_expectation(self, results, timesteps, plot=True, save_dir=None, num=None):
         approx_q = results["q_learned"]
         y_vals = results["y_learned"]
         Y_vals = results["Y_learned"]
@@ -198,11 +201,14 @@ class SimpleHJB(FBSNN):
 
         plt.tight_layout()
         if save_dir:
-            plt.savefig(f"{save_dir}/approx_vs_analytic_expectation.png", dpi=300, bbox_inches='tight')
+            if num:
+                plt.savefig(f"{save_dir}/approx_vs_analytic_expectation_{num}.png", dpi=300, bbox_inches='tight')
+            else:
+                plt.savefig(f"{save_dir}/approx_vs_analytic_expectation.png", dpi=300, bbox_inches='tight')
         if plot:
             plt.show()
 
-    def plot_terminal_histogram(self, results, plot=True, save_dir=None):
+    def plot_terminal_histogram(self, results, plot=True, save_dir=None, num=None):
         y_vals = results["y_learned"]  # shape: (T+1, N_paths, dim)
         Y_vals = results["Y_learned"]  # shape: (T+1, N_paths, 1)
 
@@ -233,6 +239,9 @@ class SimpleHJB(FBSNN):
         plt.grid(True)
         plt.tight_layout()
         if save_dir:
-            plt.savefig(f"{save_dir}/terminal_histogram.png", dpi=300, bbox_inches='tight')
+            if num:
+                plt.savefig(f"{save_dir}/terminal_histogram_{num}.png", dpi=300, bbox_inches='tight')
+            else:
+                plt.savefig(f"{save_dir}/terminal_histogram.png", dpi=300, bbox_inches='tight')
         if plot:
             plt.show()

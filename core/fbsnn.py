@@ -61,6 +61,7 @@ class FBSNN(nn.Module, ABC):
         # Saving & Checkpointing
         self.save = args.save              # e.g., "best", "every", "last"
         self.save_n = args.save_n          # save every n epochs if "every"
+        self.n_simulations = args.n_simulations
 
         if args.activation == "Sine":
             self.activation = Sine()
@@ -149,6 +150,18 @@ class FBSNN(nn.Module, ABC):
 
     @abstractmethod
     def value_function_analytic(self, t, y):
+        pass
+
+    @abstractmethod
+    def plot_approx_vs_analytic(self, results, timesteps, plot=True, save_dir=None, num=None):
+        pass
+
+    @abstractmethod
+    def plot_approx_vs_analytic_expectation(self, results, timesteps, plot=True, save_dir=None, num=None):
+        pass
+
+    @abstractmethod
+    def plot_terminal_histogram(self, results, plot=True, save_dir=None, num=None):
         pass
 
     def forward_dynamics(self, y, q, dW, t, dt):
@@ -720,6 +733,13 @@ class FBSNN(nn.Module, ABC):
                     ]
                     logger.log(" | ".join(row_parts))
                     start_time = time.time()
+
+                if epoch % 100 == 0:
+                    timesteps, results = self.simulate_paths(n_sim=self.n_simulations, seed=np.random.randint(0, 1000))
+                    self.plot_approx_vs_analytic(results, timesteps, plot=False, save_dir=save_dir, num=epoch)
+                    timesteps, results = self.simulate_paths(n_sim=1000, seed=np.random.randint(0, 1000))
+                    self.plot_approx_vs_analytic_expectation(results, timesteps, plot=False, save_dir=save_dir, num=epoch)
+                    self.plot_terminal_histogram(results, plot=False, save_dir=save_dir, num=epoch)
 
         if self.is_main:
             if self.is_distributed:
