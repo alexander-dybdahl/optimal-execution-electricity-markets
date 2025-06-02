@@ -46,32 +46,32 @@ def main():
     parser.add_argument("--verbose", type=str2bool, nargs='?', const=True, default=run_cfg["verbose"], help="Print training progress")
     parser.add_argument("--plot", type=str2bool, nargs='?', const=True, default=run_cfg["plot"], help="Plot after training")
     parser.add_argument("--plot_loss", type=str2bool, nargs='?', const=True, default=run_cfg["plot_loss"], help="Plot loss after training")
-    parser.add_argument("--simulate_true", type=str2bool, nargs='?', const=True, default=run_cfg["simulate_true"], help="Simulate true")
     parser.add_argument("--n_simulations", type=int, default=run_cfg["n_simulations"], help="Number of simulations to run")
     args = parser.parse_args()
 
     if args.parallel:
         env_rank = int(os.environ.get("RANK", 0))
+        env_local_rank = int(os.environ["LOCAL_RANK"])
         env_world_size = int(os.environ.get("WORLD_SIZE", 1))
         env_master_addr = os.environ.get("MASTER_ADDR", "localhost")
         env_master_port = os.environ.get("MASTER_PORT", "23456")
 
-
         backend = "nccl" if args.device == "cuda" else "gloo"
         dist.init_process_group(backend=backend,
                                 world_size=env_world_size,
-                                rank=env_rank,
-                                init_method=f"tcp://{env_master_addr}:{env_master_port}")
-        local_rank = dist.get_rank()
-        device = torch.device(f"cuda:{local_rank}" if args.device == "cuda" else "cpu")
+                                rank=env_rank)
+        device = torch.device(f"cuda:{env_local_rank}" if args.device == "cuda" else "cpu")
         is_distributed = dist.is_initialized()
-        is_main = local_rank == 0
+        is_main = env_rank == 0
+        args.global_rank = env_rank
+        args.local_rank = env_local_rank
         args.batch_size_per_rank = args.batch_size // env_world_size
     else:
-        local_rank = 0
         device = torch.device(args.device)
         is_distributed = False
         is_main = True
+        args.global_rank = 0
+        args.local_rank = 0
         args.batch_size_per_rank = args.batch_size
 
     save_dir = f"{args.save_path}_{args.architecture}_{args.activation}"
@@ -86,8 +86,8 @@ def main():
         logger.log("Warning: CUDA is available but the config file does not set device to cuda.") 
     
     if is_distributed:
-        logger.log(f"Distributed training setup: RANK={env_rank}, WORLD_SIZE={env_world_size}, MASTER_ADDR={env_master_addr}, MASTER_PORT={env_master_port}")
-        logger.log(f"Running on device: {device}, Local rank: {local_rank}, Distributed: {is_distributed}, Main process: {is_main}", override=True)
+        logger.log(f"Distributed training setup: RANK: {args.global_rank}, LOCAL RANK: {args.local_rank}, WORLD_SIZE={env_world_size}, MASTER_ADDR={env_master_addr}, MASTER_PORT={env_master_port}")
+        logger.log(f"Running on device: {device}, Global rank: {args.global_rank}, Local rank: {args.local_rank}, Distributed: {is_distributed}, Main process: {is_main}", override=True)
     else:
         logger.log(f"Running on device: {device}, Parallel training disabled")
 
@@ -124,7 +124,7 @@ def main():
         if args.parallel:
             if  is_distributed:
                 logger.log("Applying DDP for parallel training.")
-                model = DDP(model, device_ids=[local_rank] if torch.cuda.is_available() else None)
+                model = DDP(model, device_ids=[args.local_rank] if args.device == "cuda" else None)
             else:
                 logger.log("Warning: Parallel training is enabled but not running in a distributed environment. DDP will not be applied.")
         

@@ -17,7 +17,7 @@ class FBSNN(nn.Module, ABC):
         super().__init__()
         # System & Execution Settings
         self.is_distributed = dist.is_initialized()
-        self.device = torch.device(f"cuda:{dist.get_rank()}" if args.device == "cuda" else "cpu") if self.is_distributed else torch.device(args.device)
+        self.device = torch.device(f"cuda:{args.local_rank}" if args.device == "cuda" else "cpu") if self.is_distributed else torch.device(args.device)
         self.world_size = dist.get_world_size() if self.is_distributed else 1
         self.is_main = not self.is_distributed or dist.get_rank() == 0
 

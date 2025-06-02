@@ -3,7 +3,7 @@ __init__.py
 *.csv
 saved/*
 !saved/keep/
-!saved/.gitkeep
+!*.gitkeep
 .cache/*
 .local/*
 ondemand/*

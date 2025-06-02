@@ -27,6 +27,5 @@
   "verbose": true,
   "plot": false,
   "plot_loss": false,
-  "simulate_true": true,
   "n_simulations": 5
 }
