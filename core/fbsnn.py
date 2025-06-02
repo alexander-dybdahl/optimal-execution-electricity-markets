@@ -735,9 +735,9 @@ class FBSNN(nn.Module, ABC):
                     start_time = time.time()
 
                 if epoch % 100 == 0:
-                    timesteps, results = self.simulate_paths(n_sim=self.n_simulations, seed=np.random.randint(0, 1000))
+                    timesteps, results = self.simulate_paths(n_sim=self.n_simulations, seed=42)
                     self.plot_approx_vs_analytic(results, timesteps, plot=False, save_dir=save_dir, num=epoch)
-                    timesteps, results = self.simulate_paths(n_sim=1000, seed=np.random.randint(0, 1000))
+                    timesteps, results = self.simulate_paths(n_sim=1000, seed=42)
                     self.plot_approx_vs_analytic_expectation(results, timesteps, plot=False, save_dir=save_dir, num=epoch)
                     self.plot_terminal_histogram(results, plot=False, save_dir=save_dir, num=epoch)
 
