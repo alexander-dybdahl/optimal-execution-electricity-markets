@@ -3,7 +3,9 @@
 #SBATCH --partition=GPUQ
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=4
-#SBATCH --gres:gpu=4
+#SBATCH --gres=gpu:4
+
+source "/cluster/home/christdy/.cache/pypoetry/virtualenvs/optimal-execution-electricity-markets-PWlYJeun-py3.11/bin/activate"
 
 export MASTER_ADDR=$(scontrol show hostname $SLURM_JOB_NODELIST | head -n 1)
 export MASTER_PORT=29500
