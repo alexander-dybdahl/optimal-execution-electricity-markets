@@ -23,6 +23,7 @@
   "config_path": "config/aid_config.json",
   "save": ["best", "every"],
   "save_n": 50,
+  "plot_n": 50,
   "best": true,
   "verbose": true,
   "plot": false,
