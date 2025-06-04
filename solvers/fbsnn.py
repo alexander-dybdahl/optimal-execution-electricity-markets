@@ -167,6 +167,12 @@ class FBSNN(nn.Module):
         residual = dV_t + torch.sum(mu * dV, dim=1, keepdim=True) + diffusion_term - f
         return torch.sum(torch.pow(residual, 2))
 
+    def forward(self, t_paths, W_paths):
+        if self.supervised:
+            return self.forward_supervised
+        else:
+            return self.forward_fc
+
     def forward_fc(self, t_paths, W_paths):
         y0 = self.dynamics.y0.repeat(self.batch_size, 1).to(self.device)
         y_traj, t_traj = [y0], []
@@ -522,12 +528,10 @@ class FBSNN(nn.Module):
             else torch.optim.lr_scheduler.StepLR(optimizer, step_size=5000, gamma=0.5)
         )
 
-        forward_call = self.forward_fc if not self.supervised else self.forward_supervised
-
         for epoch in range(1, epochs + 1):
             optimizer.zero_grad()
             t_paths, W_paths = self.fetch_minibatch(self.batch_size)
-            loss = forward_call(t_paths, W_paths)
+            loss = self(t_paths, W_paths)
             loss.backward()
             optimizer.step()
             scheduler.step(loss.item() if adaptive else epoch)
