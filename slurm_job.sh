@@ -1,9 +1,9 @@
 #!/bin/bash
 #SBATCH --job-name="optimal-execution-electricity-markets"
 #SBATCH --partition=GPUQ
-#SBATCH --nodes=2
-#SBATCH --ntasks-per-node=2
-#SBATCH --gres=gpu:2
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=24
+#SBATCH --gres=gpu:4
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=1000G
 
@@ -29,7 +29,4 @@ torchrun \
   --rdzv_backend=c10d \
   --rdzv_endpoint=$MASTER_ADDR:$MASTER_PORT \
   poetry run run.py \
-  --parallel True \
-  --supervised False \
-  --load_if_exists False \
-  --epochs 10000
+  --parallel True
