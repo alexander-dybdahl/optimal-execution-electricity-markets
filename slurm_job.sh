@@ -2,7 +2,7 @@
 #SBATCH --job-name="optimal-execution-electricity-markets"
 #SBATCH --partition=GPUQ
 #SBATCH --nodes=1
-#SBATCH --ntasks-per-node=24
+#SBATCH --ntasks-per-node=4
 #SBATCH --gres=gpu:4
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=1000G
