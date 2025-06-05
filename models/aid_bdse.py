@@ -131,12 +131,12 @@ class AidIntradayLQ(FBSNN):
         axs[0, 0].legend(loc='upper left')
 
         for i in range(approx_q.shape[1]):
-            rel_error_q = (true_q[:, i] - approx_q[:, i])**2 / (np.abs(true_q[:, i]) + 1e-8)
-            axs[0, 1].plot(timesteps, rel_error_q, color=colors(i), alpha=0.6, label= f"$|q^*_{i}(t) - q_{i}(t)|^2/q^*_{i}(t)$" if i == 0 else None)
+            error_q = (true_q[:, i] - approx_q[:, i])**2
+            axs[0, 1].plot(timesteps, error_q, color=colors(i), alpha=0.6, label= f"$|q^*_{i}(t) - q_{i}(t)|^2$" if i == 0 else None)
         axs[0, 1].axhline(0, color='red', linestyle='--', linewidth=0.8)
         axs[0, 1].set_title("Relative error")
         axs[0, 1].set_xlabel("Time $t$")
-        axs[0, 1].set_ylabel("$|q^*(t) - q(t)|^2/q^*(t)$")
+        axs[0, 1].set_ylabel("$|q^*(t) - q(t)|^2$")
         axs[0, 1].grid(True)
         axs[0, 1].legend(loc='upper left')
 
@@ -150,10 +150,10 @@ class AidIntradayLQ(FBSNN):
         axs[1, 0].legend(loc='upper left')
 
         for i in range(Y_vals.shape[1]):
-            rel_error_Y = (true_Y[:, i, 0] - Y_vals[:, i, 0])**2 / (np.abs(true_Y[:, i, 0]) + 1e-8)
-            axs[1, 1].plot(timesteps, rel_error_Y, color=colors(i), alpha=0.6, label=f"$|Y^*_{i}(t) - Y_{i}(t)|^2/Y^*_{i}(t)$" if i == 0 else None)
+            error_Y = (true_Y[:, i, 0] - Y_vals[:, i, 0])**2
+            axs[1, 1].plot(timesteps, error_Y, color=colors(i), alpha=0.6, label=f"$|Y^*_{i}(t) - Y_{i}(t)|^2$" if i == 0 else None)
         axs[1, 1].axhline(0, color='red', linestyle='--', linewidth=0.8)
-        axs[1, 1].set_title("Relative error")
+        axs[1, 1].set_title("Error")
         axs[1, 1].set_xlabel("Time $t$")
         axs[1, 1].set_ylabel("$|Y^*(t) - Y(t)|^2/Y^*(t)$")
         axs[1, 1].grid(True)
@@ -216,12 +216,12 @@ class AidIntradayLQ(FBSNN):
         axs[0, 0].grid(True)
         axs[0, 0].legend(loc='upper left')
 
-        rel_error_q = (mean_q_true - mean_q)**2 / (np.abs(mean_q_true) + 1e-8)
-        axs[0, 1].plot(timesteps, rel_error_q, color='blue', label='Relative Error')
+        error_q = (mean_q_true - mean_q)**2
+        axs[0, 1].plot(timesteps, error_q, color='blue', label='Error')
         axs[0, 1].axhline(0, color='red', linestyle='--', linewidth=0.8)
-        axs[0, 1].set_title("Relative error")
+        axs[0, 1].set_title("Error")
         axs[0, 1].set_xlabel("Time $t$")
-        axs[0, 1].set_ylabel("$|q^*(t) - q(t)|^2/q^*(t)$")
+        axs[0, 1].set_ylabel("$|q^*(t) - q(t)|^2$")
         axs[0, 1].grid(True)
         axs[0, 1].legend(loc='upper left')
 
@@ -235,12 +235,12 @@ class AidIntradayLQ(FBSNN):
         axs[1, 0].grid(True)
         axs[1, 0].legend(loc='upper left')
 
-        rel_error_Y = (mean_true_Y - mean_Y)**2 / (np.abs(mean_true_Y) + 1e-8)
-        axs[1, 1].plot(timesteps, rel_error_Y, color='blue', label='Relative Error')
+        error_Y = (mean_true_Y - mean_Y)**2
+        axs[1, 1].plot(timesteps, error_Y, color='blue', label='Error')
         axs[1, 1].axhline(0, color='red', linestyle='--', linewidth=0.8)
-        axs[1, 1].set_title("Relative error")
+        axs[1, 1].set_title("Error")
         axs[1, 1].set_xlabel("Time $t$")
-        axs[1, 1].set_ylabel("$|Y^*(t) - Y(t)|^2/Y^*(t)$")
+        axs[1, 1].set_ylabel("$|Y^*(t) - Y(t)|^2$")
         axs[1, 1].grid(True)
         axs[1, 1].legend(loc='upper left')
 
