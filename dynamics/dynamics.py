@@ -99,7 +99,7 @@ class Dynamics(ABC):
 
             # Predict Y and compute control
             # TODO: Check that this is on the correct device
-            Y_agent = agent(t_tensor, y_agent)
+            Y_agent = agent.predict(t_tensor, y_agent)
             q_agent = self.optimal_control(
                 t_tensor, y_agent, Y_agent, create_graph=False
             )
@@ -120,7 +120,7 @@ class Dynamics(ABC):
                 Y_analytical_traj.append(Y_analytical.detach().cpu().numpy())
 
             if step < self.N:
-                dW = torch.randn(n_sim, self.dim_W, device=self.device) * torch.pow(self.dt, 0.5)
+                dW = torch.randn(n_sim, self.dim_W, device=self.device) * self.dt ** 0.5
                 y_agent = self.forward_dynamics(y_agent, q_agent, dW, t_tensor, self.dt)
                 if self.analytical_known:
                     y_analytical = self.forward_dynamics(y_analytical, q_analytical, dW, t_tensor, self.dt)

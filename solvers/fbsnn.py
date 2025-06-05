@@ -167,11 +167,11 @@ class FBSNN(nn.Module):
         residual = dV_t + torch.sum(mu * dV, dim=1, keepdim=True) + diffusion_term - f
         return torch.sum(torch.pow(residual, 2))
 
-    def forward(self, t_paths, W_paths):
-        if self.supervised:
-            return self.forward_supervised
+    def forward(self, t_paths, W_paths, supervised=False):
+        if supervised:
+            return self.forward_supervised(t_paths, W_paths)
         else:
-            return self.forward_fc
+            return self.forward_fc(t_paths, W_paths)
 
     def forward_fc(self, t_paths, W_paths):
         y0 = self.dynamics.y0.repeat(self.batch_size, 1).to(self.device)
@@ -372,6 +372,9 @@ class FBSNN(nn.Module):
             + self.lambda_TG * terminal_gradient_loss
             + self.lambda_pinn * pinn_loss
         )
+    
+    def predict(self, t_tensor, y_tensor):
+        return self.Y_net(t_tensor, y_tensor)
 
     def fetch_minibatch(self, batch_size):
         dim_W = self.dynamics.dim_W
@@ -531,7 +534,7 @@ class FBSNN(nn.Module):
         for epoch in range(1, epochs + 1):
             optimizer.zero_grad()
             t_paths, W_paths = self.fetch_minibatch(self.batch_size)
-            loss = self(t_paths, W_paths)
+            loss = self(t_paths=t_paths, W_paths=W_paths, supervised=self.supervised)
             loss.backward()
             optimizer.step()
             scheduler.step(loss.item() if adaptive else epoch)
@@ -662,9 +665,9 @@ class FBSNN(nn.Module):
         approx_q = results["q_learned"]
         y_vals = results["y_learned"]
         Y_vals = results["Y_learned"]
-        true_q = results["q_true"]
-        true_y = results["y_true"]
-        true_Y = results["Y_true"]
+        true_q = results["q_analytical"]
+        true_y = results["y_analytical"]
+        true_Y = results["Y_analytical"]
 
         fig, axs = plt.subplots(3, 2, figsize=(14, 10))
         colors = cm.get_cmap("tab10", approx_q.shape[1])
@@ -737,8 +740,8 @@ class FBSNN(nn.Module):
     def plot_approx_vs_analytic_expectation(self, results, timesteps, plot=True, save_dir=None, num=None):
         approx_q = results["q_learned"]
         Y_vals = results["Y_learned"]
-        true_q = results["q_true"]
-        true_Y = results["Y_true"]
+        true_q = results["q_analytical"]
+        true_Y = results["Y_analytical"]
 
         # Learned results
         mean_q = approx_q.mean(axis=1).squeeze()
@@ -747,8 +750,8 @@ class FBSNN(nn.Module):
         std_Y = Y_vals[:, :, 0].std(axis=1).squeeze()
 
         # Analytic results
-        mean_q_true = true_q.mean(axis=1).squeeze()
-        std_q_true = true_q.std(axis=1).squeeze()
+        mean_q_analytical = true_q.mean(axis=1).squeeze()
+        std_q_analytical = true_q.std(axis=1).squeeze()
         mean_true_Y = true_Y.mean(axis=1).squeeze()
         std_true_Y = true_Y.std(axis=1).squeeze()
 
@@ -756,8 +759,8 @@ class FBSNN(nn.Module):
 
         axs[0, 0].plot(timesteps, mean_q, label='Learned Mean', color='blue')
         axs[0, 0].fill_between(timesteps, mean_q - std_q, mean_q + std_q, color='blue', alpha=0.3, label='Learned ±1 Std')
-        axs[0, 0].plot(timesteps, mean_q_true, label='Analytical Mean', color='black', linestyle='--')
-        axs[0, 0].fill_between(timesteps, mean_q_true - std_q_true, mean_q_true + std_q_true, color='black', alpha=0.2, label='Analytical ±1 Std')
+        axs[0, 0].plot(timesteps, mean_q_analytical, label='Analytical Mean', color='black', linestyle='--')
+        axs[0, 0].fill_between(timesteps, mean_q_analytical - std_q_analytical, mean_q_analytical + std_q_analytical, color='black', alpha=0.2, label='Analytical ±1 Std')
         axs[0, 0].set_title("Control $q(t)$: Learned vs Analytical")
         axs[0, 0].set_xlabel("Time $t$")
         axs[0, 0].set_ylabel("$q(t)$")
