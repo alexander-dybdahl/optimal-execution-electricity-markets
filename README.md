@@ -127,6 +127,7 @@ module load Python/3.11.5-GCCcore-13.2.0
 curl -sSL https://install.python-poetry.org | python3 -
 export PATH="$HOME/.local/bin:$PATH"
 poetry install
+source $(poetry env info --path)/bin/activate
 ```
 
 Add your project directory:
