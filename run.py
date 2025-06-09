@@ -90,8 +90,8 @@ def main():
         logger.log("Warning: CUDA is available but the config file does not set device to cuda.") 
     
     if is_distributed:
-        logger.log(f"Distributed training setup: RANK: {args.global_rank}, LOCAL RANK: {args.local_rank}, WORLD_SIZE={env_world_size}, MASTER_ADDR={env_master_addr}, MASTER_PORT={env_master_port}")
-        logger.log(f"Running on device: {device}, Global rank: {args.global_rank}, Local rank: {args.local_rank}, Distributed: {is_distributed}, Main process: {is_main}", override=True)
+        logger.log(f"Distributed training setup: RANK: {args.global_rank}, WORLD_SIZE={env_world_size}, MASTER_ADDR={env_master_addr}, MASTER_PORT={env_master_port}")
+        logger.log(f"Running on device: {device}, Global rank: {args.global_rank}, Distributed: {is_distributed}, Main process: {is_main}", override=True)
     else:
         logger.log(f"Running on device: {device}, Parallel training disabled")
 
@@ -130,7 +130,7 @@ def main():
         if args.parallel:
             if  is_distributed:
                 logger.log("Applying DDP for parallel training.")
-                model = DDP(model, device_ids=[args.local_rank] if args.device == "cuda" else None)
+                model = DDP(model, device_ids=[env_local_rank] if args.device == "cuda" else None)
             else:
                 logger.log("Warning: Parallel training is enabled but not running in a distributed environment. DDP will not be applied.")
         
