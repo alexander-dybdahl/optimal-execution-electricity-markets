@@ -654,6 +654,7 @@ class FBSNN(nn.Module):
             plt.tight_layout()
             if save_dir:
                 plt.savefig(f"{save_dir}/loss.png", dpi=300, bbox_inches="tight")
+                plt.close()
             if plot:
                 plt.show()
 
@@ -734,6 +735,7 @@ class FBSNN(nn.Module):
                 plt.savefig(f"{save_dir}/approx_vs_analytic_{num}.png", dpi=300, bbox_inches='tight')
             else:
                 plt.savefig(f"{save_dir}/approx_vs_analytic.png", dpi=300, bbox_inches='tight')
+            plt.close()
         if plot:
             plt.show()
 
@@ -805,6 +807,7 @@ class FBSNN(nn.Module):
                 plt.savefig(f"{save_dir}/approx_vs_analytic_expectation_{num}.png", dpi=300, bbox_inches='tight')
             else:
                 plt.savefig(f"{save_dir}/approx_vs_analytic_expectation.png", dpi=300, bbox_inches='tight')
+            plt.close()
         if plot:
             plt.show()
         
@@ -843,5 +846,6 @@ class FBSNN(nn.Module):
                 plt.savefig(f"{save_dir}/terminal_histogram_{num}.png", dpi=300, bbox_inches='tight')
             else:
                 plt.savefig(f"{save_dir}/terminal_histogram.png", dpi=300, bbox_inches='tight')
+            plt.close()
         if plot:
             plt.show()
