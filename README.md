@@ -118,7 +118,48 @@ See all options:
 python run.py --help
 ```
 
----
+## Running distributed computation
+
+On Idun (HPC cluster on NTNU) start a VS Code server with the following environment setup:
+
+```bash
+module load Python/3.11.5-GCCcore-13.2.0
+curl -sSL https://install.python-poetry.org | python3 -
+export PATH="$HOME/.local/bin:$PATH"
+poetry install
+```
+
+Add your project directory:
+
+/cluster/home/<ntnu_username>
+
+Run the training and simulation:
+
+```bash
+sbatch slurm_job.sh
+```
+
+It will then queue the job, to view all your jobs running or in a queue (this includes the job where you are running VS Code - don't stop this job):
+
+```bash
+squeue -u <ntnu_username>
+```
+
+Override distributed config defaults in the slurm_job.sh file. These settings might be the reason for why your job is in the queue for a long time.
+
+To cancel a job with a specific PID number (this can be found using the above):
+
+```bash
+scancel <PID>
+```
+
+To view the log of your job live when it is running:
+
+```bash
+less +F slurm-<PID>.out
+```
+
+This log can also be found in the project directory, but this can be delayed.
 
 ## Output
 

@@ -8,9 +8,9 @@ import torch
 import torch.distributed as dist
 from torch.nn.parallel import DistributedDataParallel as DDP
 
-from models.aid_bdse import AidIntradayLQ
-from models.hjb_bsde import HJB
-from models.simple_hjb_bsde import SimpleHJB
+from solvers.fbsnn import FBSNN
+from dynamics.aid_dynamics import AidDynamics
+from dynamics.hjb_dynamics import HJBDynamics
 from utils.load_config import load_model_config, load_run_config
 from utils.tools import str2bool
 
@@ -42,6 +42,7 @@ def main():
     parser.add_argument("--model_config", type=str, default=run_cfg["config_path"], help="Path to the model configuration file")
     parser.add_argument("--save", nargs="+", default=run_cfg["save"], help="Model saving strategy: choose from 'best', 'every'")
     parser.add_argument("--save_n", type=int, default=run_cfg["save_n"], help="If 'every' is selected, save every n epochs")
+    parser.add_argument("--plot_n", type=int, default=run_cfg["plot_n"], help="Save plot every n epochs if plot_n is not None")
     parser.add_argument("--best", type=str2bool, nargs='?', const=True, default=run_cfg["best"], help="Run the model using the best model found during training")
     parser.add_argument("--verbose", type=str2bool, nargs='?', const=True, default=run_cfg["verbose"], help="Print training progress")
     parser.add_argument("--plot", type=str2bool, nargs='?', const=True, default=run_cfg["plot"], help="Plot after training")
@@ -56,23 +57,25 @@ def main():
         env_master_addr = os.environ.get("MASTER_ADDR", "localhost")
         env_master_port = os.environ.get("MASTER_PORT", "23456")
 
+        if args.device == "cuda":
+            torch.cuda.set_device(env_local_rank)
+
         backend = "nccl" if args.device == "cuda" else "gloo"
         dist.init_process_group(backend=backend,
                                 world_size=env_world_size,
-                                rank=env_rank,
-                                init_method='env://')
-        device = torch.device(f"cuda:{env_local_rank}" if args.device == "cuda" else "cpu")
+                                rank=env_rank)
+        device = torch.device(args.device)
         is_distributed = dist.is_initialized()
         is_main = env_rank == 0
         args.global_rank = env_rank
-        args.local_rank = env_local_rank
+        args.device_set = device
         args.batch_size_per_rank = args.batch_size // env_world_size
     else:
         device = torch.device(args.device)
         is_distributed = False
         is_main = True
         args.global_rank = 0
-        args.local_rank = 0
+        args.device_set = device
         args.batch_size_per_rank = args.batch_size
 
     save_dir = f"{args.save_path}_{args.architecture}_{args.activation}"
@@ -87,13 +90,14 @@ def main():
         logger.log("Warning: CUDA is available but the config file does not set device to cuda.") 
     
     if is_distributed:
-        logger.log(f"Distributed training setup: RANK: {args.global_rank}, LOCAL RANK: {args.local_rank}, WORLD_SIZE={env_world_size}, MASTER_ADDR={env_master_addr}, MASTER_PORT={env_master_port}")
-        logger.log(f"Running on device: {device}, Global rank: {args.global_rank}, Local rank: {args.local_rank}, Distributed: {is_distributed}, Main process: {is_main}", override=True)
+        logger.log(f"Distributed training setup: RANK: {args.global_rank}, WORLD_SIZE={env_world_size}, MASTER_ADDR={env_master_addr}, MASTER_PORT={env_master_port}")
+        logger.log(f"Running on device: {device}, Global rank: {args.global_rank}, Distributed: {is_distributed}, Main process: {is_main}", override=True)
     else:
         logger.log(f"Running on device: {device}, Parallel training disabled")
 
     model_cfg = load_model_config(args.model_config)
-    model = AidIntradayLQ(args, model_cfg).to(device)
+    dynamics = AidDynamics(args=args, model_cfg=model_cfg)
+    model = FBSNN(dynamics=dynamics, args=args).to(device)
 
     # Determine whether to load a model
     if args.load_if_exists:
@@ -115,7 +119,8 @@ def main():
         if is_main:
             run_args_path = os.path.join(save_dir, "run_args.json")
             model_cfg_path = os.path.join(save_dir, "model_config.json")
-            args_dict = vars(args)
+            args_dict = vars(args).copy()
+            args_dict["device_set"] = str(args_dict["device_set"])
             with open(run_args_path, 'w') as f:
                 json.dump(args_dict, f, indent=4)
             with open(model_cfg_path, 'w') as f:
@@ -125,7 +130,7 @@ def main():
         if args.parallel:
             if  is_distributed:
                 logger.log("Applying DDP for parallel training.")
-                model = DDP(model, device_ids=[args.local_rank] if args.device == "cuda" else None)
+                model = DDP(model, device_ids=[env_local_rank] if args.device == "cuda" else None)
             else:
                 logger.log("Warning: Parallel training is enabled but not running in a distributed environment. DDP will not be applied.")
         
@@ -136,10 +141,8 @@ def main():
     if is_main:
         call_model = model.module if isinstance(model, DDP) else model
         call_model.eval()
-        timesteps, results = call_model.simulate_paths(n_sim=args.n_simulations, seed=np.random.randint(0, 1000))
+        timesteps, results = dynamics.simulate_paths(agent=call_model, n_sim=args.n_simulations, seed=np.random.randint(0, 1000))
         call_model.plot_approx_vs_analytic(results, timesteps, plot=args.plot, save_dir=save_dir)
-
-        timesteps, results = call_model.simulate_paths(n_sim=1000, seed=np.random.randint(0, 1000))
         call_model.plot_approx_vs_analytic_expectation(results, timesteps, plot=args.plot, save_dir=save_dir)
         call_model.plot_terminal_histogram(results, plot=args.plot, save_dir=save_dir)
 

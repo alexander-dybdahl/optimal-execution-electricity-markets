@@ -1,9 +1,9 @@
 #!/bin/bash
 #SBATCH --job-name="optimal-execution-electricity-markets"
 #SBATCH --partition=GPUQ
-#SBATCH --nodes=2
-#SBATCH --ntasks-per-node=2
-#SBATCH --gres=gpu:2
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=4
+#SBATCH --gres=gpu:4
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=1000G
 
@@ -19,12 +19,14 @@ export MASTER_ADDR=$(scontrol show hostnames $SLURM_NODELIST | head -n 1)
 export MASTER_PORT=29500
 export OMP_NUM_THREADS=4
 
+echo "Running on $SLURM_JOB_NUM_NODES nodes with $SLURM_NTASKS_PER_NODE tasks per node."
+
 # Launch torchrun
-srun \
-  python \
+torchrun \
+  --nproc-per-node=$SLURM_NTASKS_PER_NODE \
+  --nnodes=$SLURM_JOB_NUM_NODES \
+  --rdzv_id=$SLURM_JOB_ID \
+  --rdzv_backend=c10d \
+  --rdzv_endpoint=$MASTER_ADDR:$MASTER_PORT \
   run.py \
-  --device cuda \
-  --parallel True \
-  --supervised False \
-  --load_if_exists False \
-  --epochs 10000
+  --parallel True

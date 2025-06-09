@@ -1,7 +1,7 @@
 import os
 import time
-from abc import ABC, abstractmethod
 
+import matplotlib.cm as cm
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
@@ -12,18 +12,23 @@ from core.nnets import FCnet, LSTMNet, Resnet, Sine
 from utils.logger import Logger
 
 
-class FBSNN(nn.Module, ABC):
-    def __init__(self, args, model_cfg):
+class FBSNN(nn.Module):
+    def __init__(self, dynamics, args):
         super().__init__()
         # System & Execution Settings
         self.is_distributed = dist.is_initialized()
-        self.device = torch.device(f"cuda:{args.local_rank}" if args.device == "cuda" else "cpu") if self.is_distributed else torch.device(args.device)
+        self.device = args.device_set
         self.world_size = dist.get_world_size() if self.is_distributed else 1
         self.is_main = not self.is_distributed or dist.get_rank() == 0
+
+        # Underlying dynamics
+        self.dynamics = dynamics
 
         # Data & Batch Settings
         self.batch_size = args.batch_size_per_rank
         self.supervised = args.supervised
+        if self.supervised and not self.dynamics.analytical_known:
+            raise ValueError("Cannot proceed with supervised training when analytical value function is not know")
 
         # Network Architecture
         self.architecture = args.architecture
@@ -46,21 +51,10 @@ class FBSNN(nn.Module, ABC):
         self.terminal_gradient_loss = torch.tensor(0.0, device=self.device)
         self.pinn_loss = torch.tensor(0.0, device=self.device)
 
-        # Time Discretization
-        self.t0 = 0.0
-        self.T = model_cfg["T"]
-        self.N = model_cfg["N"]
-        self.dt = model_cfg["dt"]
-
-        # Problem Setup
-        self.dim = model_cfg["dim"]        # state space dimension
-        self.dim_W = model_cfg["dim_W"]    # Brownian motion dimension
-        self.y0 = torch.tensor([model_cfg["y0"]], device=self.device, requires_grad=True)
-        self.analytical_known = self.__class__.value_function_analytic is not FBSNN.value_function_analytic
-
         # Saving & Checkpointing
         self.save = args.save              # e.g., "best", "every", "last"
         self.save_n = args.save_n          # save every n epochs if "every"
+        self.plot_n = args.plot_n          # save every n epochs if "every"
         self.n_simulations = args.n_simulations
 
         if args.activation == "Sine":
@@ -86,21 +80,21 @@ class FBSNN(nn.Module, ABC):
 
         if args.architecture == "Default":
             self.Y_net = FCnet(
-                layers=[self.dim + 1] + [64, 64, 64, 64, 1], activation=self.activation
+                layers=[self.dynamics.dim + 1] + [64, 64, 64, 64, 1], activation=self.activation
             ).to(self.device)
         elif args.architecture == "FC":
             self.Y_net = FCnet(
-                layers=[self.dim + 1] + args.Y_layers, activation=self.activation
+                layers=[self.dynamics.dim + 1] + args.Y_layers, activation=self.activation
             ).to(self.device)
         elif args.architecture == "NAISnet":
             self.Y_net = Resnet(
-                layers=[self.dim + 1] + args.Y_layers,
+                layers=[self.dynamics.dim + 1] + args.Y_layers,
                 activation=self.activation,
                 stable=True,
             ).to(self.device)
         elif args.architecture == "Resnet":
             self.Y_net = Resnet(
-                layers=[self.dim + 1] + args.Y_layers,
+                layers=[self.dynamics.dim + 1] + args.Y_layers,
                 activation=self.activation,
                 stable=False,
             ).to(self.device)
@@ -110,7 +104,7 @@ class FBSNN(nn.Module, ABC):
             or args.architecture == "NaisLSTM"
         ):
             self.Y_net = LSTMNet(
-                layers=[self.dim + 1] + args.Y_layers,
+                layers=[self.dynamics.dim + 1] + args.Y_layers,
                 activation=self.activation,
                 type=args.architecture,
             ).to(self.device)
@@ -118,59 +112,6 @@ class FBSNN(nn.Module, ABC):
             raise ValueError(f"Unknown architecture: {args.architecture}")
 
         self.lowest_loss = float("inf")
-
-    @abstractmethod
-    def generator(self, y, q):
-        pass
-
-    @abstractmethod
-    def terminal_cost(self, y):
-        pass
-
-    def terminal_cost_grad(self, y):
-        return torch.autograd.grad(
-            outputs=self.terminal_cost(y),
-            inputs=y,
-            grad_outputs=torch.ones_like(self.terminal_cost(y)),
-            create_graph=True,
-            retain_graph=True,
-        )[0]
-
-    @abstractmethod
-    def mu(self, t, y, q):
-        pass                                # shape: (batch, dim)
-
-    @abstractmethod
-    def sigma(self, t, y):
-        pass                                # shape: (batch, dim, dW_dim)
-
-    @abstractmethod
-    def optimal_control(self, t, y, Y):
-        pass
-
-    @abstractmethod
-    def value_function_analytic(self, t, y):
-        pass
-
-    @abstractmethod
-    def plot_approx_vs_analytic(self, results, timesteps, plot=True, save_dir=None, num=None):
-        pass
-
-    @abstractmethod
-    def plot_approx_vs_analytic_expectation(self, results, timesteps, plot=True, save_dir=None, num=None):
-        pass
-
-    @abstractmethod
-    def plot_terminal_histogram(self, results, plot=True, save_dir=None, num=None):
-        pass
-
-    def forward_dynamics(self, y, q, dW, t, dt):
-        mu = self.mu(t, y, q)               # shape: (batch, dim)
-        Sigma = self.sigma(t, y)            # shape: (batch, dim, dW_dim)
-        diffusion = torch.bmm(Sigma, dW.unsqueeze(-1)).squeeze(
-            -1
-    )                                       # shape: (batch, dim)
-        return y + mu * dt + diffusion      # shape: (batch, dim)
 
     def physics_loss(self, t, y, Y):
         dim = y.shape[1]
@@ -211,10 +152,10 @@ class FBSNN(nn.Module, ABC):
         H = torch.stack(H, dim=1)  # (batch, dim, dim)
 
         # Dynamics
-        q = self.optimal_control(t, y, Y)
-        mu = self.mu(t, y, q)
-        sigma = self.sigma(t, y)
-        f = self.generator(y, q)
+        q = self.dynamics.optimal_control(t, y, Y)
+        mu = self.dynamics.mu(t, y, q)
+        sigma = self.dynamics.sigma(t, y)
+        f = self.dynamics.generator(y, q)
 
         # Trace(σ σᵀ H)
         sigma_T = sigma.transpose(1, 2)     # shape: (batch, dW_dim, dim)
@@ -226,35 +167,14 @@ class FBSNN(nn.Module, ABC):
         residual = dV_t + torch.sum(mu * dV, dim=1, keepdim=True) + diffusion_term - f
         return torch.sum(torch.pow(residual, 2))
 
-    def fetch_minibatch(self, batch_size):
-        dim_W = self.dim_W
-        T = self.T
-        N = self.N
-        dt = T / N
-        dW = torch.randn(batch_size, N, dim_W, device=self.device) * np.sqrt(dt)
-        W = torch.cat(
-            [
-                torch.zeros(batch_size, 1, dim_W, device=self.device),
-                torch.cumsum(dW, dim=1),
-            ],
-            dim=1,
-        )                                   # shape: (batch_size, N+1, dim_W)
-
-        t = (
-            torch.linspace(0, T, N + 1, device=self.device)
-            .view(1, -1, 1)
-            .repeat(batch_size, 1, 1)
-        )                                   # shape: (batch_size, N+1, 1)
-        return t, W
-
-    def forward(self, t_paths, W_paths):
-        if self.supervised:
+    def forward(self, t_paths, W_paths, supervised=False):
+        if supervised:
             return self.forward_supervised(t_paths, W_paths)
         else:
             return self.forward_fc(t_paths, W_paths)
 
     def forward_fc(self, t_paths, W_paths):
-        y0 = self.y0.repeat(self.batch_size, 1).to(self.device)
+        y0 = self.dynamics.y0.repeat(self.batch_size, 1).to(self.device)
         y_traj, t_traj = [y0], []
         t0 = t_paths[:, 0, :]
         W0 = W_paths[:, 0, :]
@@ -270,13 +190,13 @@ class FBSNN(nn.Module, ABC):
 
         # === Compute fbsnn loss ===
         Y_loss = 0.0
-        for n in range(self.N):
+        for n in range(self.dynamics.N):
             t1 = t_paths[:, n + 1, :]
             W1 = W_paths[:, n + 1, :]
-            Sigma0 = self.sigma(t0, y0)
+            Sigma0 = self.dynamics.sigma(t0, y0)
             Z0 = torch.bmm(Sigma0.transpose(1, 2), dY0.unsqueeze(-1)).squeeze(-1)
-            q = self.optimal_control(t0, y0, Y0)
-            y1 = self.forward_dynamics(y0, q, W1 - W0, t0, t1 - t0)
+            q = self.dynamics.optimal_control(t0, y0, Y0)
+            y1 = self.dynamics.forward_dynamics(y0, q, W1 - W0, t0, t1 - t0)
 
             Y1 = self.Y_net(t1, y1)
             dY1 = torch.autograd.grad(
@@ -287,7 +207,7 @@ class FBSNN(nn.Module, ABC):
                 retain_graph=True,
             )[0]
 
-            f = self.generator(y0, q)
+            f = self.dynamics.generator(y0, q)
             Y1_tilde = Y0 - f * (t1 - t0) + (Z0 * (W1 - W0)).sum(dim=1, keepdim=True)
             Y_loss += torch.sum(torch.pow(Y1 - Y1_tilde, 2))
 
@@ -302,7 +222,7 @@ class FBSNN(nn.Module, ABC):
         terminal_loss, terminal_gradient_loss = 0.0, 0.0
         if self.lambda_T > 0:
             YT = self.Y_net(t1, y1)
-            terminal_loss = torch.sum(torch.pow(YT - self.terminal_cost(y1), 2))
+            terminal_loss = torch.sum(torch.pow(YT - self.dynamics.terminal_cost(y1), 2))
             self.terminal_loss = self.lambda_T * terminal_loss.detach()
         if self.lambda_TG > 0:
             dYT = torch.autograd.grad(
@@ -311,7 +231,7 @@ class FBSNN(nn.Module, ABC):
                 grad_outputs=torch.ones_like(YT), 
                 create_graph=True
             )[0]
-            terminal_gradient_loss = torch.sum(torch.pow(dYT - self.terminal_cost_grad(y1), 2))
+            terminal_gradient_loss = torch.sum(torch.pow(dYT - self.dynamics.terminal_cost_grad(y1), 2))
             self.terminal_gradient_loss = self.lambda_TG * terminal_gradient_loss.detach()
 
         # === Optional physics-based loss ===
@@ -338,7 +258,7 @@ class FBSNN(nn.Module, ABC):
         )
 
     def forward_supervised(self, t_paths, W_paths):
-        y0 = self.y0.repeat(self.batch_size, 1).to(self.device)
+        y0 = self.dynamics.y0.repeat(self.batch_size, 1).to(self.device)
 
         # === Precompute optimal trajectory ===
         y_traj, t_traj = [y0], []
@@ -351,8 +271,8 @@ class FBSNN(nn.Module, ABC):
             dW = W1 - W0
 
             V = self.value_function_analytic(t0, y0)
-            q = self.optimal_control(t0, y0, V, create_graph=False)
-            y1 = self.forward_dynamics(y0, q, dW, t0, t1 - t0)
+            q = self.dynamics.optimal_control(t0, y0, V, create_graph=False)
+            y1 = self.dynamics.forward_dynamics(y0, q, dW, t0, t1 - t0)
 
             t_traj.append(t1)
             y_traj.append(y1)
@@ -366,7 +286,7 @@ class FBSNN(nn.Module, ABC):
             True
         )                                   # shape: (N * batch_size, dim)
 
-        # === Compute target value and gradients ===
+        # === Y loss ===
         V_target = self.value_function_analytic(t_traj, y_traj)
         V_pred = self.Y_net(t_traj, y_traj)
 
@@ -374,7 +294,8 @@ class FBSNN(nn.Module, ABC):
         if self.lambda_Y > 0:
             self.Y_loss = self.lambda_Y * Y_loss.detach()
 
-        dY_loss, dYt_loss = 0.0, 0.0
+        # === dY loss ===
+        dY_loss = 0.0
         if self.lambda_dY > 0:
             dV_target = torch.autograd.grad(
                 V_target,
@@ -392,6 +313,8 @@ class FBSNN(nn.Module, ABC):
             dY_loss = torch.sum(torch.pow(dV_pred - dV_target, 2))
             self.dY_loss = self.lambda_dY * dY_loss.detach()
 
+        # === dYt loss ===
+        dYt_loss = 0.0
         if self.lambda_dYt > 0:
             dV_target_t = torch.autograd.grad(
                 V_target, 
@@ -409,12 +332,15 @@ class FBSNN(nn.Module, ABC):
             dYt_loss = torch.sum(torch.pow(dV_pred_t - dV_target_t, 2))
             self.dYt_loss = self.lambda_dYt * dYt_loss.detach()
 
-        # === Terminal supervision ===
-        terminal_loss, terminal_gradient_loss = 0.0, 0.0
+        # === Terminal loss ===
+        terminal_loss = 0.0
         if self.lambda_T > 0:
             YT = self.Y_net(t1, y1)
-            terminal_loss = torch.sum(torch.pow(YT - self.terminal_cost(y1), 2))
+            terminal_loss = torch.sum(torch.pow(YT - self.dynamics.terminal_cost(y1), 2))
             self.terminal_loss = self.lambda_T * terminal_loss.detach()
+
+        # === Terminal gradient loss ===
+        terminal_gradient_loss = 0.0
         if self.lambda_TG > 0:
             dYT = torch.autograd.grad(
                 YT, 
@@ -422,10 +348,10 @@ class FBSNN(nn.Module, ABC):
                 grad_outputs=torch.ones_like(YT), 
                 create_graph=True
             )[0]
-            terminal_gradient_loss = torch.sum(torch.pow(dYT - self.terminal_cost_grad(y1), 2))
+            terminal_gradient_loss = torch.sum(torch.pow(dYT - self.dynamics.terminal_cost_grad(y1), 2))
             self.terminal_gradient_loss = self.lambda_TG * terminal_gradient_loss.detach()
 
-        # === Optional physics-based loss ===
+        # === Physics-informed loss ===
         pinn_loss = 0.0
         if self.lambda_pinn > 0:
             with torch.enable_grad():
@@ -446,79 +372,41 @@ class FBSNN(nn.Module, ABC):
             + self.lambda_TG * terminal_gradient_loss
             + self.lambda_pinn * pinn_loss
         )
-
-    def simulate_paths(self, n_sim=5, seed=42, y0_single=None):
-        torch.manual_seed(seed)
-
-        y0 = (
-            y0_single.repeat(n_sim, 1)
-            if y0_single is not None
-            else self.y0.repeat(n_sim, 1)
-        )
-        t_scalar = 0.0
-
-        # Initialize both
-        y_learned = y0.clone()
-        y_analytic = y0.clone()
-
-        y_learned_traj = []
-        q_learned_traj = []
-        Y_learned_traj = []
-        if self.analytical_known:
-            y_true_traj = []
-            q_true_traj = []
-            Y_true_traj = []
-
-        for step in range(self.N + 1):
-            t_tensor = torch.full((n_sim, 1), t_scalar, device=self.device)
-
-            # Predict Y and compute control
-            Y_learned = self.Y_net(t_tensor, y_learned)
-            q_learned = self.optimal_control(
-                t_tensor, y_learned, Y_learned, create_graph=False
-            )
-            if self.analytical_known:
-                Y_true = self.value_function_analytic(t_tensor, y_analytic)
-                q_true = self.optimal_control(
-                    t_tensor, y_analytic, Y_true, create_graph=False
-                )
-
-            # Save states and controls
-            q_learned_traj.append(q_learned.detach().cpu().numpy())
-            y_learned_traj.append(y_learned.detach().cpu().numpy())
-            Y_learned_traj.append(Y_learned.detach().cpu().numpy())
-
-            if self.analytical_known:
-                q_true_traj.append(q_true.detach().cpu().numpy())
-                y_true_traj.append(y_analytic.detach().cpu().numpy())
-                Y_true_traj.append(Y_true.detach().cpu().numpy())
-
-            if step < self.N:
-                dW = torch.randn(n_sim, self.dim_W, device=self.device) * self.dt**0.5
-                y_learned = self.forward_dynamics(y_learned, q_learned, dW, t_tensor, self.dt)
-                if self.analytical_known:
-                    y_analytic = self.forward_dynamics(y_analytic, q_true, dW, t_tensor, self.dt)
-                t_scalar += self.dt
-
-        return torch.linspace(0, self.T, self.N + 1).cpu().numpy(), {
-            "y_learned": np.stack(y_learned_traj),
-            "q_learned": np.stack(q_learned_traj),
-            "Y_learned": np.stack(Y_learned_traj),
-            "y_true": np.stack(y_true_traj) if self.analytical_known else None,
-            "q_true": np.stack(q_true_traj) if self.analytical_known else None,
-            "Y_true": np.stack(Y_true_traj) if self.analytical_known else None
-        }
     
-    def _save_model(self, save_path):
+    def predict(self, t_tensor, y_tensor):
+        return self.Y_net(t_tensor, y_tensor)
+
+    def fetch_minibatch(self, batch_size):
+        dim_W = self.dynamics.dim_W
+        T = self.dynamics.T
+        N = self.dynamics.N
+        dt = T / N
+        dW = torch.randn(batch_size, N, dim_W, device=self.device) * np.sqrt(dt)
+        W = torch.cat(
+            [
+                torch.zeros(batch_size, 1, dim_W, device=self.device),
+                torch.cumsum(dW, dim=1),
+            ],
+            dim=1,
+        )                                   # shape: (batch_size, N+1, dim_W)
+
+        t = (
+            torch.linspace(0, T, N + 1, device=self.device)
+            .view(1, -1, 1)
+            .repeat(batch_size, 1, 1)
+        )                                   # shape: (batch_size, N+1, 1)
+        return t, W
+
+    def save_model(self, save_path):
         state_dict = self.state_dict()
 
         try:
             torch.save(state_dict, save_path + ".pth")
         except Exception as e:
             return f"Error saving model: {e}"
-        
+
         return "Model saved"
-        
+
     def train_model(
         self,
         epochs=1000,
@@ -608,8 +496,8 @@ class FBSNN(nn.Module, ABC):
             logger.log(f"| Depth                     | {len(self.Y_layers):<25} |")
             logger.log(f"| Width                     | {self.Y_layers[0]:<25} |")
             logger.log(f"| Activation                | {self.activation.__class__.__name__:<25} |")
-            logger.log(f"| T                         | {self.T:<25} |")
-            logger.log(f"| N                         | {self.N:<25} |")
+            logger.log(f"| T                         | {self.dynamics.T:<25} |")
+            logger.log(f"| N                         | {self.dynamics.N:<25} |")
             logger.log(f"| Supervised                | {'True' if self.supervised else 'False':<25} |")
             logger.log("+---------------------------+---------------------------+\n")
 
@@ -646,7 +534,7 @@ class FBSNN(nn.Module, ABC):
         for epoch in range(1, epochs + 1):
             optimizer.zero_grad()
             t_paths, W_paths = self.fetch_minibatch(self.batch_size)
-            loss = self(t_paths, W_paths)
+            loss = self(t_paths=t_paths, W_paths=W_paths, supervised=self.supervised)
             loss.backward()
             optimizer.step()
             scheduler.step(loss.item() if adaptive else epoch)
@@ -692,11 +580,11 @@ class FBSNN(nn.Module, ABC):
                     if "every" in self.save and (
                         epoch % self.save_n == 0 or epoch == epochs - 1
                     ):
-                        status = self._save_model(save_path)
+                        status = self.save_model(save_path)
 
                     if "best" in self.save and np.mean(losses[-K:]) < self.lowest_loss:
                         self.lowest_loss = np.mean(losses[-K:])
-                        status = self._save_model(save_path + "_best") + " (best)"
+                        status = self.save_model(save_path + "_best") + " (best)"
 
                     # Calculate average time per K epochs and ETA
                     avg_time_per_K = (time.time() - init_time) / (epoch + 1e-8)  # avoid div-by-zero
@@ -734,10 +622,10 @@ class FBSNN(nn.Module, ABC):
                     logger.log(" | ".join(row_parts))
                     start_time = time.time()
 
-                if epoch % 100 == 0:
-                    timesteps, results = self.simulate_paths(n_sim=self.n_simulations, seed=42)
+                if self.plot_n is not None and epoch % self.plot_n == 0:
+                    timesteps, results = self.dynamics.simulate_paths(agent=self, n_sim=self.n_simulations, seed=42)
                     self.plot_approx_vs_analytic(results, timesteps, plot=False, save_dir=save_dir, num=epoch)
-                    timesteps, results = self.simulate_paths(n_sim=1000, seed=42)
+                    timesteps, results = self.dynamics.simulate_paths(agent=self, n_sim=1000, seed=42)
                     self.plot_approx_vs_analytic_expectation(results, timesteps, plot=False, save_dir=save_dir, num=epoch)
                     self.plot_terminal_histogram(results, plot=False, save_dir=save_dir, num=epoch)
 
@@ -770,3 +658,190 @@ class FBSNN(nn.Module, ABC):
                 plt.show()
 
         return losses
+    
+    # TODO: Implement these functions to be more flexible depending if analytical is known
+    def plot_approx_vs_analytic(self, results, timesteps, plot=True, save_dir=None, num=None):
+
+        approx_q = results["q_learned"]
+        y_vals = results["y_learned"]
+        Y_vals = results["Y_learned"]
+        true_q = results["q_analytical"]
+        true_y = results["y_analytical"]
+        true_Y = results["Y_analytical"]
+
+        fig, axs = plt.subplots(3, 2, figsize=(14, 10))
+        colors = cm.get_cmap("tab10", approx_q.shape[1])
+
+        for i in range(approx_q.shape[1]):
+            axs[0, 0].plot(timesteps, approx_q[:, i], color=colors(i), alpha=0.6, label=f"Learned $q_{i}(t)$" if i == 0 else None)
+            axs[0, 0].plot(timesteps, true_q[:, i], linestyle="--", color=colors(i), alpha=0.4, label=f"Analytical $q^*_{i}(t)$" if i == 0 else None)
+        axs[0, 0].set_title("Control $q(t)$: Learned vs Analytical")
+        axs[0, 0].set_xlabel("Time $t$")
+        axs[0, 0].set_ylabel("$q(t)$")
+        axs[0, 0].grid(True)
+        axs[0, 0].legend(loc='upper left')
+
+        for i in range(approx_q.shape[1]):
+            diff = approx_q[:, i] - true_q[:, i]
+            axs[0, 1].plot(timesteps, diff, color=colors(i), alpha=0.6, label=f"$q_{i}(t) - q^*_{i}(t)$" if i == 0 else None)
+        axs[0, 1].axhline(0, color='red', linestyle='--', linewidth=0.8)
+        axs[0, 1].set_title("Difference: Learned $-$ Analytical")
+        axs[0, 1].set_xlabel("Time $t$")
+        axs[0, 1].set_ylabel("$q(t) - q^*(t)$")
+        axs[0, 1].grid(True)
+        axs[0, 1].legend(loc='upper left')
+
+        for i in range(Y_vals.shape[1]):
+            axs[1, 0].plot(timesteps, Y_vals[:, i, 0], color=colors(i), alpha=0.6, label=f"Learned $Y_{i}(t)$" if i == 0 else None)
+            axs[1, 0].plot(timesteps, true_Y[:, i, 0], linestyle="--", color=colors(i), alpha=0.4, label=f"Analytical $Y^*_{i}(t)$" if i == 0 else None)
+        axs[1, 0].set_title("Cost-to-Go $Y(t)$")
+        axs[1, 0].set_xlabel("Time $t$")
+        axs[1, 0].set_ylabel("Y(t)")
+        axs[1, 0].grid(True)
+        axs[1, 0].legend(loc='upper left')
+
+        for i in range(Y_vals.shape[1]):
+            diff_Y = Y_vals[:, i, 0] - true_Y[:, i, 0]
+            axs[1, 1].plot(timesteps, diff_Y, color=colors(i), alpha=0.6, label=f"$Y_{i}(t) - Y^*_{i}(t)$" if i == 0 else None)
+        axs[1, 1].axhline(0, color='red', linestyle='--', linewidth=0.8)
+        axs[1, 1].set_title("Difference: Learned $Y(t) - Y^*(t)$")
+        axs[1, 1].set_xlabel("Time $t$")
+        axs[1, 1].set_ylabel("$Y(t) - Y^*(t)$")
+        axs[1, 1].grid(True)
+        axs[1, 1].legend(loc='upper left')
+
+        for i in range(y_vals.shape[1]):
+            axs[2, 0].plot(timesteps, y_vals[:, i, 0], color=colors(i), alpha=0.6, label=f"$x_{i}(t)$" if i == 0 else None)
+            axs[2, 0].plot(timesteps, true_y[:, i, 0], linestyle="--", color=colors(i), alpha=0.4, label=f"$x^*_{i}(t)$" if i == 0 else None)
+            axs[2, 0].plot(timesteps, true_y[:, i, 2], linestyle="-.", color=colors(i), alpha=0.6, label=f"$d_{i}(t)$" if i == 0 else None)
+        axs[2, 0].set_title("States: $x(t)$ and $d(t)$")
+        axs[2, 0].set_xlabel("Time $t$")
+        axs[2, 0].set_ylabel("x(t), d(t)")
+        axs[2, 0].grid(True)
+        axs[2, 0].legend(loc='upper left')
+
+        for i in range(y_vals.shape[1]):
+            axs[2, 1].plot(timesteps, true_y[:, i, 1], color=colors(i), alpha=0.6, label=f"$p_{i}(t)$" if i == 0 else None)
+        axs[2, 1].set_title("State: $p(t)$")
+        axs[2, 1].set_xlabel("Time $t$")
+        axs[2, 1].set_ylabel("p(t)")
+        axs[2, 1].grid(True)
+        axs[2, 1].legend(loc='upper left')
+
+        plt.tight_layout()
+        if save_dir:
+            if num:
+                plt.savefig(f"{save_dir}/approx_vs_analytic_{num}.png", dpi=300, bbox_inches='tight')
+            else:
+                plt.savefig(f"{save_dir}/approx_vs_analytic.png", dpi=300, bbox_inches='tight')
+        if plot:
+            plt.show()
+
+    def plot_approx_vs_analytic_expectation(self, results, timesteps, plot=True, save_dir=None, num=None):
+        approx_q = results["q_learned"]
+        Y_vals = results["Y_learned"]
+        true_q = results["q_analytical"]
+        true_Y = results["Y_analytical"]
+
+        # Learned results
+        mean_q = approx_q.mean(axis=1).squeeze()
+        std_q = approx_q.std(axis=1).squeeze()
+        mean_Y = Y_vals[:, :, 0].mean(axis=1).squeeze()
+        std_Y = Y_vals[:, :, 0].std(axis=1).squeeze()
+
+        # Analytic results
+        mean_q_analytical = true_q.mean(axis=1).squeeze()
+        std_q_analytical = true_q.std(axis=1).squeeze()
+        mean_true_Y = true_Y.mean(axis=1).squeeze()
+        std_true_Y = true_Y.std(axis=1).squeeze()
+
+        fig, axs = plt.subplots(2, 2, figsize=(14, 10))
+
+        axs[0, 0].plot(timesteps, mean_q, label='Learned Mean', color='blue')
+        axs[0, 0].fill_between(timesteps, mean_q - std_q, mean_q + std_q, color='blue', alpha=0.3, label='Learned ±1 Std')
+        axs[0, 0].plot(timesteps, mean_q_analytical, label='Analytical Mean', color='black', linestyle='--')
+        axs[0, 0].fill_between(timesteps, mean_q_analytical - std_q_analytical, mean_q_analytical + std_q_analytical, color='black', alpha=0.2, label='Analytical ±1 Std')
+        axs[0, 0].set_title("Control $q(t)$: Learned vs Analytical")
+        axs[0, 0].set_xlabel("Time $t$")
+        axs[0, 0].set_ylabel("$q(t)$")
+        axs[0, 0].grid(True)
+        axs[0, 0].legend(loc='upper left')
+
+        diff = (approx_q - true_q)
+        mean_diff = np.mean(diff, axis=1).squeeze()
+        std_diff = np.std(diff, axis=1).squeeze()
+        axs[0, 1].fill_between(timesteps, mean_diff - std_diff, mean_diff + std_diff, color='red', alpha=0.4, label='±1 Std Dev')
+        axs[0, 1].plot(timesteps, mean_diff, color='red', label='Mean Difference')
+        axs[0, 1].set_title("Difference: Learned $-$ Analytical")
+        axs[0, 1].set_xlabel("Time $t$")
+        axs[0, 1].set_ylabel("$q(t) - q^*(t)$")
+        axs[0, 1].grid(True)
+        axs[0, 1].legend(loc='upper left')
+
+        axs[1, 0].plot(timesteps, mean_Y, color='blue', label='Learned Mean')
+        axs[1, 0].fill_between(timesteps, mean_Y - std_Y, mean_Y + std_Y, color='blue', alpha=0.3, label='Learned ±1 Std')
+        axs[1, 0].plot(timesteps, mean_true_Y, color='black', linestyle='--', label='Analytical Mean')
+        axs[1, 0].fill_between(timesteps, mean_true_Y - std_true_Y, mean_true_Y + std_true_Y, color='black', alpha=0.2, label='Analytical ±1 Std')
+        axs[1, 0].set_title("Cost-to-Go $Y(t)$")
+        axs[1, 0].set_xlabel("Time $t$")
+        axs[1, 0].set_ylabel("Y(t)")
+        axs[1, 0].grid(True)
+        axs[1, 0].legend(loc='upper left')
+
+        diff_Y = (Y_vals - true_Y)
+        mean_diff_Y = np.mean(diff_Y, axis=1).squeeze()
+        std_diff_Y = np.std(diff_Y, axis=1).squeeze()
+        axs[1, 1].fill_between(timesteps, mean_diff_Y - std_diff_Y, mean_diff_Y + std_diff_Y, color='red', alpha=0.4, label='±1 Std Dev')
+        axs[1, 1].plot(timesteps, mean_diff_Y, color='red', label='Mean Difference')
+        axs[1, 1].set_title("Difference: Learned $Y(t) - Y^*(t)$")
+        axs[1, 1].set_xlabel("Time $t$")
+        axs[1, 1].set_ylabel("$Y(t) - Y^*(t)$")
+        axs[1, 1].grid(True)
+        axs[1, 1].legend(loc='upper left')
+
+        plt.tight_layout()
+        if save_dir:
+            if num:
+                plt.savefig(f"{save_dir}/approx_vs_analytic_expectation_{num}.png", dpi=300, bbox_inches='tight')
+            else:
+                plt.savefig(f"{save_dir}/approx_vs_analytic_expectation.png", dpi=300, bbox_inches='tight')
+        if plot:
+            plt.show()
+        
+    def plot_terminal_histogram(self, results, plot=True, save_dir=None, num=None):
+        y_vals = results["y_learned"]  # shape: (T+1, N_paths, dim)
+        Y_vals = results["Y_learned"]  # shape: (T+1, N_paths, 1)
+
+        Y_T_approx = Y_vals[-1, :, 0]
+        y_T = y_vals[-1, :, :]  # full final states
+        y_T_tensor = torch.tensor(y_T, dtype=torch.float32, device=self.device)
+        Y_T_true = self.dynamics.terminal_cost(y_T_tensor).detach().cpu().numpy().squeeze()
+
+        # Filter out NaN or Inf
+        mask = np.isfinite(Y_T_approx) & np.isfinite(Y_T_true)
+        Y_T_approx = Y_T_approx[mask]
+        Y_T_true = Y_T_true[mask]
+
+        if len(Y_T_approx) == 0 or len(Y_T_true) == 0:
+            print("Warning: No valid terminal values to plot.")
+            return
+
+        plt.figure(figsize=(8, 6))
+        bins = 30
+        plt.hist(Y_T_approx, bins=bins, alpha=0.6, label="Approx. $Y_T$", color="blue", density=True)
+        plt.hist(Y_T_true, bins=bins, alpha=0.6, label="Analytical $g(y_T)$", color="green", density=True)
+        plt.axvline(np.mean(Y_T_approx), color='blue', linestyle='--', label=f"Mean approx: {np.mean(Y_T_approx):.3f}")
+        plt.axvline(np.mean(Y_T_true), color='green', linestyle='--', label=f"Mean true: {np.mean(Y_T_true):.3f}")
+        plt.title("Distribution of Terminal Values")
+        plt.xlabel("$Y(T)$ / $g(y_T)$")
+        plt.ylabel("Density")
+        plt.legend()
+        plt.grid(True)
+        plt.tight_layout()
+        if save_dir:
+            if num:
+                plt.savefig(f"{save_dir}/terminal_histogram_{num}.png", dpi=300, bbox_inches='tight')
+            else:
+                plt.savefig(f"{save_dir}/terminal_histogram.png", dpi=300, bbox_inches='tight')
+        if plot:
+            plt.show()
