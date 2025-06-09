@@ -241,13 +241,13 @@ class FBSNN(nn.Module):
         pinn_loss = 0.0
         if self.lambda_pinn > 0:
             with torch.enable_grad():
-                for i in range(self.N):
+                for i in range(self.dynamics.N):
                     idx = slice(i * self.batch_size, (i + 1) * self.batch_size)
                     t_i = t_traj[idx].detach().clone().requires_grad_(True)
                     y_i = y_traj[idx].detach().clone().requires_grad_(True)
                     V_i = self.Y_net(t_i, y_i)
                     pinn_loss += self.physics_loss(t_i, y_i, V_i)
-                pinn_loss /= self.N
+                pinn_loss /= self.dynamics.N
                 self.pinn_loss = self.lambda_pinn * pinn_loss.detach()
 
         return (
@@ -265,12 +265,12 @@ class FBSNN(nn.Module):
         t0 = t_paths[:, 0, :]
         W0 = W_paths[:, 0, :]
 
-        for n in range(self.N):
+        for n in range(self.dynamics.N):
             t1 = t_paths[:, n + 1, :]
             W1 = W_paths[:, n + 1, :]
             dW = W1 - W0
 
-            V = self.value_function_analytic(t0, y0)
+            V = self.dynamics.value_function_analytic(t0, y0)
             q = self.dynamics.optimal_control(t0, y0, V, create_graph=False)
             y1 = self.dynamics.forward_dynamics(y0, q, dW, t0, t1 - t0)
 
@@ -287,7 +287,7 @@ class FBSNN(nn.Module):
         )                                   # shape: (N * batch_size, dim)
 
         # === Y loss ===
-        V_target = self.value_function_analytic(t_traj, y_traj)
+        V_target = self.dynamics.value_function_analytic(t_traj, y_traj)
         V_pred = self.Y_net(t_traj, y_traj)
 
         Y_loss = torch.sum(torch.pow(V_pred - V_target, 2))
@@ -355,13 +355,13 @@ class FBSNN(nn.Module):
         pinn_loss = 0.0
         if self.lambda_pinn > 0:
             with torch.enable_grad():
-                for i in range(self.N):
+                for i in range(self.dynamics.N):
                     idx = slice(i * self.batch_size, (i + 1) * self.batch_size)
                     t_i = t_traj[idx].detach().clone().requires_grad_(True)
                     y_i = y_traj[idx].detach().clone().requires_grad_(True)
                     V_i = self.Y_net(t_i, y_i)
                     pinn_loss += self.physics_loss(t_i, y_i, V_i)
-                pinn_loss /= self.N
+                pinn_loss /= self.dynamics.N
                 self.pinn_loss = self.lambda_pinn * pinn_loss.detach()
 
         return (
@@ -813,24 +813,41 @@ class FBSNN(nn.Module):
         
     def plot_terminal_histogram(self, results, plot=True, save_dir=None, num=None):
         y_vals = results["y_learned"]  # shape: (T+1, N_paths, dim)
+        q_vals = results["q_learned"]
         Y_vals = results["Y_learned"]  # shape: (T+1, N_paths, 1)
 
+        y_T = y_vals[-1, :, :]
         Y_T_approx = Y_vals[-1, :, 0]
-        y_T = y_vals[-1, :, :]  # full final states
+        q_T_approx = q_vals[-1, :, 0]
         y_T_tensor = torch.tensor(y_T, dtype=torch.float32, device=self.device)
         Y_T_true = self.dynamics.terminal_cost(y_T_tensor).detach().cpu().numpy().squeeze()
+        q_T_true = self.dynamics.optimal_control_analytic(self.dynamics.T, y_T_tensor).detach().cpu().numpy().squeeze()
 
         # Filter out NaN or Inf
         mask = np.isfinite(Y_T_approx) & np.isfinite(Y_T_true)
         Y_T_approx = Y_T_approx[mask]
         Y_T_true = Y_T_true[mask]
 
+        mask_q = np.isfinite(q_T_approx) & np.isfinite(q_T_true)
+        q_T_approx = q_T_approx[mask_q]
+        q_T_true = q_T_true[mask_q]
+
         if len(Y_T_approx) == 0 or len(Y_T_true) == 0:
             print("Warning: No valid terminal values to plot.")
             return
 
-        plt.figure(figsize=(8, 6))
-        bins = 30
+        range_approx = np.ptp(Y_T_approx)  # Peak-to-peak (max - min)
+        range_true = np.ptp(Y_T_true)
+        range_combined = max(range_approx, range_true)
+
+        if range_combined == 0:
+            print("Warning: No variation in terminal values. Skipping histogram.")
+            return
+
+        # Choose bins depending on data spread
+        bins = min(30, max(1, int(range_combined / 1e-2)))
+        
+        plt.subplot(2, 1, 1)
         plt.hist(Y_T_approx, bins=bins, alpha=0.6, label="Approx. $Y_T$", color="blue", density=True)
         plt.hist(Y_T_true, bins=bins, alpha=0.6, label="Analytical $g(y_T)$", color="green", density=True)
         plt.axvline(np.mean(Y_T_approx), color='blue', linestyle='--', label=f"Mean approx: {np.mean(Y_T_approx):.3f}")
@@ -841,6 +858,19 @@ class FBSNN(nn.Module):
         plt.legend()
         plt.grid(True)
         plt.tight_layout()
+
+        plt.subplot(2, 1, 2)
+        plt.hist(q_T_approx, bins=bins, alpha=0.6, label="Approx. $q_T$", color="blue", density=True)
+        plt.hist(q_T_true, bins=bins, alpha=0.6, label="Analytical $q^*(y_T)$", color="green", density=True)
+        plt.axvline(np.mean(q_T_approx), color='blue', linestyle='--', label=f"Mean approx: {np.mean(q_T_approx):.3f}")
+        plt.axvline(np.mean(q_T_true), color='green', linestyle='--', label=f"Mean true: {np.mean(q_T_true):.3f}")
+        plt.title("Distribution of Terminal Controls")
+        plt.xlabel("$q(T)$ / $q^*(y_T)$")
+        plt.ylabel("Density")
+        plt.legend()
+        plt.grid(True)
+        plt.tight_layout()
+
         if save_dir:
             if num:
                 plt.savefig(f"{save_dir}/terminal_histogram_{num}.png", dpi=300, bbox_inches='tight')
