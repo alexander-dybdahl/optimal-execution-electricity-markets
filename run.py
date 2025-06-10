@@ -78,7 +78,7 @@ def main():
         args.device_set = device
         args.batch_size_per_rank = args.batch_size
 
-    save_dir = f"{args.save_path}_{args.architecture}_{args.activation}"
+    save_dir = f"{args.save_path}_unsupervised_7_{args.architecture}_{args.activation}"
     save_path = os.path.join(save_dir, "model")
     
     if is_main:

@@ -241,13 +241,13 @@ class FBSNN(nn.Module):
         pinn_loss = 0.0
         if self.lambda_pinn > 0:
             with torch.enable_grad():
-                for i in range(self.N):
+                for i in range(self.dynamics.N):
                     idx = slice(i * self.batch_size, (i + 1) * self.batch_size)
                     t_i = t_traj[idx].detach().clone().requires_grad_(True)
                     y_i = y_traj[idx].detach().clone().requires_grad_(True)
                     V_i = self.Y_net(t_i, y_i)
                     pinn_loss += self.physics_loss(t_i, y_i, V_i)
-                pinn_loss /= self.N
+                pinn_loss /= self.dynamics.N
                 self.pinn_loss = self.lambda_pinn * pinn_loss.detach()
 
         return (
@@ -265,12 +265,12 @@ class FBSNN(nn.Module):
         t0 = t_paths[:, 0, :]
         W0 = W_paths[:, 0, :]
 
-        for n in range(self.N):
+        for n in range(self.dynamics.N):
             t1 = t_paths[:, n + 1, :]
             W1 = W_paths[:, n + 1, :]
             dW = W1 - W0
 
-            V = self.value_function_analytic(t0, y0)
+            V = self.dynamics.value_function_analytic(t0, y0)
             q = self.dynamics.optimal_control(t0, y0, V, create_graph=False)
             y1 = self.dynamics.forward_dynamics(y0, q, dW, t0, t1 - t0)
 
@@ -287,7 +287,7 @@ class FBSNN(nn.Module):
         )                                   # shape: (N * batch_size, dim)
 
         # === Y loss ===
-        V_target = self.value_function_analytic(t_traj, y_traj)
+        V_target = self.dynamics.value_function_analytic(t_traj, y_traj)
         V_pred = self.Y_net(t_traj, y_traj)
 
         Y_loss = torch.sum(torch.pow(V_pred - V_target, 2))
@@ -355,13 +355,13 @@ class FBSNN(nn.Module):
         pinn_loss = 0.0
         if self.lambda_pinn > 0:
             with torch.enable_grad():
-                for i in range(self.N):
+                for i in range(self.dynamics.N):
                     idx = slice(i * self.batch_size, (i + 1) * self.batch_size)
                     t_i = t_traj[idx].detach().clone().requires_grad_(True)
                     y_i = y_traj[idx].detach().clone().requires_grad_(True)
                     V_i = self.Y_net(t_i, y_i)
                     pinn_loss += self.physics_loss(t_i, y_i, V_i)
-                pinn_loss /= self.N
+                pinn_loss /= self.dynamics.N
                 self.pinn_loss = self.lambda_pinn * pinn_loss.detach()
 
         return (
