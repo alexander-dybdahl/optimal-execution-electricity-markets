@@ -683,12 +683,12 @@ class FBSNN(nn.Module):
         axs[0, 0].legend(loc='upper left')
 
         for i in range(approx_q.shape[1]):
-            diff = approx_q[:, i] - true_q[:, i]
+            diff = (approx_q[:, i] - true_q[:, i]) ** 2
             axs[0, 1].plot(timesteps, diff, color=colors(i), alpha=0.6, label=f"$q_{i}(t) - q^*_{i}(t)$" if i == 0 else None)
         axs[0, 1].axhline(0, color='red', linestyle='--', linewidth=0.8)
-        axs[0, 1].set_title("Difference: Learned $-$ Analytical")
+        axs[0, 1].set_title("Error in Control $q(t)$")
         axs[0, 1].set_xlabel("Time $t$")
-        axs[0, 1].set_ylabel("$q(t) - q^*(t)$")
+        axs[0, 1].set_ylabel("$|q(t) - q^*(t)|^2$")
         axs[0, 1].grid(True)
         axs[0, 1].legend(loc='upper left')
 
@@ -702,12 +702,12 @@ class FBSNN(nn.Module):
         axs[1, 0].legend(loc='upper left')
 
         for i in range(Y_vals.shape[1]):
-            diff_Y = Y_vals[:, i, 0] - true_Y[:, i, 0]
+            diff_Y = (Y_vals[:, i, 0] - true_Y[:, i, 0]) ** 2
             axs[1, 1].plot(timesteps, diff_Y, color=colors(i), alpha=0.6, label=f"$Y_{i}(t) - Y^*_{i}(t)$" if i == 0 else None)
         axs[1, 1].axhline(0, color='red', linestyle='--', linewidth=0.8)
-        axs[1, 1].set_title("Difference: Learned $Y(t) - Y^*(t)$")
+        axs[1, 1].set_title("Error in Cost-to-Go $Y(t)$")
         axs[1, 1].set_xlabel("Time $t$")
-        axs[1, 1].set_ylabel("$Y(t) - Y^*(t)$")
+        axs[1, 1].set_ylabel("$|Y(t) - Y^*(t)|^2$")
         axs[1, 1].grid(True)
         axs[1, 1].legend(loc='upper left')
 
@@ -769,14 +769,14 @@ class FBSNN(nn.Module):
         axs[0, 0].grid(True)
         axs[0, 0].legend(loc='upper left')
 
-        diff = (approx_q - true_q)
+        diff = (approx_q - true_q) ** 2
         mean_diff = np.mean(diff, axis=1).squeeze()
         std_diff = np.std(diff, axis=1).squeeze()
         axs[0, 1].fill_between(timesteps, mean_diff - std_diff, mean_diff + std_diff, color='red', alpha=0.4, label='±1 Std Dev')
         axs[0, 1].plot(timesteps, mean_diff, color='red', label='Mean Difference')
-        axs[0, 1].set_title("Difference: Learned $-$ Analytical")
+        axs[0, 1].set_title("Error in Control $q(t)$")
         axs[0, 1].set_xlabel("Time $t$")
-        axs[0, 1].set_ylabel("$q(t) - q^*(t)$")
+        axs[0, 1].set_ylabel("$|q(t) - q^*(t)|^2$")
         axs[0, 1].grid(True)
         axs[0, 1].legend(loc='upper left')
 
@@ -790,14 +790,14 @@ class FBSNN(nn.Module):
         axs[1, 0].grid(True)
         axs[1, 0].legend(loc='upper left')
 
-        diff_Y = (Y_vals - true_Y)
+        diff_Y = (Y_vals - true_Y) ** 2
         mean_diff_Y = np.mean(diff_Y, axis=1).squeeze()
         std_diff_Y = np.std(diff_Y, axis=1).squeeze()
         axs[1, 1].fill_between(timesteps, mean_diff_Y - std_diff_Y, mean_diff_Y + std_diff_Y, color='red', alpha=0.4, label='±1 Std Dev')
         axs[1, 1].plot(timesteps, mean_diff_Y, color='red', label='Mean Difference')
-        axs[1, 1].set_title("Difference: Learned $Y(t) - Y^*(t)$")
+        axs[1, 1].set_title("Error in Cost-to-Go $Y(t)$")
         axs[1, 1].set_xlabel("Time $t$")
-        axs[1, 1].set_ylabel("$Y(t) - Y^*(t)$")
+        axs[1, 1].set_ylabel("$|Y(t) - Y^*(t)|^2$")
         axs[1, 1].grid(True)
         axs[1, 1].legend(loc='upper left')
 
@@ -813,24 +813,43 @@ class FBSNN(nn.Module):
         
     def plot_terminal_histogram(self, results, plot=True, save_dir=None, num=None):
         y_vals = results["y_learned"]  # shape: (T+1, N_paths, dim)
+        q_vals = results["q_learned"]
         Y_vals = results["Y_learned"]  # shape: (T+1, N_paths, 1)
 
+        y_T = y_vals[-1, :, :]
         Y_T_approx = Y_vals[-1, :, 0]
-        y_T = y_vals[-1, :, :]  # full final states
+        q_T_approx = q_vals[-1, :, 0]
         y_T_tensor = torch.tensor(y_T, dtype=torch.float32, device=self.device)
         Y_T_true = self.dynamics.terminal_cost(y_T_tensor).detach().cpu().numpy().squeeze()
+        q_T_true = self.dynamics.optimal_control_analytic(self.dynamics.T, y_T_tensor).detach().cpu().numpy().squeeze()
 
         # Filter out NaN or Inf
         mask = np.isfinite(Y_T_approx) & np.isfinite(Y_T_true)
         Y_T_approx = Y_T_approx[mask]
         Y_T_true = Y_T_true[mask]
 
+        mask_q = np.isfinite(q_T_approx) & np.isfinite(q_T_true)
+        q_T_approx = q_T_approx[mask_q]
+        q_T_true = q_T_true[mask_q]
+
         if len(Y_T_approx) == 0 or len(Y_T_true) == 0:
             print("Warning: No valid terminal values to plot.")
             return
 
-        plt.figure(figsize=(8, 6))
-        bins = 30
+        range_approx = np.ptp(Y_T_approx)  # Peak-to-peak (max - min)
+        range_true = np.ptp(Y_T_true)
+        range_combined = max(range_approx, range_true)
+
+        if range_combined == 0:
+            print("Warning: No variation in terminal values. Skipping histogram.")
+            return
+
+        # Choose bins depending on data spread
+        bins = min(30, max(1, int(range_combined / 1e-2)))
+        
+        plt.figure(figsize=(14, 10))
+
+        plt.subplot(2, 1, 1)
         plt.hist(Y_T_approx, bins=bins, alpha=0.6, label="Approx. $Y_T$", color="blue", density=True)
         plt.hist(Y_T_true, bins=bins, alpha=0.6, label="Analytical $g(y_T)$", color="green", density=True)
         plt.axvline(np.mean(Y_T_approx), color='blue', linestyle='--', label=f"Mean approx: {np.mean(Y_T_approx):.3f}")
@@ -841,6 +860,19 @@ class FBSNN(nn.Module):
         plt.legend()
         plt.grid(True)
         plt.tight_layout()
+
+        plt.subplot(2, 1, 2)
+        plt.hist(q_T_approx, bins=bins, alpha=0.6, label="Approx. $q_T$", color="blue", density=True)
+        plt.hist(q_T_true, bins=bins, alpha=0.6, label="Analytical $q^*(y_T)$", color="green", density=True)
+        plt.axvline(np.mean(q_T_approx), color='blue', linestyle='--', label=f"Mean approx: {np.mean(q_T_approx):.3f}")
+        plt.axvline(np.mean(q_T_true), color='green', linestyle='--', label=f"Mean true: {np.mean(q_T_true):.3f}")
+        plt.title("Distribution of Terminal Controls")
+        plt.xlabel("$q(T)$ / $q^*(y_T)$")
+        plt.ylabel("Density")
+        plt.legend()
+        plt.grid(True)
+        plt.tight_layout()
+
         if save_dir:
             if num:
                 plt.savefig(f"{save_dir}/terminal_histogram_{num}.png", dpi=300, bbox_inches='tight')
