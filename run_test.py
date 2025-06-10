@@ -15,8 +15,8 @@ from utils.load_config import load_model_config, load_run_config
 from utils.tools import str2bool
 
 from dynamics.simple_dynamics import SimpleDynamics
-from solvers.pinn import ValueFunctionNN
-from solvers.pinn import train_pinn, plot_value_comparison
+from solvers.pinn_fbsnn import ValueFunctionNN
+from solvers.pinn_fbsnn import train_pinn, simulate_and_plot_paths
 
 def main():
 
@@ -62,10 +62,9 @@ def main():
 
     dynamics = AidDynamics(args, model_cfg)
 
-    model = ValueFunctionNN(hidden_dim=64)
-    model.to(args.device)
-    losses = train_pinn(model, dynamics, T=dynamics.T, device=args.device, n_epochs=args.epochs)
-    plot_value_comparison(model, dynamics, T=dynamics.T, device=args.device)
+    model = ValueFunctionNN(input_dim=model_cfg["dim"] + 1)
+    losses = train_pinn(model, dynamics, model_cfg, device=args.device, n_epochs=args.epochs)
+    simulate_and_plot_paths(model, dynamics, model_cfg, device=args.device, n_simulations=args.n_simulations)
 
 if __name__ == "__main__":
     main()

@@ -163,7 +163,7 @@ class FBSNN(nn.Module):
         trace_term = torch.einsum("bij,bij->b", sigma_sigma_T, H).unsqueeze(-1)
 
         # Residual from HJB
-        residual = dV_dt + (mu * dV_dy).sum(dim=1, keepdim=True) + 0.5 * trace_term - f
+        residual = dV_dt + (mu * dV_dy).sum(dim=1, keepdim=True) + 0.5 * trace_term + f
         return (residual**2).sum()
 
     def forward(self, t_paths, W_paths, supervised=False):
@@ -210,6 +210,9 @@ class FBSNN(nn.Module):
             Y1_tilde = Y0 - f * (t1 - t0) + (Z0 * (W1 - W0)).sum(dim=1, keepdim=True)
             Y_loss += torch.sum(torch.pow(Y1 - Y1_tilde, 2))
 
+            # print out Y and Y_tilde for debugging
+            print(f"Y1: {Y1.mean().item()}, Y1_tilde: {Y1_tilde.mean().item()}")
+
             t_traj.append(t1)
             y_traj.append(y1)
 
@@ -233,7 +236,7 @@ class FBSNN(nn.Module):
             terminal_gradient_loss = torch.sum(torch.pow(dYT - self.dynamics.terminal_cost_grad(y1), 2))
             self.terminal_gradient_loss = self.lambda_TG * terminal_gradient_loss.detach()
 
-        # === Optional physics-based loss ===
+        # === Physics-based loss ===
         t_traj = torch.cat(t_traj, dim=0).requires_grad_(True)            # shape: [N * batch_size, 1]
         y_traj = torch.cat(y_traj[1:], dim=0).requires_grad_(True)        # shape: [N * batch_size, state_dim]
 
@@ -244,7 +247,7 @@ class FBSNN(nn.Module):
                 device=self.device,
                 N=N_pinn,
                 t_range=(0.0, self.dynamics.T),
-                y_range=(-3.0, 3.0),  # adjust to your problem's domain
+                y_range=(-10.0, 10.0),  # adjust to your problem's domain
                 dim_y=self.dynamics.dim,
             )
             t_pinn.requires_grad_(True)
