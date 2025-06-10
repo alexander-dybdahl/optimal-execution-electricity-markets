@@ -11,6 +11,7 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 from solvers.fbsnn import FBSNN
 from dynamics.aid_dynamics import AidDynamics
 from dynamics.hjb_dynamics import HJBDynamics
+from dynamics.simple_dynamics import SimpleDynamics
 from utils.load_config import load_model_config, load_run_config
 from utils.tools import str2bool
 
@@ -78,7 +79,7 @@ def main():
         args.device_set = device
         args.batch_size_per_rank = args.batch_size
 
-    save_dir = f"{args.save_path}_{args.architecture}_{args.activation}"
+    save_dir = f"{args.save_path}_pinn_0_{args.architecture}_{args.activation}"
     save_path = os.path.join(save_dir, "model")
     
     if is_main:
@@ -96,7 +97,7 @@ def main():
         logger.log(f"Running on device: {device}, Parallel training disabled")
 
     model_cfg = load_model_config(args.model_config)
-    dynamics = AidDynamics(args=args, model_cfg=model_cfg)
+    dynamics = SimpleDynamics(args=args, model_cfg=model_cfg)
     model = FBSNN(dynamics=dynamics, args=args).to(device)
 
     # Determine whether to load a model
@@ -142,9 +143,9 @@ def main():
         call_model = model.module if isinstance(model, DDP) else model
         call_model.eval()
         timesteps, results = dynamics.simulate_paths(agent=call_model, n_sim=args.n_simulations, seed=np.random.randint(0, 1000))
-        call_model.plot_approx_vs_analytic(results, timesteps, plot=args.plot, save_dir=save_dir)
-        call_model.plot_approx_vs_analytic_expectation(results, timesteps, plot=args.plot, save_dir=save_dir)
-        call_model.plot_terminal_histogram(results, plot=args.plot, save_dir=save_dir)
+        dynamics.plot_approx_vs_analytic(results, timesteps, plot=args.plot, save_dir=save_dir)
+        dynamics.plot_approx_vs_analytic_expectation(results, timesteps, plot=args.plot, save_dir=save_dir)
+        dynamics.plot_terminal_histogram(results, plot=args.plot, save_dir=save_dir)
 
     # Sync & cleanup
     if is_distributed:
