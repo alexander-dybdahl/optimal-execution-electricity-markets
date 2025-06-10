@@ -53,18 +53,25 @@ def main():
     parser.add_argument("--plot_loss", type=str2bool, nargs='?', const=True, default=run_cfg["plot_loss"], help="Plot loss after training")
     parser.add_argument("--n_simulations", type=int, default=run_cfg["n_simulations"], help="Number of simulations to run")
     args = parser.parse_args()
-    model_cfg = load_model_config(args.model_config)
 
     device = torch.device(args.device)
     args.global_rank = 0
     args.device_set = device
     args.batch_size_per_rank = args.batch_size
 
-    dynamics = AidDynamics(args, model_cfg)
+    save_dir = f"{args.save_path}_pinn_0_{args.architecture}_{args.activation}"
+    save_path = os.path.join(save_dir, "model")
 
+    model_cfg = load_model_config(args.model_config)
+    dynamics = SimpleDynamics(args, model_cfg)
     model = ValueFunctionNN(input_dim=model_cfg["dim"] + 1)
+
+    if args.load_if_exists and os.path.exists("pinn_model.pt"):
+        print(f"Loading existing model")
+        model.load_state_dict(torch.load("pinn_model.pt", map_location=device))
+
     losses = train_pinn(model, dynamics, model_cfg, device=args.device, n_epochs=args.epochs)
-    simulate_and_plot_paths(model, dynamics, model_cfg, device=args.device, n_simulations=args.n_simulations)
+    simulate_and_plot_paths(model, dynamics, model_cfg, device=args.device)
 
 if __name__ == "__main__":
     main()

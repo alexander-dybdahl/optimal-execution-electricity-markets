@@ -118,6 +118,9 @@ def train_pinn(model, dynamics, model_cfg, device, n_epochs=1000, lr=1e-3, batch
         if epoch % 100 == 0:
             print(f"Epoch {epoch}: Total Loss = {total_loss.item():.5f}, Y Loss = {Y_loss.item():.5f}, Terminal = {terminal_supervision.item():.5f}, PINN = {pinn_loss.item():.5f}")
 
+    # Save the model after training
+    torch.save(model.state_dict(), "pinn_model.pt")
+
     return losses
 
 def simulate_and_plot_paths(model, dynamics, model_cfg, device, n_sim=5, seed=42):
