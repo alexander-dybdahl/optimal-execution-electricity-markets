@@ -48,6 +48,57 @@ def hjb_residual(model, dynamics, t, y, create_graph=True):
     residual = dY_dt + drift_term + diffusion_term + f
     return residual.pow(2).mean()
 
+def physics_loss_full_hessian(model, dynamics, t, y):
+    """
+    Compute HJB residual using full Hessian and physics-informed loss format.
+    Equivalent logic to hjb_residual(), but written with full matrix formulation.
+    """
+    dim = y.shape[1]
+
+    # Ensure gradients
+    t = t if t.requires_grad else t.requires_grad_(True)
+    y = y if y.requires_grad else y.requires_grad_(True)
+
+    V = model(t, y)
+
+    # First derivatives
+    dV_dy, dV_dt = torch.autograd.grad(
+        outputs=V,
+        inputs=(y, t),
+        grad_outputs=torch.ones_like(V),
+        create_graph=True,
+        retain_graph=True
+    )
+
+    # Full Hessian ∇²_y V (batch, dim, dim)
+    hessian_rows = [
+        torch.autograd.grad(
+            outputs=dV_dy[:, i],
+            inputs=y,
+            grad_outputs=torch.ones_like(dV_dy[:, i]),
+            create_graph=True,
+            retain_graph=True
+        )[0] for i in range(dim)
+    ]
+    H = torch.stack(hessian_rows, dim=1)
+
+    # Dynamics
+    q = dynamics.optimal_control(t, y, V)
+    mu = dynamics.mu(t, y, q)
+    sigma = dynamics.sigma(t, y)
+    f = dynamics.generator(y, q)
+
+    # Diffusion term: ½ Tr[σσᵀ ∇²V]
+    sigma_sigma_T = torch.bmm(sigma, sigma.transpose(1, 2))  # shape: (batch, dim, dim)
+    trace_term = torch.einsum("bij,bij->b", sigma_sigma_T, H).unsqueeze(-1)
+    diffusion_term = 0.5 * trace_term
+
+    # HJB residual
+    drift_term = (mu * dV_dy).sum(dim=1, keepdim=True)
+    residual = dV_dt + drift_term + diffusion_term + f
+
+    return (residual ** 2).mean()
+
 # Updated training function using forward simulation with terminal and PINN losses
 def train_pinn(model, dynamics, model_cfg, device, n_epochs=1000, lr=1e-3, batch_size=512):
     model.to(device)
@@ -106,7 +157,8 @@ def train_pinn(model, dynamics, model_cfg, device, n_epochs=1000, lr=1e-3, batch
         t_phys = torch.rand(n_phys, 1, device=device) * T
         y_phys = torch.randn(n_phys, dim, device=device) * 2
 
-        pinn_loss = hjb_residual(model, dynamics, t_phys, y_phys)
+        # pinn_loss = hjb_residual(model, dynamics, t_phys, y_phys)
+        pinn_loss = physics_loss_full_hessian(model, dynamics, t_phys, y_phys)
 
         total_loss = Y_loss + terminal_supervision + pinn_loss
 
@@ -186,6 +238,7 @@ def simulate_and_plot_paths(model, dynamics, model_cfg, device, n_sim=5, seed=42
     plt.legend()
     plt.grid(True)
     plt.tight_layout()
+    plt.savefig("value_function_plot.png")
     plt.show()
 
     # === Plot State Trajectories (only first coordinate) ===
@@ -200,4 +253,5 @@ def simulate_and_plot_paths(model, dynamics, model_cfg, device, n_sim=5, seed=42
     plt.legend()
     plt.grid(True)
     plt.tight_layout()
+    plt.savefig("state_trajectories_plot.png")
     plt.show()
