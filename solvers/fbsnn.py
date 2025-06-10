@@ -114,38 +114,25 @@ class FBSNN(nn.Module):
 
         self.lowest_loss = float("inf")
 
-    def sample_latin_hypercube(self, device, N, t_range, y_range, dim_y):
-        # Sobol sampling gives better stratification than pure random
-        sobol = SobolEngine(dimension=dim_y + 1, scramble=True)
-        samples = sobol.draw(N).to(device)
-
-        # Scale t and y
-        t_samples = t_range[0] + (t_range[1] - t_range[0]) * samples[:, [0]]
-        y_samples = y_range[0] + (y_range[1] - y_range[0]) * samples[:, 1:]
-        return t_samples, y_samples
-    
-    def physics_loss(self, t, y, V):
-        dim = y.shape[1]
-
-        # Ensure gradients
-        t = t if t.requires_grad else t.requires_grad_(True)
-        y = y if y.requires_grad else y.requires_grad_(True)
+    def hjb_residual(self, t, y):
+        Y = self.Y_net(t, y)
 
         # First derivatives
-        dV_dy, dV_dt = torch.autograd.grad(
-            outputs=V,
+        dY_dy, dY_dt = torch.autograd.grad(
+            outputs=Y,
             inputs=(y, t),
-            grad_outputs=torch.ones_like(V),
+            grad_outputs=torch.ones_like(Y),
             create_graph=True,
             retain_graph=True
         )
 
         # Compute full Hessian: ∇²_y V (batch, dim, dim)
+        dim = y.shape[1]
         hessian_rows = [
             torch.autograd.grad(
-                outputs=dV_dy[:, i],
+                outputs=dY_dy[:, i],
                 inputs=y,
-                grad_outputs=torch.ones_like(dV_dy[:, i]),
+                grad_outputs=torch.ones_like(dY_dy[:, i]),
                 create_graph=True,
                 retain_graph=True
             )[0] for i in range(dim)
@@ -153,7 +140,7 @@ class FBSNN(nn.Module):
         H = torch.stack(hessian_rows, dim=1)
 
         # Dynamics quantities
-        q = self.dynamics.optimal_control(t, y, V)
+        q = self.dynamics.optimal_control(t, y, Y)
         mu = self.dynamics.mu(t, y, q)
         sigma = self.dynamics.sigma(t, y)
         f = self.dynamics.generator(y, q)
@@ -163,8 +150,8 @@ class FBSNN(nn.Module):
         trace_term = torch.einsum("bij,bij->b", sigma_sigma_T, H).unsqueeze(-1)
 
         # Residual from HJB
-        residual = dV_dt + (mu * dV_dy).sum(dim=1, keepdim=True) + 0.5 * trace_term + f
-        return (residual**2).sum()
+        residual = dY_dt + (mu * dY_dy).sum(dim=1, keepdim=True) + 0.5 * trace_term + f
+        return (residual**2).mean()
 
     def forward(self, t_paths, W_paths, supervised=False):
         if supervised:
@@ -208,10 +195,7 @@ class FBSNN(nn.Module):
 
             f = self.dynamics.generator(y0, q)
             Y1_tilde = Y0 - f * (t1 - t0) + (Z0 * (W1 - W0)).sum(dim=1, keepdim=True)
-            Y_loss += torch.sum(torch.pow(Y1 - Y1_tilde, 2))
-
-            # print out Y and Y_tilde for debugging
-            print(f"Y1: {Y1.mean().item()}, Y1_tilde: {Y1_tilde.mean().item()}")
+            Y_loss += (Y1 - Y1_tilde).pow(2).mean()
 
             t_traj.append(t1)
             y_traj.append(y1)
@@ -220,12 +204,14 @@ class FBSNN(nn.Module):
 
         self.Y_loss = self.lambda_Y * Y_loss.detach()
 
-        # === Terminal supervision ===
+        # === Terminal loss ===
         terminal_loss, terminal_gradient_loss = 0.0, 0.0
         if self.lambda_T > 0:
             YT = self.Y_net(t1, y1)
-            terminal_loss = torch.sum(torch.pow(YT - self.dynamics.terminal_cost(y1), 2))
+            terminal_loss = (YT - self.dynamics.terminal_cost(y1)).pow(2).mean()
             self.terminal_loss = self.lambda_T * terminal_loss.detach()
+
+        # === Terminal gradient loss ===
         if self.lambda_TG > 0:
             dYT = torch.autograd.grad(
                 YT, 
@@ -233,30 +219,15 @@ class FBSNN(nn.Module):
                 grad_outputs=torch.ones_like(YT), 
                 create_graph=True
             )[0]
-            terminal_gradient_loss = torch.sum(torch.pow(dYT - self.dynamics.terminal_cost_grad(y1), 2))
+            terminal_gradient_loss = (dYT - self.dynamics.terminal_cost_grad(y1)).pow(2).mean()
             self.terminal_gradient_loss = self.lambda_TG * terminal_gradient_loss.detach()
 
         # === Physics-based loss ===
-        t_traj = torch.cat(t_traj, dim=0).requires_grad_(True)            # shape: [N * batch_size, 1]
-        y_traj = torch.cat(y_traj[1:], dim=0).requires_grad_(True)        # shape: [N * batch_size, state_dim]
-
         pinn_loss = 0.0
         if self.lambda_pinn > 0:
-            N_pinn = self.batch_size * self.dynamics.N
-            t_pinn, y_pinn = self.sample_latin_hypercube(
-                device=self.device,
-                N=N_pinn,
-                t_range=(0.0, self.dynamics.T),
-                y_range=(-10.0, 10.0),  # adjust to your problem's domain
-                dim_y=self.dynamics.dim,
-            )
-            t_pinn.requires_grad_(True)
-            y_pinn.requires_grad_(True)
-
-            with torch.enable_grad():
-                V = self.Y_net(t_pinn, y_pinn)
-                pinn_loss = self.physics_loss(t_pinn, y_pinn, V)
-
+            t_traj = torch.cat(t_traj, dim=0).requires_grad_(True)
+            y_traj = torch.cat(y_traj[1:], dim=0).requires_grad_(True)
+            pinn_loss = self.hjb_residual(t_traj, y_traj)
             self.pinn_loss = self.lambda_pinn * pinn_loss.detach()
 
         return (
@@ -288,18 +259,14 @@ class FBSNN(nn.Module):
 
             t0, W0, y0 = t1, W1, y1
 
-        t_traj = torch.cat(t_traj, dim=0).requires_grad_(
-            True
-        )                                   # shape: (N * batch_size, 1)
-        y_traj = torch.cat(y_traj[1:], dim=0).requires_grad_(
-            True
-        )                                   # shape: (N * batch_size, dim)
-
+        t_traj = torch.cat(t_traj, dim=0).requires_grad_(True)
+        y_traj = torch.cat(y_traj[1:], dim=0).requires_grad_(True)
+        
         # === Y loss ===
         V_target = self.dynamics.value_function_analytic(t_traj, y_traj)
         V_pred = self.Y_net(t_traj, y_traj)
 
-        Y_loss = torch.sum(torch.pow(V_pred - V_target, 2))
+        Y_loss = (V_pred - V_target).pow(2).mean()
         if self.lambda_Y > 0:
             self.Y_loss = self.lambda_Y * Y_loss.detach()
 
@@ -319,7 +286,7 @@ class FBSNN(nn.Module):
                 grad_outputs=torch.ones_like(V_pred),
                 create_graph=True
             )[0]
-            dY_loss = torch.sum(torch.pow(dV_pred - dV_target, 2))
+            dY_loss = (dV_pred - dV_target).pow(2).mean()
             self.dY_loss = self.lambda_dY * dY_loss.detach()
 
         # === dYt loss ===
@@ -338,14 +305,14 @@ class FBSNN(nn.Module):
                 grad_outputs=torch.ones_like(V_pred),
                 create_graph=True
             )[0]
-            dYt_loss = torch.sum(torch.pow(dV_pred_t - dV_target_t, 2))
+            dYt_loss = (dV_pred_t - dV_target_t).pow(2).mean()
             self.dYt_loss = self.lambda_dYt * dYt_loss.detach()
 
         # === Terminal loss ===
         terminal_loss = 0.0
         if self.lambda_T > 0:
             YT = self.Y_net(t1, y1)
-            terminal_loss = torch.sum(torch.pow(YT - self.dynamics.terminal_cost(y1), 2))
+            terminal_loss = (YT - self.dynamics.terminal_cost(y1)).pow(2).mean()
             self.terminal_loss = self.lambda_T * terminal_loss.detach()
 
         # === Terminal gradient loss ===
@@ -357,21 +324,16 @@ class FBSNN(nn.Module):
                 grad_outputs=torch.ones_like(YT), 
                 create_graph=True
             )[0]
-            terminal_gradient_loss = torch.sum(torch.pow(dYT - self.dynamics.terminal_cost_grad(y1), 2))
+            terminal_gradient_loss = (dYT - self.dynamics.terminal_cost_grad(y1)).pow(2).mean()
             self.terminal_gradient_loss = self.lambda_TG * terminal_gradient_loss.detach()
 
-        # === Physics-informed loss ===
+        # === Physics-based loss ===
         pinn_loss = 0.0
         if self.lambda_pinn > 0:
-            with torch.enable_grad():
-                for i in range(self.dynamics.N):
-                    idx = slice(i * self.batch_size, (i + 1) * self.batch_size)
-                    t_i = t_traj[idx].detach().clone().requires_grad_(True)
-                    y_i = y_traj[idx].detach().clone().requires_grad_(True)
-                    V_i = self.Y_net(t_i, y_i)
-                    pinn_loss += self.physics_loss(t_i, y_i, V_i)
-                pinn_loss /= self.dynamics.N
-                self.pinn_loss = self.lambda_pinn * pinn_loss.detach()
+            t_traj = torch.cat(t_traj, dim=0).requires_grad_(True)
+            y_traj = torch.cat(y_traj[1:], dim=0).requires_grad_(True)
+            pinn_loss = self.physics_loss(t_traj, y_traj)
+            self.pinn_loss = self.lambda_pinn * pinn_loss.detach()
 
         return (
             self.lambda_Y * Y_loss

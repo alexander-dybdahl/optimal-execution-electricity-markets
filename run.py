@@ -79,7 +79,7 @@ def main():
         args.device_set = device
         args.batch_size_per_rank = args.batch_size
 
-    save_dir = f"{args.save_path}_pinn_0_{args.architecture}_{args.activation}"
+    save_dir = f"{args.save_path}_{args.architecture}_{args.activation}"
     save_path = os.path.join(save_dir, "model")
     
     if is_main:
@@ -97,7 +97,7 @@ def main():
         logger.log(f"Running on device: {device}, Parallel training disabled")
 
     model_cfg = load_model_config(args.model_config)
-    dynamics = AidDynamics(args=args, model_cfg=model_cfg)
+    dynamics = SimpleDynamics(args=args, model_cfg=model_cfg)
     model = FBSNN(dynamics=dynamics, args=args).to(device)
 
     # Determine whether to load a model
