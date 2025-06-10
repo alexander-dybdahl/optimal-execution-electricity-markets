@@ -97,7 +97,7 @@ def main():
         logger.log(f"Running on device: {device}, Parallel training disabled")
 
     model_cfg = load_model_config(args.model_config)
-    dynamics = SimpleDynamics(args=args, model_cfg=model_cfg)
+    dynamics = AidDynamics(args=args, model_cfg=model_cfg)
     model = FBSNN(dynamics=dynamics, args=args).to(device)
 
     # Determine whether to load a model

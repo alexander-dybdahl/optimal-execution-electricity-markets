@@ -686,20 +686,20 @@ class FBSNN(nn.Module):
         for i in range(y_vals.shape[1]):
             axs[2, 0].plot(timesteps, y_vals[:, i, 0], color=colors(i), alpha=0.6, label=f"$x_{i}(t)$" if i == 0 else None)
             axs[2, 0].plot(timesteps, true_y[:, i, 0], linestyle="--", color=colors(i), alpha=0.4, label=f"$x^*_{i}(t)$" if i == 0 else None)
-            # axs[2, 0].plot(timesteps, true_y[:, i, 2], linestyle="-.", color=colors(i), alpha=0.6, label=f"$d_{i}(t)$" if i == 0 else None)
+            axs[2, 0].plot(timesteps, true_y[:, i, 2], linestyle="-.", color=colors(i), alpha=0.6, label=f"$d_{i}(t)$" if i == 0 else None)
         axs[2, 0].set_title("States: $x(t)$ and $d(t)$")
         axs[2, 0].set_xlabel("Time $t$")
         axs[2, 0].set_ylabel("x(t), d(t)")
         axs[2, 0].grid(True)
         axs[2, 0].legend(loc='upper left')
 
-        # for i in range(y_vals.shape[1]):
-        #     axs[2, 1].plot(timesteps, true_y[:, i, 1], color=colors(i), alpha=0.6, label=f"$p_{i}(t)$" if i == 0 else None)
-        # axs[2, 1].set_title("State: $p(t)$")
-        # axs[2, 1].set_xlabel("Time $t$")
-        # axs[2, 1].set_ylabel("p(t)")
-        # axs[2, 1].grid(True)
-        # axs[2, 1].legend(loc='upper left')
+        for i in range(y_vals.shape[1]):
+            axs[2, 1].plot(timesteps, true_y[:, i, 1], color=colors(i), alpha=0.6, label=f"$p_{i}(t)$" if i == 0 else None)
+        axs[2, 1].set_title("State: $p(t)$")
+        axs[2, 1].set_xlabel("Time $t$")
+        axs[2, 1].set_ylabel("p(t)")
+        axs[2, 1].grid(True)
+        axs[2, 1].legend(loc='upper left')
 
         plt.tight_layout()
         if save_dir:
