@@ -143,9 +143,9 @@ def main():
         call_model = model.module if isinstance(model, DDP) else model
         call_model.eval()
         timesteps, results = dynamics.simulate_paths(agent=call_model, n_sim=args.n_simulations, seed=np.random.randint(0, 1000))
-        dynamics.plot_approx_vs_analytic(results, timesteps, plot=args.plot, save_dir=save_dir)
-        dynamics.plot_approx_vs_analytic_expectation(results, timesteps, plot=args.plot, save_dir=save_dir)
-        dynamics.plot_terminal_histogram(results, plot=args.plot, save_dir=save_dir)
+        model.plot_approx_vs_analytic(results, timesteps, plot=args.plot, save_dir=save_dir)
+        model.plot_approx_vs_analytic_expectation(results, timesteps, plot=args.plot, save_dir=save_dir)
+        model.plot_terminal_histogram(results, plot=args.plot, save_dir=save_dir)
 
     # Sync & cleanup
     if is_distributed:
