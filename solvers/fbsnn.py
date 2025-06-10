@@ -846,6 +846,8 @@ class FBSNN(nn.Module):
 
         # Choose bins depending on data spread
         bins = min(30, max(1, int(range_combined / 1e-2)))
+
+        plt.figure(figsize=(14, 10))
         
         plt.figure(figsize=(14, 10))
 
