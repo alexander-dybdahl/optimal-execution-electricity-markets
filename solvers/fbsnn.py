@@ -227,6 +227,25 @@ class FBSNN(nn.Module):
         if self.lambda_pinn > 0:
             t_traj = torch.cat(t_traj, dim=0).requires_grad_(True)
             y_traj = torch.cat(y_traj[1:], dim=0).requires_grad_(True)
+
+            # Sobol points for additional PINN loss
+            sobol = SobolEngine(dimension=self.dynamics.dim, scramble=True)
+            sobol_points = sobol.draw(self.batch_size * self.dynamics.N)
+            y0 = self.dynamics.y0.detach().cpu()
+            x0, d0, p0 = y0[0]
+            std_mult = 3.0
+            T = self.dynamics.T
+            x_min, x_max = x0 - 10.0, x0 + 10.0
+            d_min, d_max = d0 - std_mult * self.dynamics.sigma_D * T**0.5, d0 + std_mult * self.dynamics.sigma_D * T**0.5
+            p_min, p_max = p0 - std_mult * self.dynamics.sigma_P * T**0.5, p0 + std_mult * self.dynamics.sigma_P * T**0.5
+            y_min = torch.tensor([x_min, d_min, p_min], device=self.device)
+            y_max = torch.tensor([x_max, d_max, p_max], device=self.device)
+            sobol_points = sobol_points.to(self.device)
+            sobol_points = y_min + (y_max - y_min) * sobol_points
+            t_sobol = torch.rand(self.batch_size * self.dynamics.N, 1, device=self.device) * T
+            t_traj = torch.cat([t_traj, t_sobol], dim=0).requires_grad_(True)
+            y_traj = torch.cat([y_traj, sobol_points], dim=0).requires_grad_(True)
+
             pinn_loss = self.hjb_residual(t_traj, y_traj)
             self.pinn_loss = self.lambda_pinn * pinn_loss.detach()
 
@@ -332,6 +351,25 @@ class FBSNN(nn.Module):
         if self.lambda_pinn > 0:
             t_traj = torch.cat(t_traj, dim=0).requires_grad_(True)
             y_traj = torch.cat(y_traj[1:], dim=0).requires_grad_(True)
+    
+            # Sobol points for additional PINN loss
+            sobol = SobolEngine(dimension=self.dynamics.dim, scramble=True)
+            sobol_points = sobol.draw(self.batch_size * self.dynamics.N)
+            y0 = self.dynamics.y0.detach().cpu()
+            x0, d0, p0 = y0[0]
+            std_mult = 3.0
+            T = self.dynamics.T
+            x_min, x_max = x0 - 10.0, x0 + 10.0
+            d_min, d_max = d0 - std_mult * self.dynamics.sigma_D * T**0.5, d0 + std_mult * self.dynamics.sigma_D * T**0.5
+            p_min, p_max = p0 - std_mult * self.dynamics.sigma_P * T**0.5, p0 + std_mult * self.dynamics.sigma_P * T**0.5
+            y_min = torch.tensor([x_min, d_min, p_min], device=self.device)
+            y_max = torch.tensor([x_max, d_max, p_max], device=self.device)
+            sobol_points = sobol_points.to(self.device)
+            sobol_points = y_min + (y_max - y_min) * sobol_points
+            t_sobol = torch.rand(self.batch_size * self.dynamics.N, 1, device=self.device) * T
+            t_traj = torch.cat([t_traj, t_sobol], dim=0).requires_grad_(True)
+            y_traj = torch.cat([y_traj, sobol_points], dim=0).requires_grad_(True)
+
             pinn_loss = self.physics_loss(t_traj, y_traj)
             self.pinn_loss = self.lambda_pinn * pinn_loss.detach()
 
