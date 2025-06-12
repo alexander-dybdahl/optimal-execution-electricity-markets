@@ -9,7 +9,7 @@ import torch.distributed as dist
 import torch.nn as nn
 from torch.quasirandom import SobolEngine
 
-from core.nnets import FCnet, LSTMNet, Resnet, Sine
+from core.nnets import FCnet, LSTMNet, Resnet, Sine, FeedForwardSubNet, LSTMWithSubnets, NonsharedLSTMModel, SeparateSubnetsPerTime
 from utils.logger import Logger
 
 
@@ -122,8 +122,53 @@ class FBSNN(nn.Module):
                 use_sync_bn=self.is_distributed,
                 use_batchnorm=self.use_batchnorm,
             ).to(self.device)
+        elif args.architecture == "LSTMWithSubnets":
+            # Get subnet configuration from args
+            subnet_hidden_dims = getattr(args, 'subnet_hidden_dims', [32, 32])
+            self.Y_net = LSTMWithSubnets(
+                layers=[self.dynamics.dim + 1] + args.Y_layers,
+                activation=args.activation,
+                use_bn_input=getattr(args, 'use_bn_input', self.use_batchnorm),
+                use_bn_hidden=getattr(args, 'use_bn_hidden', self.use_batchnorm),
+                use_bn_output=getattr(args, 'use_bn_output', self.use_batchnorm),
+                use_sync_bn=self.is_distributed,
+                subnet_hidden_dims=subnet_hidden_dims,
+                num_time_steps=self.dynamics.N,
+                device=self.device,
+                dtype=torch.float32
+            ).to(self.device)
+        elif args.architecture == "SeparateSubnets":
+            # Simple separate subnetworks per time step (no LSTM)
+            subnet_hidden_dims = getattr(args, 'subnet_hidden_dims', [64, 64])
+            self.Y_net = SeparateSubnetsPerTime(
+                layers=[self.dynamics.dim + 1] + args.Y_layers,
+                activation=args.activation,
+                use_bn_input=getattr(args, 'use_bn_input', self.use_batchnorm),
+                use_bn_hidden=getattr(args, 'use_bn_hidden', self.use_batchnorm),
+                use_bn_output=getattr(args, 'use_bn_output', self.use_batchnorm),
+                use_sync_bn=self.is_distributed,
+                subnet_hidden_dims=subnet_hidden_dims,
+                num_time_steps=self.dynamics.N,
+                device=self.device,
+                dtype=torch.float32
+            ).to(self.device)
+        elif args.architecture == "NonsharedLSTM":
+            # Configuration for NonsharedLSTMModel
+            config = {
+                'lstm_hidden_size': getattr(args, 'lstm_hidden_size', 64),
+                'subnet_hidden_dims': getattr(args, 'subnet_hidden_dims', [32, 32])
+            }
+            self.Y_net = NonsharedLSTMModel(
+                config=config,
+                dynamics=self.dynamics,
+                activation=args.activation,
+                use_bn_input=getattr(args, 'use_bn_input', self.use_batchnorm),
+                use_bn_hidden=getattr(args, 'use_bn_hidden', self.use_batchnorm),
+                use_bn_output=getattr(args, 'use_bn_output', self.use_batchnorm),
+                use_sync_bn=self.is_distributed
+            ).to(self.device)
         else:
-            raise ValueError(f"Unknown architecture: {self.args.architecture}")
+            raise ValueError(f"Unknown architecture: {args.architecture}")
         # Set T for time normalization in the network
         self.Y_net.T = self.dynamics.T
 
