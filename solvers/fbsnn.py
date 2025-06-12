@@ -9,7 +9,7 @@ import torch.distributed as dist
 import torch.nn as nn
 from torch.quasirandom import SobolEngine
 
-from core.nnets import FCnet, LSTMNet, Resnet, Sine
+from core.nnets import FCnet, LSTMNet, Resnet, Sine, SeparateSubnets, LSTMWithSubnets
 from utils.logger import Logger
 
 
@@ -108,6 +108,28 @@ class FBSNN(nn.Module):
                 layers=[self.dynamics.dim + 1] + args.Y_layers,
                 activation=self.activation,
                 type=args.architecture,
+            ).to(self.device)
+        elif args.architecture == "SeparateSubnets":
+            # Get subnet configuration from args
+            subnet_type = getattr(args, 'subnet_type', 'FC')  # Default to FC if not specified
+            self.Y_net = SeparateSubnets(
+                layers=[self.dynamics.dim + 1] + args.Y_layers,
+                activation=self.activation,
+                num_time_steps=self.dynamics.N,
+                subnet_type=subnet_type,
+            ).to(self.device)
+        elif args.architecture == "LSTMWithSubnets":
+            # Get LSTM and subnet configuration from args
+            lstm_layers = getattr(args, 'lstm_layers', [64, 64])  # Default LSTM layers
+            lstm_type = getattr(args, 'lstm_type', 'LSTM')  # Default LSTM type
+            subnet_type = getattr(args, 'subnet_type', 'FC')  # Default to FC subnets
+            self.Y_net = LSTMWithSubnets(
+                layers=[self.dynamics.dim + 1] + args.Y_layers,
+                activation=self.activation,
+                num_time_steps=self.dynamics.N,
+                lstm_layers=lstm_layers,
+                subnet_type=subnet_type,
+                lstm_type=lstm_type,
             ).to(self.device)
         else:
             raise ValueError(f"Unknown architecture: {args.architecture}")

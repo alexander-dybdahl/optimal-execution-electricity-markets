@@ -191,3 +191,155 @@ class Resnet(nn.Module):
             out = out + shortcut if i > 0 else out
 
         return self.output_layer(out)
+
+
+class SeparateSubnets(nn.Module):
+    """Architecture with separate subnetworks for each time step.
+    
+    This architecture creates a different subnetwork (FCnet or Resnet) for each time step,
+    similar to the implementation in subnet.py and model.py examples.
+    """
+    def __init__(self, layers, activation, num_time_steps, subnet_type="FC"):
+        super(SeparateSubnets, self).__init__()
+        self.num_time_steps = num_time_steps
+        self.subnet_type = subnet_type
+        self.activation = activation
+        
+        input_dim = layers[0]  # dim + 1 (time + state)
+        self.subnet_layers = layers[1:]  # layers for each subnet
+        
+        # Create a separate subnet for each time step
+        self.subnets = nn.ModuleList()
+        for i in range(num_time_steps):
+            if subnet_type == "FC":
+                subnet = FCnet([input_dim] + self.subnet_layers, activation)
+            elif subnet_type == "Resnet":
+                subnet = Resnet([input_dim] + self.subnet_layers, activation, stable=False)
+            elif subnet_type == "NAISnet":
+                subnet = Resnet([input_dim] + self.subnet_layers, activation, stable=True)
+            else:
+                raise ValueError(f"Unknown subnet type: {subnet_type}")
+            self.subnets.append(subnet)
+    
+    def forward(self, t, y):
+        # Concatenate time and state
+        u = torch.cat([t, y], dim=1)
+        
+        # Assuming all times in the batch are the same
+        # Determine which time step we're at based on the first time value
+        # Assuming t is normalized between 0 and T
+        T = self.num_time_steps
+        relative_t = t[0, 0] / self.num_time_steps
+        time_idx = min(int(relative_t * T), T-1)
+        
+        # Use the appropriate subnet for this time step
+        return self.subnets[time_idx](t, y)
+
+
+class LSTMWithSubnets(nn.Module):
+    """Architecture with shared LSTM layer followed by separate subnetworks per time step.
+    
+    This architecture first processes input through a shared LSTM layer, then uses
+    different subnetworks (FCnet or Resnet) for each time step.
+    """
+    def __init__(self, layers, activation, num_time_steps, lstm_layers, subnet_type="FC", 
+                 lstm_type="LSTM"):
+        super(LSTMWithSubnets, self).__init__()
+        self.num_time_steps = num_time_steps
+        self.subnet_type = subnet_type
+        self.activation = activation
+        self.lstm_type = lstm_type
+        
+        input_size = layers[0]  # dim + 1 (time + state)
+        lstm_hidden_sizes = lstm_layers  # LSTM layer configuration
+        self.subnet_layers = layers[1:]  # layers for each subnet
+        
+        # Create shared LSTM layer(s)
+        if lstm_type == 'ResLSTM':
+            self.lstm_layers = nn.ModuleList([
+                ResLSTMCell(input_size if i == 0 else lstm_hidden_sizes[i - 1], 
+                           lstm_hidden_sizes[i], activation=activation)
+                for i in range(len(lstm_hidden_sizes))
+            ])
+        elif lstm_type == 'NaisLSTM':
+            self.lstm_layers = nn.ModuleList([
+                ResLSTMCell(input_size if i == 0 else lstm_hidden_sizes[i - 1], 
+                           lstm_hidden_sizes[i], stable=True, activation=activation)
+                for i in range(len(lstm_hidden_sizes))
+            ])
+        else:  # Standard LSTM
+            self.lstm_layers = nn.ModuleList([
+                LSTMCell(input_size if i == 0 else lstm_hidden_sizes[i - 1], 
+                        lstm_hidden_sizes[i])
+                for i in range(len(lstm_hidden_sizes))
+            ])
+        
+        # Create separate subnets for each time step
+        # Input to subnets is the output of the last LSTM layer + dummy time dimension (1)
+        lstm_output_size = lstm_hidden_sizes[-1]
+        # Add 1 to account for dummy time dimension that will be concatenated
+        subnet_input_size = lstm_output_size + 1
+        self.subnets = nn.ModuleList()
+        for i in range(num_time_steps):
+            if subnet_type == "FC":
+                subnet = FCnet([subnet_input_size] + self.subnet_layers, activation)
+            elif subnet_type == "Resnet":
+                subnet = Resnet([subnet_input_size] + self.subnet_layers, activation, stable=False)
+            elif subnet_type == "NAISnet":
+                subnet = Resnet([subnet_input_size] + self.subnet_layers, activation, stable=True)
+            else:
+                raise ValueError(f"Unknown subnet type: {subnet_type}")
+            self.subnets.append(subnet)
+        
+        # Initialize hidden states (will be reset for each forward pass)
+        self.hidden_states = None
+        self.cell_states = None
+    
+    def forward(self, t, y):
+        # Concatenate time and state
+        input_seq = torch.cat([t, y], dim=1)  # shape: [batch, input_size]
+        batch_size = input_seq.size(0)
+        
+        # Initialize hidden and cell states if needed
+        if (self.hidden_states is None or 
+            self.hidden_states[0].shape[0] != batch_size or
+            self.hidden_states[0].device != input_seq.device):
+            
+            self.hidden_states = [
+                torch.zeros(batch_size, layer.hidden_size, 
+                           device=input_seq.device, dtype=input_seq.dtype, requires_grad=True)
+                for layer in self.lstm_layers
+            ]
+            self.cell_states = [torch.zeros_like(h) for h in self.hidden_states]
+        
+        # Process through LSTM layers
+        x = input_seq
+        for i, lstm_cell in enumerate(self.lstm_layers):
+            if hasattr(lstm_cell, 'hidden_size'):  # Standard LSTM or ResLSTM
+                h_new, (h_state, c_state) = lstm_cell(x, (self.hidden_states[i], self.cell_states[i]))
+                self.hidden_states[i] = h_state
+                self.cell_states[i] = c_state
+                x = self.activation(h_new)
+            else:
+                # For other LSTM types that might have different interfaces
+                h_new = lstm_cell(x)
+                x = self.activation(h_new)
+        
+        # Now x contains the LSTM output
+        # Assuming all times in the batch are the same
+        # Determine which time step we're at based on the first time value
+        # Assuming t is normalized between 0 and T
+        T = self.num_time_steps
+        relative_t = t[0, 0] / self.num_time_steps
+        time_idx = min(int(relative_t * T), T-1)
+
+        # For subnets, we need to create dummy time input since they expect (t, y) format
+        dummy_t = torch.zeros(batch_size, 1, device=x.device, dtype=x.dtype)
+        
+        # Use the appropriate subnet for this time step
+        return self.subnets[time_idx](dummy_t, x)
+    
+    def reset_states(self):
+        """Reset LSTM hidden and cell states. Call this between different sequences."""
+        self.hidden_states = None
+        self.cell_states = None
