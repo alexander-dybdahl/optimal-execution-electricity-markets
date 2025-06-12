@@ -1,0 +1,5 @@
+{
+  "_comment": "Fully Connected Neural Network Configuration",
+  "activation": "ReLU",
+  "Y_layers": [64, 64, 64, 1]
+}

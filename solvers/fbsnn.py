@@ -9,7 +9,7 @@ import torch.distributed as dist
 import torch.nn as nn
 from torch.quasirandom import SobolEngine
 
-from core.nnets import FCnet, LSTMNet, Resnet, Sine, FeedForwardSubNet, LSTMWithSubnets, NonsharedLSTMModel, SeparateSubnetsPerTime
+from core.nnets import FCnet, Resnet, Sine, FeedForwardSubNet, LSTMWithSubnets, SeparateSubnetsPerTime
 from utils.logger import Logger
 
 
@@ -110,62 +110,34 @@ class FBSNN(nn.Module):
                 use_sync_bn=self.is_distributed,
                 use_batchnorm=self.use_batchnorm,
             ).to(self.device)
-        elif (
-            args.architecture == "LSTM"
-            or args.architecture == "ResLSTM"
-            or args.architecture == "NaisLSTM"
-        ):
-            self.Y_net = LSTMNet(
-                layers=[self.dynamics.dim + 1] + args.Y_layers,
-                activation=self.activation,
-                type=args.architecture,
-                use_sync_bn=self.is_distributed,
-                use_batchnorm=self.use_batchnorm,
-            ).to(self.device)
         elif args.architecture == "LSTMWithSubnets":
-            # Get subnet configuration from args
-            subnet_hidden_dims = getattr(args, 'subnet_hidden_dims', [32, 32])
             self.Y_net = LSTMWithSubnets(
-                layers=[self.dynamics.dim + 1] + args.Y_layers,
+                input_dim=self.dynamics.dim + 1,
+                lstm_hidden_size=args.lstm_hidden_size,
+                output_dim=args.Y_layers[-1],
                 activation=args.activation,
-                use_bn_input=getattr(args, 'use_bn_input', self.use_batchnorm),
-                use_bn_hidden=getattr(args, 'use_bn_hidden', self.use_batchnorm),
-                use_bn_output=getattr(args, 'use_bn_output', self.use_batchnorm),
+                use_bn_input=args.use_bn_input,
+                use_bn_hidden=args.use_bn_hidden,
+                use_bn_output=args.use_bn_output,
                 use_sync_bn=self.is_distributed,
-                subnet_hidden_dims=subnet_hidden_dims,
+                subnet_hidden_dims=args.subnet_hidden_dims,
                 num_time_steps=self.dynamics.N,
                 device=self.device,
                 dtype=torch.float32
             ).to(self.device)
         elif args.architecture == "SeparateSubnets":
-            # Simple separate subnetworks per time step (no LSTM)
-            subnet_hidden_dims = getattr(args, 'subnet_hidden_dims', [64, 64])
             self.Y_net = SeparateSubnetsPerTime(
-                layers=[self.dynamics.dim + 1] + args.Y_layers,
+                input_dim=self.dynamics.dim + 1,
+                output_dim=args.Y_layers[-1],
                 activation=args.activation,
-                use_bn_input=getattr(args, 'use_bn_input', self.use_batchnorm),
-                use_bn_hidden=getattr(args, 'use_bn_hidden', self.use_batchnorm),
-                use_bn_output=getattr(args, 'use_bn_output', self.use_batchnorm),
+                use_bn_input=args.use_bn_input,
+                use_bn_hidden=args.use_bn_hidden,
+                use_bn_output=args.use_bn_output,
                 use_sync_bn=self.is_distributed,
-                subnet_hidden_dims=subnet_hidden_dims,
+                subnet_hidden_dims=args.subnet_hidden_dims,
                 num_time_steps=self.dynamics.N,
                 device=self.device,
                 dtype=torch.float32
-            ).to(self.device)
-        elif args.architecture == "NonsharedLSTM":
-            # Configuration for NonsharedLSTMModel
-            config = {
-                'lstm_hidden_size': getattr(args, 'lstm_hidden_size', 64),
-                'subnet_hidden_dims': getattr(args, 'subnet_hidden_dims', [32, 32])
-            }
-            self.Y_net = NonsharedLSTMModel(
-                config=config,
-                dynamics=self.dynamics,
-                activation=args.activation,
-                use_bn_input=getattr(args, 'use_bn_input', self.use_batchnorm),
-                use_bn_hidden=getattr(args, 'use_bn_hidden', self.use_batchnorm),
-                use_bn_output=getattr(args, 'use_bn_output', self.use_batchnorm),
-                use_sync_bn=self.is_distributed
             ).to(self.device)
         else:
             raise ValueError(f"Unknown architecture: {args.architecture}")
@@ -175,7 +147,18 @@ class FBSNN(nn.Module):
         self.lowest_loss = float("inf")
 
     def hjb_residual(self, t, y):
-        Y = self.Y_net(t, y)
+        # Disable CuDNN for LSTM-based architectures when computing Hessian
+        # This is necessary because CuDNN LSTM doesn't support double backwards
+        use_cudnn_context = (
+            self.architecture in ["LSTMWithSubnets"] and 
+            torch.backends.cudnn.is_available()
+        )
+        
+        if use_cudnn_context:
+            with torch.backends.cudnn.flags(enabled=False):
+                Y = self.Y_net(t, y)
+        else:
+            Y = self.Y_net(t, y)
 
         # First derivatives
         dY_dy, dY_dt = torch.autograd.grad(
@@ -188,15 +171,27 @@ class FBSNN(nn.Module):
 
         # Compute full Hessian: ∇²_y V (batch, dim, dim)
         dim = y.shape[1]
-        hessian_rows = [
-            torch.autograd.grad(
-                outputs=dY_dy[:, i],
-                inputs=y,
-                grad_outputs=torch.ones_like(dY_dy[:, i]),
-                create_graph=True,
-                retain_graph=True
-            )[0] for i in range(dim)
-        ]
+        if use_cudnn_context:
+            with torch.backends.cudnn.flags(enabled=False):
+                hessian_rows = [
+                    torch.autograd.grad(
+                        outputs=dY_dy[:, i],
+                        inputs=y,
+                        grad_outputs=torch.ones_like(dY_dy[:, i]),
+                        create_graph=True,
+                        retain_graph=True
+                    )[0] for i in range(dim)
+                ]
+        else:
+            hessian_rows = [
+                torch.autograd.grad(
+                    outputs=dY_dy[:, i],
+                    inputs=y,
+                    grad_outputs=torch.ones_like(dY_dy[:, i]),
+                    create_graph=True,
+                    retain_graph=True
+                )[0] for i in range(dim)
+            ]
         H = torch.stack(hessian_rows, dim=1)
 
         # Dynamics quantities
@@ -283,6 +278,7 @@ class FBSNN(nn.Module):
             self.terminal_gradient_loss = self.lambda_TG * terminal_gradient_loss.detach()
 
         # === Physics-based loss ===
+        pinn_loss = 0.0
         if self.lambda_pinn > 0:
             t_traj = torch.cat(t_traj, dim=0).requires_grad_(True)
             y_traj = torch.cat(y_traj[1:], dim=0).requires_grad_(True)
@@ -442,7 +438,49 @@ class FBSNN(nn.Module):
         )
     
     def predict(self, t_tensor, y_tensor):
-        return self.Y_net(t_tensor, y_tensor)
+        # For LSTM-based architectures, we need to handle CuDNN context
+        # during evaluation since CuDNN doesn't support backward passes in eval mode
+        use_cudnn_context = (
+            self.architecture in ["LSTMWithSubnets"] and 
+            torch.backends.cudnn.is_available() and
+            not self.training  # Only when in eval mode
+        )
+        
+        if use_cudnn_context:
+            with torch.backends.cudnn.flags(enabled=False):
+                return self.Y_net(t_tensor, y_tensor)
+        else:
+            return self.Y_net(t_tensor, y_tensor)
+
+    def predict_with_gradients(self, t_tensor, y_tensor):
+        """Predict and compute gradients with proper CuDNN handling"""
+        # For LSTM-based architectures, disable CuDNN when computing gradients
+        use_cudnn_context = (
+            self.architecture in ["LSTMWithSubnets"] and 
+            torch.backends.cudnn.is_available()
+        )
+        
+        if use_cudnn_context:
+            with torch.backends.cudnn.flags(enabled=False):
+                Y = self.Y_net(t_tensor, y_tensor)
+                dY = torch.autograd.grad(
+                    outputs=Y,
+                    inputs=y_tensor,
+                    grad_outputs=torch.ones_like(Y),
+                    create_graph=False,
+                    retain_graph=True,
+                )[0] if y_tensor.requires_grad else None
+                return Y, dY
+        else:
+            Y = self.Y_net(t_tensor, y_tensor)
+            dY = torch.autograd.grad(
+                outputs=Y,
+                inputs=y_tensor,
+                grad_outputs=torch.ones_like(Y),
+                create_graph=False,
+                retain_graph=True,
+            )[0] if y_tensor.requires_grad else None
+            return Y, dY
 
     def fetch_minibatch(self, batch_size):
         dim_W = self.dynamics.dim_W
@@ -602,8 +640,21 @@ class FBSNN(nn.Module):
         for epoch in range(1, epochs + 1):
             optimizer.zero_grad()
             t_paths, W_paths = self.fetch_minibatch(self.batch_size)
-            loss = self(t_paths=t_paths, W_paths=W_paths, supervised=self.supervised)
-            loss.backward()
+            
+            # Disable CuDNN for LSTM-based architectures to support double backwards
+            use_cudnn_context = (
+                self.architecture in ["LSTMWithSubnets"] and 
+                torch.backends.cudnn.is_available()
+            )
+            
+            if use_cudnn_context:
+                with torch.backends.cudnn.flags(enabled=False):
+                    loss = self(t_paths=t_paths, W_paths=W_paths, supervised=self.supervised)
+                    loss.backward()
+            else:
+                loss = self(t_paths=t_paths, W_paths=W_paths, supervised=self.supervised)
+                loss.backward()
+                
             optimizer.step()
             scheduler.step(loss.item() if adaptive else epoch)
 

@@ -66,6 +66,16 @@ class AidDynamics(Dynamics):
         q = -0.5 / self.gamma * (P + dV_X + self.nu * dV_P)
         return q
 
+    def optimal_control_from_gradient(self, t, y, Y, dY):
+        """Compute optimal control from pre-computed gradient"""
+        # Extract gradient components for AID dynamics
+        dV_X = dY[:, 0:1]
+        dV_P = dY[:, 1:2]
+        P = y[:, 1:2]
+
+        q = -0.5 / self.gamma * (P + dV_X + self.nu * dV_P)
+        return q
+
     def optimal_control_analytic(self, t, y):
         X = y[:, 0:1]
         P = y[:, 1:2]

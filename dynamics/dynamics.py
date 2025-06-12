@@ -72,6 +72,10 @@ class Dynamics(ABC):
     def value_function_analytic(self, t, y):
         pass
 
+    def optimal_control_from_gradient(self, t, y, Y, dY):
+        """Compute optimal control from pre-computed gradient (default implementation)"""
+        return self.optimal_control(t, y, Y, create_graph=False)
+
     def simulate_paths(self, agent, n_sim=5, seed=42, y0_single=None):
         torch.manual_seed(seed)
 
@@ -98,11 +102,17 @@ class Dynamics(ABC):
             t_tensor = torch.full((n_sim, 1), t_scalar, device=self.device)
 
             # Predict Y and compute control
-            # TODO: Check that this is on the correct device
-            Y_agent = agent.predict(t_tensor, y_agent)
-            q_agent = self.optimal_control(
-                t_tensor, y_agent, Y_agent, create_graph=False
-            )
+            # Check if agent has CuDNN-aware prediction method
+            if hasattr(agent, 'predict_with_gradients'):
+                Y_agent, dY_agent = agent.predict_with_gradients(t_tensor, y_agent)
+                if dY_agent is not None:
+                    q_agent = self.optimal_control_from_gradient(t_tensor, y_agent, Y_agent, dY_agent)
+                else:
+                    Y_agent = agent.predict(t_tensor, y_agent)
+                    q_agent = self.optimal_control(t_tensor, y_agent, Y_agent, create_graph=False)
+            else:
+                Y_agent = agent.predict(t_tensor, y_agent)
+                q_agent = self.optimal_control(t_tensor, y_agent, Y_agent, create_graph=False)
             if self.analytical_known:
                 Y_analytical = self.value_function_analytic(t_tensor, y_analytical)
                 q_analytical = self.optimal_control(
@@ -134,4 +144,3 @@ class Dynamics(ABC):
             "q_analytical": np.stack(q_analytical_traj) if self.analytical_known else None,
             "Y_analytical": np.stack(Y_analytical_traj) if self.analytical_known else None
         }
-    

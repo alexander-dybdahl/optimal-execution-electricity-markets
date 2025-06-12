@@ -12,12 +12,12 @@ from solvers.fbsnn import FBSNN
 from dynamics.aid_dynamics import AidDynamics
 from dynamics.hjb_dynamics import HJBDynamics
 from dynamics.simple_dynamics import SimpleDynamics
-from utils.load_config import load_model_config, load_run_config
+from utils.load_config import load_model_config, load_combined_config
 from utils.tools import str2bool
 
 
 def main():
-    run_cfg = load_run_config(path="config/run_config.json")
+    run_cfg = load_combined_config(path="config/run_config.json")
     parser = ArgumentParser()
     parser.add_argument("--device", type=str, default=run_cfg["device"], help="Device to use for training (cpu or cuda)")
     parser.add_argument("--parallel", type=str2bool, nargs='?', const=True, default=run_cfg["parallel"], help="Use data parallelism")
@@ -28,10 +28,15 @@ def main():
     parser.add_argument("--architecture", type=str, default=run_cfg["architecture"], help="Neural network architecture to use")
     parser.add_argument("--activation", type=str, default=run_cfg["activation"], help="Activation function to use")
     parser.add_argument("--Y_layers", type=int, nargs="+", default=run_cfg["Y_layers"], help="List of hidden layer sizes for the neural network")
+    parser.add_argument("--subnet_hidden_dims", type=int, nargs="+", default=run_cfg["subnet_hidden_dims"], help="Hidden layer dimensions for subnets (subnet architectures only)")
+    parser.add_argument("--lstm_hidden_size", type=int, default=run_cfg["lstm_hidden_size"], help="LSTM hidden size (LSTM subnet architecture only)")
     parser.add_argument("--adaptive", type=str2bool, nargs='?', const=True, default=run_cfg["adaptive"], help="Use adaptive learning rate")
     parser.add_argument("--adaptive_factor", type=float, default=run_cfg["adaptive_factor"], help="Adaptive factor")
     parser.add_argument("--lr", type=float, default=run_cfg["lr"], help="Learning rate for the optimizer")
-    parser.add_argument("--use_batchnorm", type=str2bool, nargs='?', const=True, default=run_cfg.get("use_batchnorm", True), help="Use BatchNorm for state input normalization")
+    parser.add_argument("--use_batchnorm", type=str2bool, nargs='?', const=True, default=run_cfg.get("use_batchnorm", True), help="Use BatchNorm (legacy, for compatibility)")
+    parser.add_argument("--use_bn_input", type=str2bool, nargs='?', const=True, default=run_cfg.get("use_bn_input", True), help="Use BatchNorm for input layers")
+    parser.add_argument("--use_bn_hidden", type=str2bool, nargs='?', const=True, default=run_cfg.get("use_bn_hidden", True), help="Use BatchNorm for hidden layers")
+    parser.add_argument("--use_bn_output", type=str2bool, nargs='?', const=True, default=run_cfg.get("use_bn_output", True), help="Use BatchNorm for output layers")
     parser.add_argument("--lambda_Y", type=float, default=run_cfg["lambda_Y"], help="Weight for the Y term in the loss function")
     parser.add_argument("--lambda_dY", type=float, default=run_cfg["lambda_dY"], help="Weight for the dY term in the loss function")
     parser.add_argument("--lambda_dYt", type=float, default=run_cfg["lambda_dYt"], help="Weight for the dYt term in the loss function")
@@ -41,7 +46,7 @@ def main():
     parser.add_argument("--train", type=str2bool, nargs='?', const=True, default=run_cfg["train"], help="Train the model")
     parser.add_argument("--load_if_exists", type=str2bool, nargs='?', const=True, default=run_cfg["load_if_exists"], help="Load model if it exists")
     parser.add_argument("--save_path", type=str, default=run_cfg["save_path"], help="Path to save the model")
-    parser.add_argument("--model_config", type=str, default=run_cfg["config_path"], help="Path to the model configuration file")
+    parser.add_argument("--model_config", type=str, default=run_cfg["dynamics_config_path"], help="Path to the model configuration file")
     parser.add_argument("--save", nargs="+", default=run_cfg["save"], help="Model saving strategy: choose from 'best', 'every'")
     parser.add_argument("--save_n", type=int, default=run_cfg["save_n"], help="If 'every' is selected, save every n epochs")
     parser.add_argument("--plot_n", type=int, default=run_cfg["plot_n"], help="Save plot every n epochs if plot_n is not None")
@@ -143,10 +148,12 @@ def main():
     if is_main:
         call_model = model.module if isinstance(model, DDP) else model
         call_model.eval()
+        
         timesteps, results = dynamics.simulate_paths(agent=call_model, n_sim=args.n_simulations, seed=np.random.randint(0, 1000))
-        model.plot_approx_vs_analytic(results, timesteps, plot=args.plot, save_dir=save_dir)
-        model.plot_approx_vs_analytic_expectation(results, timesteps, plot=args.plot, save_dir=save_dir)
-        model.plot_terminal_histogram(results, plot=args.plot, save_dir=save_dir)
+            
+        call_model.plot_approx_vs_analytic(results, timesteps, plot=args.plot, save_dir=save_dir)
+        call_model.plot_approx_vs_analytic_expectation(results, timesteps, plot=args.plot, save_dir=save_dir)
+        call_model.plot_terminal_histogram(results, plot=args.plot, save_dir=save_dir)
 
     # Sync & cleanup
     if is_distributed:

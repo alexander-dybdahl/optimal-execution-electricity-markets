@@ -1,0 +1,6 @@
+{
+  "_comment": "Residual Neural Network Configuration",
+  "activation": "ReLU",
+  "Y_layers": [64, 64, 64, 1],
+  "stable": false
+}

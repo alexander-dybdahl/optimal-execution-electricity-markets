@@ -1,0 +1,7 @@
+{
+  "_comment": "LSTM with Subnetworks Configuration",
+  "activation": "GELU",
+  "Y_layers": [1],
+  "lstm_hidden_size": 128,
+  "subnet_hidden_dims": [64, 64, 64, 64]
+}

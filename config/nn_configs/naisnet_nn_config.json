@@ -1,0 +1,6 @@
+{
+  "_comment": "NAIS Network Configuration (Stable ResNet)",
+  "activation": "ReLU",
+  "Y_layers": [64, 64, 64, 1],
+  "stable": true
+}
