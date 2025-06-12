@@ -39,10 +39,6 @@ class LSTMNet(nn.Module):
     def forward(self, t, y):
         t_norm = t / self.T
         y_norm = self.bn_state(y) if self.use_batchnorm else y
-        print(f"t: {t}")
-        print(f"t_norm: {t_norm}")
-        print(f"y: {y}")
-        print(f"y_norm: {y_norm}")
         input_seq = torch.cat([t_norm, y_norm], dim=1).unsqueeze(1)  # shape: [batch, seq_len=1, input_size]
         batch_size = input_seq.size(0)
 
