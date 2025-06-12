@@ -11,6 +11,7 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 from solvers.fbsnn import FBSNN
 from dynamics.aid_dynamics import AidDynamics
 from dynamics.hjb_dynamics import HJBDynamics
+from dynamics.simple_dynamics import SimpleDynamics
 from utils.load_config import load_model_config, load_run_config
 from utils.tools import str2bool
 
@@ -142,9 +143,9 @@ def main():
         call_model = model.module if isinstance(model, DDP) else model
         call_model.eval()
         timesteps, results = dynamics.simulate_paths(agent=call_model, n_sim=args.n_simulations, seed=np.random.randint(0, 1000))
-        call_model.plot_approx_vs_analytic(results, timesteps, plot=args.plot, save_dir=save_dir)
-        call_model.plot_approx_vs_analytic_expectation(results, timesteps, plot=args.plot, save_dir=save_dir)
-        call_model.plot_terminal_histogram(results, plot=args.plot, save_dir=save_dir)
+        model.plot_approx_vs_analytic(results, timesteps, plot=args.plot, save_dir=save_dir)
+        model.plot_approx_vs_analytic_expectation(results, timesteps, plot=args.plot, save_dir=save_dir)
+        model.plot_terminal_histogram(results, plot=args.plot, save_dir=save_dir)
 
     # Sync & cleanup
     if is_distributed:
