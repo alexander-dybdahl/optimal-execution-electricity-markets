@@ -111,7 +111,7 @@ class FBSNN(nn.Module):
             ).to(self.device)
         elif args.architecture == "SeparateSubnets":
             # Get subnet configuration from args
-            subnet_type = getattr(args, 'subnet_type', 'FC')  # Default to FC if not specified
+            subnet_type = args.subnet_type
             self.Y_net = SeparateSubnets(
                 layers=[self.dynamics.dim + 1] + args.Y_layers,
                 activation=self.activation,
@@ -120,9 +120,9 @@ class FBSNN(nn.Module):
             ).to(self.device)
         elif args.architecture == "LSTMWithSubnets":
             # Get LSTM and subnet configuration from args
-            lstm_layers = getattr(args, 'lstm_layers', [64, 64])  # Default LSTM layers
-            lstm_type = getattr(args, 'lstm_type', 'LSTM')  # Default LSTM type
-            subnet_type = getattr(args, 'subnet_type', 'FC')  # Default to FC subnets
+            lstm_layers = args.lstm_layers
+            lstm_type = args.lstm_type
+            subnet_type = args.subnet_type
             self.Y_net = LSTMWithSubnets(
                 layers=[self.dynamics.dim + 1] + args.Y_layers,
                 activation=self.activation,
