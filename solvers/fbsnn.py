@@ -19,7 +19,7 @@ class FBSNN(nn.Module):
         self.is_distributed = dist.is_initialized()
         self.device = args.device_set
         self.world_size = dist.get_world_size() if self.is_distributed else 1
-        self.is_main = not self.is_distributed or dist.get_rank() == 0
+        self.is_main = (not self.is_distributed) or (dist.get_rank() == 0)
 
         # Underlying dynamics
         self.dynamics = dynamics
@@ -29,6 +29,7 @@ class FBSNN(nn.Module):
         self.supervised = args.supervised
         if self.supervised and not self.dynamics.analytical_known:
             raise ValueError("Cannot proceed with supervised training when analytical value function is not know")
+        self.use_batchnorm = args.use_batchnorm
 
         # Network Architecture
         self.architecture = args.architecture
@@ -80,23 +81,33 @@ class FBSNN(nn.Module):
 
         if args.architecture == "Default":
             self.Y_net = FCnet(
-                layers=[self.dynamics.dim + 1] + [64, 64, 64, 64, 1], activation=self.activation
+                layers=[self.dynamics.dim + 1] + [64, 64, 64, 64, 1],
+                activation=self.activation,
+                use_sync_bn=self.is_distributed,
+                use_batchnorm=self.use_batchnorm,
             ).to(self.device)
         elif args.architecture == "FC":
             self.Y_net = FCnet(
-                layers=[self.dynamics.dim + 1] + args.Y_layers, activation=self.activation
+                layers=[self.dynamics.dim + 1] + args.Y_layers,
+                activation=self.activation,
+                use_sync_bn=self.is_distributed,
+                use_batchnorm=self.use_batchnorm,
             ).to(self.device)
         elif args.architecture == "NAISnet":
             self.Y_net = Resnet(
                 layers=[self.dynamics.dim + 1] + args.Y_layers,
                 activation=self.activation,
                 stable=True,
+                use_sync_bn=self.is_distributed,
+                use_batchnorm=self.use_batchnorm,
             ).to(self.device)
         elif args.architecture == "Resnet":
             self.Y_net = Resnet(
                 layers=[self.dynamics.dim + 1] + args.Y_layers,
                 activation=self.activation,
                 stable=False,
+                use_sync_bn=self.is_distributed,
+                use_batchnorm=self.use_batchnorm,
             ).to(self.device)
         elif (
             args.architecture == "LSTM"
@@ -107,9 +118,13 @@ class FBSNN(nn.Module):
                 layers=[self.dynamics.dim + 1] + args.Y_layers,
                 activation=self.activation,
                 type=args.architecture,
+                use_sync_bn=self.is_distributed,
+                use_batchnorm=self.use_batchnorm,
             ).to(self.device)
         else:
-            raise ValueError(f"Unknown architecture: {args.architecture}")
+            raise ValueError(f"Unknown architecture: {self.args.architecture}")
+        # Set T for time normalization in the network
+        self.Y_net.T = self.dynamics.T
 
         self.lowest_loss = float("inf")
 

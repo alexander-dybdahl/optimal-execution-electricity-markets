@@ -17,7 +17,7 @@ source $(poetry env info --path)/bin/activate
 # Set rendezvous config
 export MASTER_ADDR=$(scontrol show hostnames $SLURM_NODELIST | head -n 1)
 export MASTER_PORT=29500
-export OMP_NUM_THREADS=4
+export OMP_NUM_THREADS=16
 
 echo "Running on $SLURM_JOB_NUM_NODES nodes with $SLURM_NTASKS_PER_NODE tasks per node."
 

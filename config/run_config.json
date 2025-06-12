@@ -11,6 +11,7 @@
   "adaptive": true,
   "adaptive_factor": 0.95,
   "lr": 1e-2,
+  "use_batchnorm": true,
   "lambda_Y": 1,
   "lambda_dY": 0,
   "lambda_dYt": 0,

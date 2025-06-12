@@ -12,7 +12,7 @@ export NNODES=1
 export NPROC_PER_NODE=4
 export MASTER_ADDR=$(hostname)
 export MASTER_PORT=29500
-export OMP_NUM_THREADS=4
+export OMP_NUM_THREADS=16
 
 # Launch torchrun
 torchrun \
@@ -22,7 +22,10 @@ torchrun \
   --rdzv_backend=c10d \
   --rdzv_endpoint=$MASTER_ADDR:$MASTER_PORT \
   run.py \
-  --parallel True
+  --parallel True \
+  --batch_size 4096 \
+  --epochs 10000 \
+  --use_batchnorm True
 
 # Note: If stopped, remember to kill the job with:
 # pkill -u $USER -f python

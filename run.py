@@ -30,6 +30,7 @@ def main():
     parser.add_argument("--adaptive", type=str2bool, nargs='?', const=True, default=run_cfg["adaptive"], help="Use adaptive learning rate")
     parser.add_argument("--adaptive_factor", type=float, default=run_cfg["adaptive_factor"], help="Adaptive factor")
     parser.add_argument("--lr", type=float, default=run_cfg["lr"], help="Learning rate for the optimizer")
+    parser.add_argument("--use_batchnorm", type=str2bool, nargs='?', const=True, default=run_cfg.get("use_batchnorm", True), help="Use BatchNorm for state input normalization")
     parser.add_argument("--lambda_Y", type=float, default=run_cfg["lambda_Y"], help="Weight for the Y term in the loss function")
     parser.add_argument("--lambda_dY", type=float, default=run_cfg["lambda_dY"], help="Weight for the dY term in the loss function")
     parser.add_argument("--lambda_dYt", type=float, default=run_cfg["lambda_dYt"], help="Weight for the dYt term in the loss function")

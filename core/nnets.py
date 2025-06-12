@@ -4,12 +4,21 @@ import torch.nn.functional as F
 
 
 class LSTMNet(nn.Module):
-    def __init__(self, layers, activation, type='LSTM'):
+    def __init__(self, layers, activation, type='LSTM', use_sync_bn=False, use_batchnorm=True):
         super().__init__()
         input_size = layers[0]  # dim + 1 (time + state)
         hidden_sizes = layers[1:-1]
         output_size = layers[-1]
-
+        self.activation = activation
+        self.T = None  # Set externally
+        self.use_sync_bn = use_sync_bn
+        self.use_batchnorm = use_batchnorm
+        self.state_dim = input_size - 1
+        if use_batchnorm:
+            bn_cls = nn.SyncBatchNorm if use_sync_bn else nn.BatchNorm1d
+            self.bn_state = bn_cls(self.state_dim, affine=False)
+        else:
+            self.bn_state = None
         if type == 'ResLSTM':
             self.lstm_layers = nn.ModuleList([
                 ResLSTMCell(input_size if i == 0 else hidden_sizes[i - 1], hidden_sizes[i], activation=activation)
@@ -26,10 +35,15 @@ class LSTMNet(nn.Module):
                 for i in range(len(hidden_sizes))
             ])
         self.out_layer = nn.Linear(hidden_sizes[-1], output_size)
-        self.activation = activation
 
     def forward(self, t, y):
-        input_seq = torch.cat([t, y], dim=1).unsqueeze(1)  # shape: [batch, seq_len=1, input_size]
+        t_norm = t / self.T
+        y_norm = self.bn_state(y) if self.use_batchnorm else y
+        print(f"t: {t}")
+        print(f"t_norm: {t_norm}")
+        print(f"y: {y}")
+        print(f"y_norm: {y_norm}")
+        input_seq = torch.cat([t_norm, y_norm], dim=1).unsqueeze(1)  # shape: [batch, seq_len=1, input_size]
         batch_size = input_seq.size(0)
 
         h = [torch.zeros(batch_size, layer.hidden_size, device=input_seq.device, requires_grad=True)
@@ -125,31 +139,46 @@ class Sine(nn.Module):
         return torch.sin(x)
 
 class FCnet(nn.Module):
-
-    def __init__(self, layers, activation):
+    def __init__(self, layers, activation, use_sync_bn=False, use_batchnorm=True):
         super(FCnet, self).__init__()
-
+        self.T = None  # Set externally
+        self.use_sync_bn = use_sync_bn
+        self.use_batchnorm = use_batchnorm
+        self.state_dim = layers[0] - 1
+        if use_batchnorm:
+            bn_cls = nn.SyncBatchNorm if use_sync_bn else nn.BatchNorm1d
+            self.bn_state = bn_cls(self.state_dim)
+        else:
+            self.bn_state = None
         self.layers = []
         for i in range(len(layers) - 2):
             self.layers.append(nn.Linear(in_features=layers[i], out_features=layers[i + 1]))
             self.layers.append(activation)
         self.layers.append(nn.Linear(in_features=layers[-2], out_features=layers[-1]))
-
         self.net = nn.Sequential(*self.layers)
 
     def forward(self, t, y):
-        return self.net(torch.cat([t, y], dim=1))
+        t_norm = t / self.T
+        y_norm = self.bn_state(y) if self.use_batchnorm else y
+        return self.net(torch.cat([t_norm, y_norm], dim=1))
 
 class Resnet(nn.Module):
-    def __init__(self, layers, activation, stable=False):
+    def __init__(self, layers, activation, stable=False, use_sync_bn=False, use_batchnorm=True):
         super(Resnet, self).__init__()
         self.activation = activation
         self.stable = stable
         self.epsilon = 0.01
-
         self.input_dim = layers[0]
         self.hidden_dims = layers[1:-1]
         self.output_dim = layers[-1]
+        self.use_sync_bn = use_sync_bn
+        self.use_batchnorm = use_batchnorm
+        self.state_dim = self.input_dim - 1
+        if use_batchnorm:
+            bn_cls = nn.SyncBatchNorm if use_sync_bn else nn.BatchNorm1d
+            self.bn_state = bn_cls(self.state_dim)
+        else:
+            self.bn_state = None
 
         self.hidden_layers = nn.ModuleList()
         self.shortcut_layers = nn.ModuleList()
@@ -164,18 +193,10 @@ class Resnet(nn.Module):
 
         self.output_layer = nn.Linear(self.hidden_dims[-1], self.output_dim)
 
-    def stable_forward(self, layer, out):
-        W = layer.weight
-        delta = 1 - 2 * self.epsilon
-        RtR = torch.matmul(W.t(), W)
-        norm = torch.norm(RtR)
-        if norm > delta:
-            RtR = delta ** 0.5 * RtR / norm**0.5
-        A = RtR + torch.eye(RtR.shape[0], device=RtR.device) * self.epsilon
-        return F.linear(out, -A, layer.bias)
-
     def forward(self, t, y):
-        u = torch.cat([t, y], dim=1)
+        t_norm = t / self.T
+        y_norm = self.bn_state(y) if self.use_batchnorm else y
+        u = torch.cat([t_norm, y_norm], dim=1)
         out = u
 
         for i, layer in enumerate(self.hidden_layers):
@@ -191,3 +212,13 @@ class Resnet(nn.Module):
             out = out + shortcut if i > 0 else out
 
         return self.output_layer(out)
+
+    def stable_forward(self, layer, out):
+        W = layer.weight
+        delta = 1 - 2 * self.epsilon
+        RtR = torch.matmul(W.t(), W)
+        norm = torch.norm(RtR)
+        if norm > delta:
+            RtR = delta ** 0.5 * RtR / norm**0.5
+        A = RtR + torch.eye(RtR.shape[0], device=RtR.device) * self.epsilon
+        return F.linear(out, -A, layer.bias)
