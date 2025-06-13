@@ -141,9 +141,7 @@ class FBSNN(nn.Module):
         self.lowest_loss = float("inf")
 
     def hjb_residual(self, t, y):
-        # Get derivatives directly from dY_net (outputs dim+1: [dY_dt, dY_dy1, dY_dy2, ...])
-        t_y = torch.cat([t, y], dim=1)
-        dY_outputs = self.dY_net(t_y)
+        dY_outputs = self.dY_net(t, y)
         dY_dt = dY_outputs[:, 0:1]  # temporal derivative
         dY_dy = dY_outputs[:, 1:]   # spatial derivatives
         
@@ -208,7 +206,7 @@ class FBSNN(nn.Module):
             dY1_dy = dY1_outputs[:, 1:]
             
             # Reconstruct Y1
-            Y1 = Y0 + dY1_dt * (t1 - t0) + dY1_dy * (y1 - y0)
+            Y1 = Y0 + dY1_dt * (t1 - t0) + (dY1_dy * (y1 - y0)).sum(dim=1, keepdim=True)
 
             f = self.dynamics.generator(y0, q)
             Y1_tilde = Y0 - f * (t1 - t0) + (Z0 * (W1 - W0)).sum(dim=1, keepdim=True)
@@ -225,8 +223,7 @@ class FBSNN(nn.Module):
         terminal_loss = 0.0
         if self.lambda_T > 0:
             YT_init = self.Y_init_net(y1)
-            tT_y1 = torch.cat([t1, y1], dim=1)
-            dYT_outputs = self.dY_net(tT_y1)
+            dYT_outputs = self.dY_net(t1, y1)
             dYT_dt = dYT_outputs[:, 0:1]
             YT = YT_init + dYT_dt * t1
             terminal_loss = (YT - self.dynamics.terminal_cost(y1)).pow(2).mean()
