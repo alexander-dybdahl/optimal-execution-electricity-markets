@@ -50,20 +50,12 @@ class AidDynamics(Dynamics):
         return Sigma
 
     # TODO: Check if on correct device
-    def optimal_control(self, t, y, Y, create_graph=True):
-        dV = torch.autograd.grad(
-            outputs=Y,
-            inputs=y,
-            grad_outputs=torch.ones_like(Y),
-            create_graph=create_graph,
-            retain_graph=True,
-        )[0]
-
-        dV_X = dV[:, 0:1]
-        dV_P = dV[:, 1:2]
+    def optimal_control(self, t, y, dY):
+        dY_dX = dY[:, 1:2]
+        dY_dP = dY[:, 3:4]
         P = y[:, 1:2]
 
-        q = -0.5 / self.gamma * (P + dV_X + self.nu * dV_P)
+        q = -0.5 / self.gamma * (P + dY_dX + self.nu * dY_dP)
         return q
 
     def optimal_control_analytic(self, t, y):

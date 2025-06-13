@@ -147,11 +147,6 @@ class FBSNN(nn.Module):
         dY_dt = dY_outputs[:, 0:1]  # temporal derivative
         dY_dy = dY_outputs[:, 1:]   # spatial derivatives
         
-        # Reconstruct Y from Y_init_net and derivatives for control computation
-        Y_init = self.Y_init_net(y)
-        # Simple integration approximation: Y ≈ Y_init + dY_dt * t
-        Y = Y_init + dY_dt * t
-
         # Compute Hessian using autograd only on dY_dy (single autograd call)
         dim = y.shape[1]
         hessian_rows = [
@@ -166,7 +161,7 @@ class FBSNN(nn.Module):
         H = torch.stack(hessian_rows, dim=1)
 
         # Dynamics quantities
-        q = self.dynamics.optimal_control(t, y, Y)
+        q = self.dynamics.optimal_control(t, y, dY_outputs)
         mu = self.dynamics.mu(t, y, q)
         sigma = self.dynamics.sigma(t, y)
         f = self.dynamics.generator(y, q)
@@ -179,17 +174,17 @@ class FBSNN(nn.Module):
         residual = dY_dt + (mu * dY_dy).sum(dim=1, keepdim=True) + 0.5 * trace_term + f
         return (residual**2).mean()
 
-    def forward(self, t_paths, W_paths, supervised=False):
+    def forward(self, t, W, supervised=False):
         if supervised:
-            return self.forward_supervised(t_paths, W_paths)
+            return self.forward_supervised(t, W)
         else:
-            return self.forward_fc(t_paths, W_paths)
+            return self.forward_fc(t, W)
 
-    def forward_fc(self, t_paths, W_paths):
+    def forward_fc(self, t, W):
         y0 = self.dynamics.y0.repeat(self.batch_size, 1).to(self.device)
         y_traj, t_traj = [y0], []
-        t0 = t_paths[:, 0, :]
-        W0 = W_paths[:, 0, :]
+        t0 = t[:, 0, :]
+        W0 = W[:, 0, :]
         
         # Get initial value and derivatives from networks
         Y0_init = self.Y_init_net(y0)
@@ -197,15 +192,13 @@ class FBSNN(nn.Module):
         dY0_outputs = self.dY_net(t0_y0)
         dY0_dt = dY0_outputs[:, 0:1]
         dY0_dy = dY0_outputs[:, 1:]
-        
-        # Reconstruct Y0 from initial value and derivatives
-        Y0 = Y0_init + dY0_dt * t0
+        Y0 = Y0_init
 
         # === Compute fbsnn loss ===
         Y_loss = 0.0
         for n in range(self.dynamics.N):
-            t1 = t_paths[:, n + 1, :]
-            W1 = W_paths[:, n + 1, :]
+            t1 = t[:, n + 1, :]
+            W1 = W[:, n + 1, :]
             Sigma0 = self.dynamics.sigma(t0, y0)
             Z0 = torch.bmm(Sigma0.transpose(1, 2), dY0_dy.unsqueeze(-1)).squeeze(-1)
             q = self.dynamics.optimal_control(t0, y0, Y0)
@@ -218,8 +211,7 @@ class FBSNN(nn.Module):
             dY1_dy = dY1_outputs[:, 1:]
             
             # Reconstruct Y1
-            Y1_init = self.Y_init_net(y1)
-            Y1 = Y1_init + dY1_dt * t1
+            Y1 = Y0 + dY1_dt * (t1 - t0) + dY1_dy * (y1 - y0)
 
             f = self.dynamics.generator(y0, q)
             Y1_tilde = Y0 - f * (t1 - t0) + (Z0 * (W1 - W0)).sum(dim=1, keepdim=True)
@@ -233,7 +225,7 @@ class FBSNN(nn.Module):
         self.Y_loss = self.lambda_Y * Y_loss.detach()
 
         # === Terminal loss ===
-        terminal_loss, terminal_gradient_loss = 0.0, 0.0
+        terminal_loss = 0.0
         if self.lambda_T > 0:
             YT_init = self.Y_init_net(y1)
             tT_y1 = torch.cat([t1, y1], dim=1)
@@ -244,6 +236,7 @@ class FBSNN(nn.Module):
             self.terminal_loss = self.lambda_T * terminal_loss.detach()
 
         # === Terminal gradient loss ===
+        terminal_gradient_loss = 0.0
         if self.lambda_TG > 0:
             dYT_dy = dYT_outputs[:, 1:]
             terminal_gradient_loss = (dYT_dy - self.dynamics.terminal_cost_grad(y1)).pow(2).mean()
@@ -276,143 +269,70 @@ class FBSNN(nn.Module):
             pinn_loss = self.hjb_residual(t_traj, y_traj)
             self.pinn_loss = self.lambda_pinn * pinn_loss.detach()
 
-        total_loss = (
-            self.lambda_Y * Y_loss
-            + self.lambda_T * terminal_loss
-            + self.lambda_TG * terminal_gradient_loss
-            + self.lambda_pinn * pinn_loss
-        )
-        
-        return total_loss
-
-    def forward_supervised(self, t_paths, W_paths):
-        y0 = self.dynamics.y0.repeat(self.batch_size, 1).to(self.device)
-
-        # === Precompute optimal trajectory ===
-        y_traj, t_traj = [y0], []
-        t0 = t_paths[:, 0, :]
-        W0 = W_paths[:, 0, :]
-
-        for n in range(self.dynamics.N):
-            t1 = t_paths[:, n + 1, :]
-            W1 = W_paths[:, n + 1, :]
-            dW = W1 - W0
-
-            V = self.dynamics.value_function_analytic(t0, y0)
-            q = self.dynamics.optimal_control(t0, y0, V, create_graph=False)
-            y1 = self.dynamics.forward_dynamics(y0, q, dW, t0, t1 - t0)
-
-            t_traj.append(t1)
-            y_traj.append(y1)
-
-            t0, W0, y0 = t1, W1, y1
-
-        t_traj = torch.cat(t_traj, dim=0).requires_grad_(True)
-        y_traj = torch.cat(y_traj[1:], dim=0).requires_grad_(True)
-        
-        # === Y loss ===
-        V_target = self.dynamics.value_function_analytic(t_traj, y_traj)
-        # Reconstruct Y from Y_init_net and dY_net
-        Y_init = self.Y_init_net(y_traj)
-        t_y = torch.cat([t_traj, y_traj], dim=1)
-        dY_outputs = self.dY_net(t_y)
-        dY_dt = dY_outputs[:, 0:1]
-        V_pred = Y_init + dY_dt * t_traj
-
-        Y_loss = (V_pred - V_target).pow(2).mean()
-        if self.lambda_Y > 0:
-            self.Y_loss = self.lambda_Y * Y_loss.detach()
-
-        # === dY loss ===
-        dY_loss = 0.0
-        if self.lambda_dY > 0:
-            dV_target = torch.autograd.grad(
-                V_target,
-                y_traj,
-                grad_outputs=torch.ones_like(V_target),
-                create_graph=False,
-                retain_graph=True,
-            )[0]
-            dV_pred = dY_outputs[:, 1:]  # spatial derivatives from dY_net
-            dY_loss = (dV_pred - dV_target).pow(2).mean()
-            self.dY_loss = self.lambda_dY * dY_loss.detach()
-
-        # === dYt loss ===
-        dYt_loss = 0.0
-        if self.lambda_dYt > 0:
-            dV_target_t = torch.autograd.grad(
-                V_target, 
-                t_traj, 
-                grad_outputs=torch.ones_like(V_target),
-                create_graph=False, 
-                retain_graph=True
-            )[0]
-            dV_pred_t = dY_dt  # temporal derivative from dY_net
-            dYt_loss = (dV_pred_t - dV_target_t).pow(2).mean()
-            self.dYt_loss = self.lambda_dYt * dYt_loss.detach()
-
-        # === Terminal loss ===
-        terminal_loss = 0.0
-        if self.lambda_T > 0:
-            YT_init = self.Y_init_net(y1)
-            t1_y1 = torch.cat([t1, y1], dim=1)
-            dYT_outputs = self.dY_net(t1_y1)
-            dYT_dt = dYT_outputs[:, 0:1]
-            YT = YT_init + dYT_dt * t1
-            terminal_loss = (YT - self.dynamics.terminal_cost(y1)).pow(2).mean()
-            self.terminal_loss = self.lambda_T * terminal_loss.detach()
-
-        # === Terminal gradient loss ===
-        terminal_gradient_loss = 0.0
-        if self.lambda_TG > 0:
-            dYT_dy = dYT_outputs[:, 1:]  # spatial derivatives from dY_net
-            terminal_gradient_loss = (dYT_dy - self.dynamics.terminal_cost_grad(y1)).pow(2).mean()
-            self.terminal_gradient_loss = self.lambda_TG * terminal_gradient_loss.detach()
-
-        # === Physics-based loss ===
-        pinn_loss = 0.0
-        if self.lambda_pinn > 0:
-            t_traj_pinn = torch.cat(t_traj, dim=0).requires_grad_(True)
-            y_traj_pinn = torch.cat(y_traj[1:], dim=0).requires_grad_(True)
-    
-            # Sobol points for additional PINN loss
-            sobol = SobolEngine(dimension=self.dynamics.dim, scramble=True)
-            sobol_points = sobol.draw(self.batch_size * self.dynamics.N)
-            y0_cpu = self.dynamics.y0.detach().cpu()
-            x0, d0, p0 = y0_cpu[0]
-            std_mult = 3.0
-            T = self.dynamics.T
-            x_min, x_max = x0 - 10.0, x0 + 10.0
-            d_min, d_max = d0 - std_mult * self.dynamics.sigma_D * T**0.5, d0 + std_mult * self.dynamics.sigma_D * T**0.5
-            p_min, p_max = p0 - std_mult * self.dynamics.sigma_P * T**0.5, p0 + std_mult * self.dynamics.sigma_P * T**0.5
-            y_min = torch.tensor([x_min, d_min, p_min], device=self.device)
-            y_max = torch.tensor([x_max, d_max, p_max], device=self.device)
-            sobol_points = sobol_points.to(self.device)
-            sobol_points = y_min + (y_max - y_min) * sobol_points
-            t_sobol = torch.rand(self.batch_size * self.dynamics.N, 1, device=self.device) * T
-            t_traj_pinn = torch.cat([t_traj_pinn, t_sobol], dim=0).requires_grad_(True)
-            y_traj_pinn = torch.cat([y_traj_pinn, sobol_points], dim=0).requires_grad_(True)
-
-            pinn_loss = self.hjb_residual(t_traj_pinn, y_traj_pinn)
-            self.pinn_loss = self.lambda_pinn * pinn_loss.detach()
-
         return (
             self.lambda_Y * Y_loss
-            + self.lambda_dY * dY_loss
-            + self.lambda_dYt * dYt_loss
             + self.lambda_T * terminal_loss
             + self.lambda_TG * terminal_gradient_loss
             + self.lambda_pinn * pinn_loss
         )
-    
-    def predict(self, t_tensor, y_tensor):
-        # Reconstruct Y from Y_init_net and dY_net
-        Y_init = self.Y_init_net(y_tensor)
-        t_y = torch.cat([t_tensor, y_tensor], dim=1)
-        dY_outputs = self.dY_net(t_y)
-        dY_dt = dY_outputs[:, 0:1]  # temporal derivative
-        Y = Y_init + dY_dt * t_tensor
-        return Y
+
+
+    def predict(self, t, y):
+        # Handle single trajectory input
+        if len(t.shape) == 2:
+            t = t.unsqueeze(0)  # (1, N+1, 1)
+            y = y.unsqueeze(0)  # (1, N+1, dim)
+            single_trajectory = True
+        else:
+            single_trajectory = False
+        
+        batch_size, N_plus_1, _ = t.shape
+        N = N_plus_1 - 1
+        
+        # Get initial values for all trajectories
+        y0 = y[:, 0, :]  # (batch_size, dim)
+        Y0 = self.Y_init_net(y0)  # (batch_size, 1)
+        
+        # Prepare all time-state pairs for batch processing
+        t_flat = t.view(-1, 1)  # (batch_size * (N+1), 1)
+        y_flat = y.view(-1, y.shape[-1])  # (batch_size * (N+1), dim)
+        t_y_flat = torch.cat([t_flat, y_flat], dim=1)  # (batch_size * (N+1), dim+1)
+        
+        # Get all derivatives in one forward pass
+        dY_outputs_flat = self.dY_net(t_y_flat)  # (batch_size * (N+1), dim+1)
+        
+        # Reshape back to trajectory format
+        dY_outputs = dY_outputs_flat.view(batch_size, N_plus_1, -1)  # (batch_size, N+1, dim+1)
+        dY_dt = dY_outputs[:, :, 0:1]  # (batch_size, N+1, 1)
+        dY_dy = dY_outputs[:, :, 1:]   # (batch_size, N+1, dim)
+        
+        # Compute time and state differences
+        dt = t[:, 1:, :] - t[:, :-1, :]  # (batch_size, N, 1)
+        dy = y[:, 1:, :] - y[:, :-1, :]  # (batch_size, N, dim)
+        
+        # Vectorized reconstruction using cumulative sum
+        # Y_{n+1} = Y_n + dY_dt_n * dt_n + (dY_dy_n * dy_n).sum(dim=-1, keepdim=True)
+        dY_dt_increments = dY_dt[:, :-1, :] * dt  # (batch_size, N, 1)
+        dY_dy_increments = (dY_dy[:, :-1, :] * dy).sum(dim=-1, keepdim=True)  # (batch_size, N, 1)
+        
+        # Total increments for each step
+        increments = dY_dt_increments + dY_dy_increments  # (batch_size, N, 1)
+        
+        # Reconstruct trajectory using cumulative sum
+        Y_increments = torch.cumsum(increments, dim=1)  # (batch_size, N, 1)
+        
+        # Build full trajectory: [Y0, Y0 + increment_1, Y0 + increment_1 + increment_2, ...]
+        Y_trajectory = torch.cat([
+            Y0.unsqueeze(1),  # (batch_size, 1, 1)
+            Y0.unsqueeze(1) + Y_increments  # (batch_size, N, 1)
+        ], dim=1)  # (batch_size, N+1, 1)
+        
+        # Return single trajectory if input was single
+        if single_trajectory:
+            Y_trajectory = Y_trajectory.squeeze(0)  # (N+1, 1)
+        
+        return Y_trajectory.detach().cpu()
+
 
     def fetch_minibatch(self, batch_size):
         dim_W = self.dynamics.dim_W
@@ -571,8 +491,8 @@ class FBSNN(nn.Module):
 
         for epoch in range(1, epochs + 1):
             optimizer.zero_grad()
-            t_paths, W_paths = self.fetch_minibatch(self.batch_size)
-            loss = self(t_paths=t_paths, W_paths=W_paths, supervised=self.supervised)
+            t, W = self.fetch_minibatch(self.batch_size)
+            loss = self(t=t, W=W, supervised=self.supervised)
             loss.backward()
             optimizer.step()
             scheduler.step(loss.item() if adaptive else epoch)

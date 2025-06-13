@@ -8,7 +8,7 @@ import torch
 import torch.distributed as dist
 from torch.nn.parallel import DistributedDataParallel as DDP
 
-from solvers.fbsnn import FBSNN
+from solvers.fbsnn_second import FBSNN
 from dynamics.aid_dynamics import AidDynamics
 from dynamics.hjb_dynamics import HJBDynamics
 from dynamics.simple_dynamics import SimpleDynamics

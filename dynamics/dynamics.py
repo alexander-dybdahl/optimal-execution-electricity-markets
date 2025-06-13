@@ -61,7 +61,7 @@ class Dynamics(ABC):
         return y + mu * dt + diffusion      # shape: (batch, dim)
 
     @abstractmethod
-    def optimal_control(self, t, y, Y):
+    def optimal_control(self, t, y, dY):
         pass
 
     @abstractmethod
@@ -98,7 +98,6 @@ class Dynamics(ABC):
             t_tensor = torch.full((n_sim, 1), t_scalar, device=self.device)
 
             # Predict Y and compute control
-            # TODO: Check that this is on the correct device
             Y_agent = agent.predict(t_tensor, y_agent)
             q_agent = self.optimal_control(
                 t_tensor, y_agent, Y_agent, create_graph=False
