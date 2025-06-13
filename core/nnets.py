@@ -29,14 +29,14 @@ class LSTMNet(nn.Module):
         self.activation = activation
 
     def forward(self, t, y):
-        input_seq = torch.cat([t, y], dim=1).unsqueeze(1)  # shape: [batch, seq_len=1, input_size]
-        batch_size = input_seq.size(0)
+        u = torch.cat([t, y], dim=1).unsqueeze(1)  # shape: [batch, seq_len=1, input_size]
+        batch_size = u.size(0)
 
-        h = [torch.zeros(batch_size, layer.hidden_size, device=input_seq.device, requires_grad=True)
+        h = [torch.zeros(batch_size, layer.hidden_size, device=u.device, requires_grad=True)
             for layer in self.lstm_layers]
         c = [torch.zeros_like(h_i) for h_i in h]
 
-        x = input_seq.squeeze(1)
+        x = u.squeeze(1)
         for i, lstm_cell in enumerate(self.lstm_layers):
             h[i], (h[i], c[i]) = lstm_cell(x, (h[i], c[i]))
             x = self.activation(h[i])
@@ -231,9 +231,12 @@ class SeparateSubnets(nn.Module):
         T = self.num_time_steps
         relative_t = t[0, 0] / self.num_time_steps
         time_idx = min(int(relative_t * T), T-1)
+
+        # For subnets, we need to create dummy time input since they expect (t, y) format
+        dummy_t = torch.zeros_like(t, requires_grad=True)
         
         # Use the appropriate subnet for this time step
-        return self.subnets[time_idx](t, y)
+        return self.subnets[time_idx](dummy_t, y)
 
 
 class LSTMWithSubnets(nn.Module):
@@ -297,23 +300,23 @@ class LSTMWithSubnets(nn.Module):
     
     def forward(self, t, y):
         # Concatenate time and state
-        input_seq = torch.cat([t, y], dim=1)  # shape: [batch, input_size]
-        batch_size = input_seq.size(0)
+        u = torch.cat([t, y], dim=1)  # shape: [batch, input_size]
+        batch_size = u.size(0)
         
         # Initialize hidden and cell states if needed
         if (self.hidden_states is None or 
             self.hidden_states[0].shape[0] != batch_size or
-            self.hidden_states[0].device != input_seq.device):
+            self.hidden_states[0].device != u.device):
             
             self.hidden_states = [
-                torch.zeros(batch_size, layer.hidden_size, 
-                           device=input_seq.device, dtype=input_seq.dtype, requires_grad=True)
+                torch.zeros_like(batch_size, layer.hidden_size, 
+                           device=u.device, dtype=u.dtype, requires_grad=True)
                 for layer in self.lstm_layers
             ]
             self.cell_states = [torch.zeros_like(h) for h in self.hidden_states]
         
         # Process through LSTM layers
-        x = input_seq
+        x = u
         for i, lstm_cell in enumerate(self.lstm_layers):
             if hasattr(lstm_cell, 'hidden_size'):  # Standard LSTM or ResLSTM
                 h_new, (h_state, c_state) = lstm_cell(x, (self.hidden_states[i], self.cell_states[i]))
@@ -334,7 +337,7 @@ class LSTMWithSubnets(nn.Module):
         time_idx = min(int(relative_t * T), T-1)
 
         # For subnets, we need to create dummy time input since they expect (t, y) format
-        dummy_t = torch.zeros(batch_size, 1, device=x.device, dtype=x.dtype)
+        dummy_t = torch.zeros_like(t, requires_grad=True)
         
         # Use the appropriate subnet for this time step
         return self.subnets[time_idx](dummy_t, x)

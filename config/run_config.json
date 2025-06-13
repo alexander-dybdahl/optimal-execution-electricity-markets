@@ -7,7 +7,7 @@
   "supervised": false,
   "architecture": "SeparateSubnets",
   "activation": "GELU",
-  "Y_layers": [256, 256, 256, 256, 1],
+  "Y_layers": [256, 256, 256, 256],
   "subnet_type": "FC",
   "lstm_layers": [64, 64],
   "lstm_type": "LSTM",
