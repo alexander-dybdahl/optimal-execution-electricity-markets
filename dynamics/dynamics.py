@@ -99,13 +99,27 @@ class Dynamics(ABC):
 
             # Predict Y and compute control
             Y_agent = agent.predict(t_tensor, y_agent)
+            dY_agent = torch.autograd.grad(
+                outputs=Y_agent,
+                inputs=y_agent,
+                grad_outputs=torch.ones_like(Y_agent),
+                create_graph=True,
+                retain_graph=True,
+            )[0]
             q_agent = self.optimal_control(
-                t_tensor, y_agent, Y_agent, create_graph=False
+                t_tensor, y_agent, dY_agent
             )
             if self.analytical_known:
                 Y_analytical = self.value_function_analytic(t_tensor, y_analytical)
+                dY_analytical = torch.autograd.grad(
+                    outputs=Y_analytical,
+                    inputs=y_analytical,
+                    grad_outputs=torch.ones_like(Y_analytical),
+                    create_graph=True,
+                    retain_graph=True,
+                )[0]
                 q_analytical = self.optimal_control(
-                    t_tensor, y_analytical, Y_analytical, create_graph=False
+                    t_tensor, y_analytical, dY_analytical
                 )
 
             # Save states and controls

@@ -198,7 +198,7 @@ class FBSNN(nn.Module):
             W1 = W[:, n + 1, :]
             Sigma0 = self.dynamics.sigma(t0, y0)
             Z0 = torch.bmm(Sigma0.transpose(1, 2), dY0_dy.unsqueeze(-1)).squeeze(-1)
-            q = self.dynamics.optimal_control(t0, y0, Y0)
+            q = self.dynamics.optimal_control(t0, y0, dY0_dy)
             y1 = self.dynamics.forward_dynamics(y0, q, W1 - W0, t0, t1 - t0)
 
             dY1_outputs = self.dY_net(t1, y1)
@@ -269,7 +269,6 @@ class FBSNN(nn.Module):
             + self.lambda_TG * terminal_gradient_loss
             + self.lambda_pinn * pinn_loss
         )
-
 
     def predict(self, t, y):
         # Handle single trajectory input

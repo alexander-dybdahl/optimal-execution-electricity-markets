@@ -52,7 +52,7 @@ class AidDynamics(Dynamics):
     # TODO: Check if on correct device
     def optimal_control(self, t, y, dY):
         dY_dX = dY[:, 1:2]
-        dY_dP = dY[:, 3:4]
+        dY_dP = dY[:, 2:3]
         P = y[:, 1:2]
 
         q = -0.5 / self.gamma * (P + dY_dX + self.nu * dY_dP)
