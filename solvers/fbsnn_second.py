@@ -290,10 +290,9 @@ class FBSNN(nn.Module):
         # Prepare all time-state pairs for batch processing
         t_flat = t.view(-1, 1)  # (batch_size * (N+1), 1)
         y_flat = y.view(-1, y.shape[-1])  # (batch_size * (N+1), dim)
-        t_y_flat = torch.cat([t_flat, y_flat], dim=1)  # (batch_size * (N+1), dim+1)
         
         # Get all derivatives in one forward pass
-        dY_outputs_flat = self.dY_net(t_y_flat)  # (batch_size * (N+1), dim+1)
+        dY_outputs_flat = self.dY_net(t_flat, y_flat)  # (batch_size * (N+1), dim+1)
         
         # Reshape back to trajectory format
         dY_outputs = dY_outputs_flat.view(batch_size, N_plus_1, -1)  # (batch_size, N+1, dim+1)
