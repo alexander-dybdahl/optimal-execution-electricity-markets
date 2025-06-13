@@ -3,6 +3,23 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
+class FCnet_init(nn.Module):
+
+    def __init__(self, layers, activation):
+        super(FCnet_init, self).__init__()
+
+        self.layers = []
+        for i in range(len(layers) - 2):
+            self.layers.append(nn.Linear(in_features=layers[i], out_features=layers[i + 1]))
+            self.layers.append(activation)
+        self.layers.append(nn.Linear(in_features=layers[-2], out_features=layers[-1]))
+
+        self.net = nn.Sequential(*self.layers)
+
+    def forward(self, y):
+        return self.net(y)
+
+
 class LSTMNet(nn.Module):
     def __init__(self, layers, activation, type='LSTM'):
         super().__init__()
@@ -29,7 +46,8 @@ class LSTMNet(nn.Module):
         self.activation = activation
 
     def forward(self, t, y):
-        u = torch.cat([t, y], dim=1).unsqueeze(1)  # shape: [batch, seq_len=1, input_size]
+        # Concatenate time and state
+        u = torch.cat([t, y], dim=1)  # shape: [batch, input_size]
         batch_size = u.size(0)
 
         h = [torch.zeros(batch_size, layer.hidden_size, device=u.device, requires_grad=True)
@@ -52,9 +70,9 @@ class LSTMCell(nn.Module):
         self.i2h = nn.Linear(input_size, 4 * hidden_size)
         self.h2h = nn.Linear(hidden_size, 4 * hidden_size)
 
-    def forward(self, x, hidden):
+    def forward(self, u, hidden):
         h_prev, c_prev = hidden
-        gates = self.i2h(x) + self.h2h(h_prev)
+        gates = self.i2h(u) + self.h2h(h_prev)
         i, f, g, o = gates.chunk(4, dim=1)
 
         i = torch.sigmoid(i)
@@ -79,7 +97,7 @@ class ResLSTMCell(nn.Module):
         self.h2h = nn.Linear(hidden_size, 4 * hidden_size)
         self.residual = nn.Linear(input_size, hidden_size)
 
-    def stable_forward(self, layer, x):
+    def stable_forward(self, layer, u):
         # Stabilize the weight matrix W using its spectral norm
         W = layer.weight  # shape: [hidden_size, input_size]
         b = layer.bias
@@ -91,11 +109,11 @@ class ResLSTMCell(nn.Module):
                 W = W * ((1 - self.epsilon) / W_norm)
 
         # Use the stabilized weight for a manual forward pass
-        return F.linear(x, W, b)
+        return F.linear(u, W, b)
 
-    def forward(self, x, hidden):
+    def forward(self, u, hidden):
         h_prev, c_prev = hidden
-        gates = self.i2h(x) + self.h2h(h_prev)
+        gates = self.i2h(u) + self.h2h(h_prev)
         i, f, g, o = gates.chunk(4, dim=1)
 
         i = torch.sigmoid(i)
@@ -107,9 +125,9 @@ class ResLSTMCell(nn.Module):
         h_core = o * torch.tanh(c)
 
         # Inject residual connection
-        res = self.residual(x)
+        res = self.residual(u)
         if self.stable:
-            res = self.stable_forward(self.residual, x)
+            res = self.stable_forward(self.residual, u)
 
         h = h_core + res  # or h = h_core + shortcut(x)
         h = self.activation(h)
@@ -121,8 +139,8 @@ class Sine(nn.Module):
     def __init__(self):
         super(Sine, self).__init__()
 
-    def forward(self, x):
-        return torch.sin(x)
+    def forward(self, t, y):
+        return self.net(torch.cat([t, y], dim=1))
 
 class FCnet(nn.Module):
 
@@ -164,7 +182,7 @@ class Resnet(nn.Module):
 
         self.output_layer = nn.Linear(self.hidden_dims[-1], self.output_dim)
 
-    def stable_forward(self, layer, out):
+    def stable_forward(self, layer, u):
         W = layer.weight
         delta = 1 - 2 * self.epsilon
         RtR = torch.matmul(W.t(), W)
@@ -172,10 +190,11 @@ class Resnet(nn.Module):
         if norm > delta:
             RtR = delta ** 0.5 * RtR / norm**0.5
         A = RtR + torch.eye(RtR.shape[0], device=RtR.device) * self.epsilon
-        return F.linear(out, -A, layer.bias)
+        return F.linear(u, -A, layer.bias)
 
     def forward(self, t, y):
-        u = torch.cat([t, y], dim=1)
+        # Concatenate time and state
+        u = torch.cat([t, y], dim=1)  # shape: [batch, input_size]
         out = u
 
         for i, layer in enumerate(self.hidden_layers):
@@ -222,11 +241,6 @@ class SeparateSubnets(nn.Module):
             self.subnets.append(subnet)
     
     def forward(self, t, y):
-        # Concatenate time and state
-        u = torch.cat([t, y], dim=1)
-        
-        # Assuming all times in the batch are the same
-        # Determine which time step we're at based on the first time value
         # Assuming t is normalized between 0 and T
         T = self.num_time_steps
         relative_t = t[0, 0] / self.num_time_steps

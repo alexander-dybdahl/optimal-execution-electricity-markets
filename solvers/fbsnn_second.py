@@ -9,7 +9,7 @@ import torch.distributed as dist
 import torch.nn as nn
 from torch.quasirandom import SobolEngine
 
-from core.nnets import FCnet, LSTMNet, Resnet, Sine, SeparateSubnets, LSTMWithSubnets
+from core.nnets import FCnet_init, FCnet, LSTMNet, Resnet, Sine, SeparateSubnets, LSTMWithSubnets
 from utils.logger import Logger
 
 
@@ -79,7 +79,7 @@ class FBSNN(nn.Module):
         else:
             raise ValueError(f"Unknown activation function: {args.activation}")
 
-        self.Y_init_net = FCnet(
+        self.Y_init_net = FCnet_init(
             layers=[self.dynamics.dim] + args.Y_layers + [1], activation=self.activation
         ).to(self.device)
 
@@ -181,15 +181,14 @@ class FBSNN(nn.Module):
             return self.forward_fc(t, W)
 
     def forward_fc(self, t, W):
-        y0 = self.dynamics.y0.repeat(self.batch_size, 1).to(self.device)
-        y_traj, t_traj = [y0], []
         t0 = t[:, 0, :]
         W0 = W[:, 0, :]
+        y0 = self.dynamics.y0.repeat(self.batch_size, 1).to(self.device)
+        y_traj, t_traj = [y0], []
         
         # Get initial value and derivatives from networks
         Y0_init = self.Y_init_net(y0)
-        t0_y0 = torch.cat([t0, y0], dim=1)
-        dY0_outputs = self.dY_net(t0_y0)
+        dY0_outputs = self.dY_net(t0, y0)
         dY0_dt = dY0_outputs[:, 0:1]
         dY0_dy = dY0_outputs[:, 1:]
         Y0 = Y0_init
@@ -204,9 +203,7 @@ class FBSNN(nn.Module):
             q = self.dynamics.optimal_control(t0, y0, Y0)
             y1 = self.dynamics.forward_dynamics(y0, q, W1 - W0, t0, t1 - t0)
 
-            # Get derivatives for next time step
-            t1_y1 = torch.cat([t1, y1], dim=1)
-            dY1_outputs = self.dY_net(t1_y1)
+            dY1_outputs = self.dY_net(t1, y1)
             dY1_dt = dY1_outputs[:, 0:1]
             dY1_dy = dY1_outputs[:, 1:]
             
