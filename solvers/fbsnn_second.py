@@ -208,18 +208,13 @@ class FBSNN(nn.Module):
         # === Terminal loss ===
         terminal_loss = 0.0
         if self.lambda_T > 0:
-            YT_init = self.Y_init_net(y1)
-            dYT_outputs = self.dY_net(t1, y1)
-            dYT_dt = dYT_outputs[:, 0:1]
-            YT = YT_init + dYT_dt * t1
-            terminal_loss = (YT - self.dynamics.terminal_cost(y1)).pow(2).mean()
+            terminal_loss = (Y0 - self.dynamics.terminal_cost(y1)).pow(2).mean()
             self.terminal_loss = self.lambda_T * terminal_loss.detach()
 
         # === Terminal gradient loss ===
         terminal_gradient_loss = 0.0
         if self.lambda_TG > 0:
-            dYT_dy = dYT_outputs[:, 1:]
-            terminal_gradient_loss = (dYT_dy - self.dynamics.terminal_cost_grad(y1)).pow(2).mean()
+            terminal_gradient_loss = (dY_dy - self.dynamics.terminal_cost_grad(y1)).pow(2).mean()
             self.terminal_gradient_loss = self.lambda_TG * terminal_gradient_loss.detach()
 
         # === Physics-based loss ===
