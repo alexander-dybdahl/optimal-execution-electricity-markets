@@ -226,7 +226,6 @@ class SeparateSubnets(nn.Module):
         
         input_dim = layers[0]  # dim + 1 (time + state)
         self.subnet_layers = layers[1:]  # layers for each subnet
-        
         # Create a separate subnet for each time step
         self.subnets = nn.ModuleList()
         for i in range(num_time_steps):
@@ -241,10 +240,11 @@ class SeparateSubnets(nn.Module):
             self.subnets.append(subnet)
     
     def forward(self, t, y):
-        # Assuming t is normalized between 0 and T
-        T = self.num_time_steps
-        relative_t = t[0, 0] / self.num_time_steps
-        time_idx = min(int(relative_t * T), T-1)
+        # Determine which subnet to use based on time
+        # Assuming t ranges from 0 to T, map it to subnet index
+        T = 1.0  # Total time horizon (should match dynamics.T)
+        relative_t = t[0, 0] / T  # Normalize time to [0, 1]
+        time_idx = min(int(relative_t * self.num_time_steps), self.num_time_steps-1)
 
         # For subnets, we need to create dummy time input since they expect (t, y) format
         dummy_t = torch.zeros_like(t, requires_grad=True)
@@ -316,14 +316,13 @@ class LSTMWithSubnets(nn.Module):
         # Concatenate time and state
         u = torch.cat([t, y], dim=1)  # shape: [batch, input_size]
         batch_size = u.size(0)
-        
         # Initialize hidden and cell states if needed
         if (self.hidden_states is None or 
             self.hidden_states[0].shape[0] != batch_size or
             self.hidden_states[0].device != u.device):
             
             self.hidden_states = [
-                torch.zeros_like(batch_size, layer.hidden_size, 
+                torch.zeros(batch_size, layer.hidden_size, 
                            device=u.device, dtype=u.dtype, requires_grad=True)
                 for layer in self.lstm_layers
             ]

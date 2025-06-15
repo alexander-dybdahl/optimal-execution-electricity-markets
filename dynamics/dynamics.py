@@ -22,9 +22,11 @@ class Dynamics(ABC):
         self.dt = model_cfg["dt"]
 
         # Problem Setup
-        self.dim = model_cfg["dim"]        # state space dimension
-        self.dim_W = model_cfg["dim_W"]    # Brownian motion dimension
-        self.y0 = torch.tensor([model_cfg["y0"]], device=self.device, requires_grad=True)
+        self.dim = model_cfg["dim"]  # state space dimension
+        self.dim_W = model_cfg["dim_W"]  # Brownian motion dimension
+        self.y0 = torch.tensor(
+            [model_cfg["y0"]], device=self.device, requires_grad=True
+        )
         self.analytical_known = model_cfg["analytical_known"]
 
     @abstractmethod
@@ -46,19 +48,19 @@ class Dynamics(ABC):
 
     @abstractmethod
     def mu(self, t, y, q):
-        pass                                # shape: (batch, dim)
+        pass  # shape: (batch, dim)
 
     @abstractmethod
     def sigma(self, t, y):
-        pass                                # shape: (batch, dim, dW_dim)
+        pass  # shape: (batch, dim, dW_dim)
 
     def forward_dynamics(self, y, q, dW, t, dt):
-        mu = self.mu(t, y, q)               # shape: (batch, dim)
-        Sigma = self.sigma(t, y)            # shape: (batch, dim, dW_dim)
+        mu = self.mu(t, y, q)  # shape: (batch, dim)
+        Sigma = self.sigma(t, y)  # shape: (batch, dim, dW_dim)
         diffusion = torch.bmm(Sigma, dW.unsqueeze(-1)).squeeze(
             -1
-    )                                       # shape: (batch, dim)
-        return y + mu * dt + diffusion      # shape: (batch, dim)
+        )  # shape: (batch, dim)
+        return y + mu * dt + diffusion  # shape: (batch, dim)    @abstractmethod
 
     @abstractmethod
     def optimal_control(self, t, y, dY):
@@ -72,79 +74,103 @@ class Dynamics(ABC):
     def value_function_analytic(self, t, y):
         pass
 
-    def simulate_paths(self, agent, n_sim=5, seed=42, y0_single=None):
-        torch.manual_seed(seed)
+    def generate_paths(self, batch_size, seed=None):
+        if seed is not None:
+            torch.manual_seed(seed)
 
+        dW = torch.randn(batch_size, self.N, self.dim_W, device=self.device) * (
+            self.dt**0.5
+        )
+
+        W = torch.cat(
+            [
+                torch.zeros(batch_size, 1, self.dim_W, device=self.device),
+                torch.cumsum(dW, dim=1),
+            ],
+            dim=1,
+        )  # (batch_size, N+1, dim_W)
+
+        t = (
+            torch.linspace(0, self.T, self.N + 1, device=self.device)
+            .view(1, -1, 1)
+            .repeat(batch_size, 1, 1)
+        )
+        return t, dW, W
+
+    def simulate_paths(self, agent, n_sim=5, seed=42, y0_single=None):
+        t, dW, _ = self.generate_paths(n_sim, seed=seed)
+        
+        t0 = t[:, 0, :]
         y0 = (
             y0_single.repeat(n_sim, 1)
             if y0_single is not None
             else self.y0.repeat(n_sim, 1)
         )
-        t_scalar = 0.0
+        y0_agent = y0.clone()
+        if self.analytical_known:
+            y0_analytical = y0.clone()
 
-        # Initialize both
-        y_agent = y0.clone()
-        y_analytical = y0.clone()
-
+        # Storage for trajectories
         Y_agent_traj = []
-        y_agent_traj = []
+        y_agent_traj = [y0_agent.detach().cpu().numpy()]
         q_agent_traj = []
         if self.analytical_known:
             Y_analytical_traj = []
-            y_analytical_traj = []
+            y_analytical_traj = [y0_analytical.detach().cpu().numpy()]
             q_analytical_traj = []
+            
+        for n in range(self.N):
+            t1 = t[:, n + 1, :]
 
-        for step in range(self.N + 1):
-            t_tensor = torch.full((n_sim, 1), t_scalar, device=self.device)
-
-            # Predict Y and compute control
-            Y_agent = agent.predict(t_tensor, y_agent)
-            dY_agent = torch.autograd.grad(
-                outputs=Y_agent,
-                inputs=y_agent,
-                grad_outputs=torch.ones_like(Y_agent),
-                create_graph=True,
-                retain_graph=True,
-            )[0]
-            q_agent = self.optimal_control(
-                t_tensor, y_agent, dY_agent
-            )
+            q_agent = agent.predict(t0, y0_agent)
+            # TODO: Compute Y if agent provides information for this
             if self.analytical_known:
-                Y_analytical = self.value_function_analytic(t_tensor, y_analytical)
+                y0_analytical_temp = y0_analytical.requires_grad_(True)
+                Y0_analytical = self.value_function_analytic(t0, y0_analytical_temp)
                 dY_analytical = torch.autograd.grad(
-                    outputs=Y_analytical,
-                    inputs=y_analytical,
-                    grad_outputs=torch.ones_like(Y_analytical),
-                    create_graph=True,
-                    retain_graph=True,
+                    outputs=Y0_analytical,
+                    inputs=y0_analytical_temp,
+                    grad_outputs=torch.ones_like(Y0_analytical),
+                    create_graph=False,
+                    retain_graph=False,
                 )[0]
                 q_analytical = self.optimal_control(
-                    t_tensor, y_analytical, dY_analytical
+                    t0, y0_analytical, dY_analytical
                 )
 
-            # Save states and controls
-            Y_agent_traj.append(Y_agent.detach().cpu().numpy())
-            y_agent_traj.append(y_agent.detach().cpu().numpy())
+            y1_agent = self.forward_dynamics(y0_agent, q_agent, dW[:, n, :], t0, t1 - t0)
+            y1_analytical = self.forward_dynamics(y0_analytical, q_analytical, dW[:, n, :], t0, t1 - t0)
+
+            t0, y0_agent, y0_analytical = t1, y1_agent, y1_analytical
+
+            Y_agent_traj.append(Y0_analytical.detach().cpu().numpy()) # TODO: Temporary solution to use Y0_analytical
+            y_agent_traj.append(y0_agent.detach().cpu().numpy())
             q_agent_traj.append(q_agent.detach().cpu().numpy())
 
             if self.analytical_known:
-                y_analytical_traj.append(y_analytical.detach().cpu().numpy())
+                Y_analytical_traj.append(Y0_analytical.detach().cpu().numpy())
+                y_analytical_traj.append(y0_analytical.detach().cpu().numpy())
                 q_analytical_traj.append(q_analytical.detach().cpu().numpy())
-                Y_analytical_traj.append(Y_analytical.detach().cpu().numpy())
 
-            if step < self.N:
-                dW = torch.randn(n_sim, self.dim_W, device=self.device) * self.dt ** 0.5
-                y_agent = self.forward_dynamics(y_agent, q_agent, dW, t_tensor, self.dt)
-                if self.analytical_known:
-                    y_analytical = self.forward_dynamics(y_analytical, q_analytical, dW, t_tensor, self.dt)
-                t_scalar += self.dt
+        # Convert to numpy arrays with correct shapes: (N+1, n_sim, ...)
+        Y_agent_traj = np.stack(Y_agent_traj)
+        y_agent_traj = np.stack(y_agent_traj)
+        q_agent_traj = np.stack(q_agent_traj)
+
+        if self.analytical_known:
+            Y_analytical_traj = np.stack(Y_analytical_traj)
+            y_analytical_traj = np.stack(y_analytical_traj)
+            q_analytical_traj = np.stack(q_analytical_traj)
+        else:
+            Y_analytical_traj = None
+            y_analytical_traj = None
+            q_analytical_traj = None
 
         return torch.linspace(0, self.T, self.N + 1).cpu().numpy(), {
-            "y_learned": np.stack(y_agent_traj),
-            "q_learned": np.stack(q_agent_traj),
-            "Y_learned": np.stack(Y_agent_traj),
-            "y_analytical": np.stack(y_analytical_traj) if self.analytical_known else None,
-            "q_analytical": np.stack(q_analytical_traj) if self.analytical_known else None,
-            "Y_analytical": np.stack(Y_analytical_traj) if self.analytical_known else None
+            "y_learned": y_agent_traj,
+            "q_learned": q_agent_traj,
+            "Y_learned": Y_agent_traj,
+            "y_analytical": y_analytical_traj,
+            "q_analytical": q_analytical_traj,
+            "Y_analytical": Y_analytical_traj,
         }
-    

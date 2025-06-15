@@ -172,50 +172,40 @@ class FBSNN(nn.Module):
         residual = dY_dt + (mu * dY_dy).sum(dim=1, keepdim=True) + 0.5 * trace_term + f
         return (residual**2).mean()
 
-    def forward(self, t, W, supervised=False):
-        if supervised:
-            return self.forward_supervised(t, W)
-        else:
-            return self.forward_fc(t, W)
+    def forward(self, t, dW, supervised=False):
+        return self.forward_fc(t, dW)
 
-    def forward_fc(self, t, W):
+    def forward_fc(self, t, dW):
         t0 = t[:, 0, :]
-        W0 = W[:, 0, :]
         y0 = self.dynamics.y0.repeat(self.batch_size, 1).to(self.device)
         y_traj, t_traj = [y0], []
         
-        # Get initial value and derivatives from networks
+        # Get initial value
         Y0_init = self.Y_init_net(y0)
-        dY0_outputs = self.dY_net(t0, y0)
-        dY0_dt = dY0_outputs[:, 0:1]
-        dY0_dy = dY0_outputs[:, 1:]
         Y0 = Y0_init
 
         # === Compute fbsnn loss ===
         Y_loss = 0.0
         for n in range(self.dynamics.N):
             t1 = t[:, n + 1, :]
-            W1 = W[:, n + 1, :]
-            Sigma0 = self.dynamics.sigma(t0, y0)
-            Z0 = torch.bmm(Sigma0.transpose(1, 2), dY0_dy.unsqueeze(-1)).squeeze(-1)
-            q = self.dynamics.optimal_control(t0, y0, dY0_dy)
-            y1 = self.dynamics.forward_dynamics(y0, q, W1 - W0, t0, t1 - t0)
+            dY_outputs = self.dY_net(t0, y0)
+            dY_dt = dY_outputs[:, 0:1]
+            dY_dy = dY_outputs[:, 1:]
+            Z0 = torch.bmm(self.dynamics.sigma(t0, y0).transpose(1, 2), dY_dy.unsqueeze(-1)).squeeze(-1)
+            q = self.dynamics.optimal_control(t0, y0, dY_dy)
+            y1 = self.dynamics.forward_dynamics(y0, q, dW[:, n, :], t0, t1 - t0)
 
-            dY1_outputs = self.dY_net(t1, y1)
-            dY1_dt = dY1_outputs[:, 0:1]
-            dY1_dy = dY1_outputs[:, 1:]
-            
             # Reconstruct Y1
-            Y1 = Y0 + dY1_dt * (t1 - t0) + (dY1_dy * (y1 - y0)).sum(dim=1, keepdim=True)
+            Y1 = Y0 + dY_dt * (t1 - t0) + (dY_dy * (y1 - y0)).sum(dim=1, keepdim=True)
 
             f = self.dynamics.generator(y0, q)
-            Y1_tilde = Y0 - f * (t1 - t0) + (Z0 * (W1 - W0)).sum(dim=1, keepdim=True)
+            Y1_tilde = Y0 - f * (t1 - t0) + (Z0 * (dW[:, n, :])).sum(dim=1, keepdim=True)
             Y_loss += (Y1 - Y1_tilde).pow(2).mean()
 
             t_traj.append(t1)
             y_traj.append(y1)
 
-            t0, W0, y0, Y0, dY0_dy = t1, W1, y1, Y1, dY1_dy
+            t0, y0, Y0 = t1, y1, Y1
 
         self.Y_loss = self.lambda_Y * Y_loss.detach()
 
@@ -271,6 +261,12 @@ class FBSNN(nn.Module):
         )
 
     def predict(self, t, y):
+        self.dY_net.eval()
+        dY_outputs = self.dY_net(t, y)
+        self.dY_net.train()
+        return self.dynamics.optimal_control(t, y, dY_outputs)
+
+    def predict_with_grad(self, t, y):
         # Handle single trajectory input
         if len(t.shape) == 2:
             t = t.unsqueeze(0)  # (1, N+1, 1)
@@ -323,29 +319,11 @@ class FBSNN(nn.Module):
         if single_trajectory:
             Y_trajectory = Y_trajectory.squeeze(0)  # (N+1, 1)
         
-        return Y_trajectory.detach().cpu()
-
-
+        return Y_trajectory, dY_outputs
+    
     def fetch_minibatch(self, batch_size):
-        dim_W = self.dynamics.dim_W
-        T = self.dynamics.T
-        N = self.dynamics.N
-        dt = T / N
-        dW = torch.randn(batch_size, N, dim_W, device=self.device) * np.sqrt(dt)
-        W = torch.cat(
-            [
-                torch.zeros(batch_size, 1, dim_W, device=self.device),
-                torch.cumsum(dW, dim=1),
-            ],
-            dim=1,
-        )                                   # shape: (batch_size, N+1, dim_W)
-
-        t = (
-            torch.linspace(0, T, N + 1, device=self.device)
-            .view(1, -1, 1)
-            .repeat(batch_size, 1, 1)
-        )                                   # shape: (batch_size, N+1, 1)
-        return t, W
+        t, dW, _ = self.dynamics.generate_paths(batch_size)
+        return t, dW
 
     def save_model(self, save_path):
         state_dict = self.state_dict()
@@ -483,8 +461,8 @@ class FBSNN(nn.Module):
 
         for epoch in range(1, epochs + 1):
             optimizer.zero_grad()
-            t, W = self.fetch_minibatch(self.batch_size)
-            loss = self(t=t, W=W, supervised=self.supervised)
+            t, dW = self.fetch_minibatch(self.batch_size)
+            loss = self(t=t, dW=dW, supervised=self.supervised)
             loss.backward()
             optimizer.step()
             scheduler.step(loss.item() if adaptive else epoch)
