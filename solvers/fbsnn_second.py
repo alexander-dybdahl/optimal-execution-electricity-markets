@@ -178,26 +178,22 @@ class FBSNN(nn.Module):
     def forward_fc(self, t, dW):
         t0 = t[:, 0, :]
         y0 = self.dynamics.y0.repeat(self.batch_size, 1).to(self.device)
-        y_traj, t_traj = [y0], []
-        
-        # Get initial value
-        Y0_init = self.Y_init_net(y0)
-        Y0 = Y0_init
+        Y0 = self.Y_init_net(y0)
 
+        y_traj, t_traj = [y0], []
         # === Compute fbsnn loss ===
         Y_loss = 0.0
         for n in range(self.dynamics.N):
             t1 = t[:, n + 1, :]
+            
             dY_outputs = self.dY_net(t0, y0)
             dY_dt = dY_outputs[:, 0:1]
             dY_dy = dY_outputs[:, 1:]
             Z0 = torch.bmm(self.dynamics.sigma(t0, y0).transpose(1, 2), dY_dy.unsqueeze(-1)).squeeze(-1)
             q = self.dynamics.optimal_control(t0, y0, dY_dy)
             y1 = self.dynamics.forward_dynamics(y0, q, dW[:, n, :], t0, t1 - t0)
-
-            # Reconstruct Y1
             Y1 = Y0 + dY_dt * (t1 - t0) + (dY_dy * (y1 - y0)).sum(dim=1, keepdim=True)
-
+            
             f = self.dynamics.generator(y0, q)
             Y1_tilde = Y0 - f * (t1 - t0) + (Z0 * (dW[:, n, :])).sum(dim=1, keepdim=True)
             Y_loss += (Y1 - Y1_tilde).pow(2).mean()
@@ -267,7 +263,9 @@ class FBSNN(nn.Module):
         return Y0
     
     def predict_Y_next(self, t0, y0, dt, dy, Y0):
+        self.dY_net.eval()
         dY_outputs = self.dY_net(t0, y0)
+        self.dY_net.train()
         dY_dt = dY_outputs[:, 0:1]
         dY_dy = dY_outputs[:, 1:]
 
@@ -277,64 +275,10 @@ class FBSNN(nn.Module):
     def predict(self, t, y):
         self.dY_net.eval()
         dY_outputs = self.dY_net(t, y)
+        dY_dy = dY_outputs[:, 1:]
         self.dY_net.train()
-        return self.dynamics.optimal_control(t, y, dY_outputs)
+        return self.dynamics.optimal_control(t, y, dY_dy)
 
-    def predict_with_grad(self, t, y):
-        # Handle single trajectory input
-        if len(t.shape) == 2:
-            t = t.unsqueeze(0)  # (1, N+1, 1)
-            y = y.unsqueeze(0)  # (1, N+1, dim)
-            single_trajectory = True
-        else:
-            single_trajectory = False
-        
-        batch_size, N_plus_1, _ = t.shape
-        N = N_plus_1 - 1
-        
-        # Get initial values for all trajectories
-        y0 = y[:, 0, :]  # (batch_size, dim)
-        Y0 = self.Y_init_net(y0)  # (batch_size, 1)
-        
-        # Prepare all time-state pairs for batch processing
-        t_flat = t.view(-1, 1)  # (batch_size * (N+1), 1)
-        y_flat = y.view(-1, y.shape[-1])  # (batch_size * (N+1), dim)
-        
-        # Get all derivatives in one forward pass
-        dY_outputs_flat = self.dY_net(t_flat, y_flat)  # (batch_size * (N+1), dim+1)
-        
-        # Reshape back to trajectory format
-        dY_outputs = dY_outputs_flat.view(batch_size, N_plus_1, -1)  # (batch_size, N+1, dim+1)
-        dY_dt = dY_outputs[:, :, 0:1]  # (batch_size, N+1, 1)
-        dY_dy = dY_outputs[:, :, 1:]   # (batch_size, N+1, dim)
-        
-        # Compute time and state differences
-        dt = t[:, 1:, :] - t[:, :-1, :]  # (batch_size, N, 1)
-        dy = y[:, 1:, :] - y[:, :-1, :]  # (batch_size, N, dim)
-        
-        # Vectorized reconstruction using cumulative sum
-        # Y_{n+1} = Y_n + dY_dt_n * dt_n + (dY_dy_n * dy_n).sum(dim=-1, keepdim=True)
-        dY_dt_increments = dY_dt[:, :-1, :] * dt  # (batch_size, N, 1)
-        dY_dy_increments = (dY_dy[:, :-1, :] * dy).sum(dim=-1, keepdim=True)  # (batch_size, N, 1)
-        
-        # Total increments for each step
-        increments = dY_dt_increments + dY_dy_increments  # (batch_size, N, 1)
-        
-        # Reconstruct trajectory using cumulative sum
-        Y_increments = torch.cumsum(increments, dim=1)  # (batch_size, N, 1)
-        
-        # Build full trajectory: [Y0, Y0 + increment_1, Y0 + increment_1 + increment_2, ...]
-        Y_trajectory = torch.cat([
-            Y0.unsqueeze(1),  # (batch_size, 1, 1)
-            Y0.unsqueeze(1) + Y_increments  # (batch_size, N, 1)
-        ], dim=1)  # (batch_size, N+1, 1)
-        
-        # Return single trajectory if input was single
-        if single_trajectory:
-            Y_trajectory = Y_trajectory.squeeze(0)  # (N+1, 1)
-        
-        return Y_trajectory, dY_outputs
-    
     def fetch_minibatch(self, batch_size):
         t, dW, _ = self.dynamics.generate_paths(batch_size)
         return t, dW
@@ -617,8 +561,8 @@ class FBSNN(nn.Module):
         colors = cm.get_cmap("tab10", approx_q.shape[1])
 
         for i in range(approx_q.shape[1]):
-            axs[0, 0].plot(timesteps, approx_q[:, i], color=colors(i), alpha=0.6, label=f"Learned $q_{i}(t)$" if i == 0 else None)
-            axs[0, 0].plot(timesteps, true_q[:, i], linestyle="--", color=colors(i), alpha=0.4, label=f"Analytical $q^*_{i}(t)$" if i == 0 else None)
+            axs[0, 0].plot(timesteps[:-1], approx_q[:, i], color=colors(i), alpha=0.6, label=f"Learned $q_{i}(t)$" if i == 0 else None)
+            axs[0, 0].plot(timesteps[:-1], true_q[:, i], linestyle="--", color=colors(i), alpha=0.4, label=f"Analytical $q^*_{i}(t)$" if i == 0 else None)
         axs[0, 0].set_title("Control $q(t)$: Learned vs Analytical")
         axs[0, 0].set_xlabel("Time $t$")
         axs[0, 0].set_ylabel("$q(t)$")
@@ -627,7 +571,7 @@ class FBSNN(nn.Module):
 
         for i in range(approx_q.shape[1]):
             diff = (approx_q[:, i] - true_q[:, i]) ** 2
-            axs[0, 1].plot(timesteps, diff, color=colors(i), alpha=0.6, label=f"$q_{i}(t) - q^*_{i}(t)$" if i == 0 else None)
+            axs[0, 1].plot(timesteps[:-1], diff, color=colors(i), alpha=0.6, label=f"$q_{i}(t) - q^*_{i}(t)$" if i == 0 else None)
         axs[0, 1].axhline(0, color='red', linestyle='--', linewidth=0.8)
         axs[0, 1].set_title("Error in Control $q(t)$")
         axs[0, 1].set_xlabel("Time $t$")
@@ -702,10 +646,10 @@ class FBSNN(nn.Module):
 
         fig, axs = plt.subplots(2, 2, figsize=(14, 10))
 
-        axs[0, 0].plot(timesteps, mean_q, label='Learned Mean', color='blue')
-        axs[0, 0].fill_between(timesteps, mean_q - std_q, mean_q + std_q, color='blue', alpha=0.3, label='Learned ±1 Std')
-        axs[0, 0].plot(timesteps, mean_q_analytical, label='Analytical Mean', color='black', linestyle='--')
-        axs[0, 0].fill_between(timesteps, mean_q_analytical - std_q_analytical, mean_q_analytical + std_q_analytical, color='black', alpha=0.2, label='Analytical ±1 Std')
+        axs[0, 0].plot(timesteps[:-1], mean_q, label='Learned Mean', color='blue')
+        axs[0, 0].fill_between(timesteps[:-1], mean_q - std_q, mean_q + std_q, color='blue', alpha=0.3, label='Learned ±1 Std')
+        axs[0, 0].plot(timesteps[:-1], mean_q_analytical, label='Analytical Mean', color='black', linestyle='--')
+        axs[0, 0].fill_between(timesteps[:-1], mean_q_analytical - std_q_analytical, mean_q_analytical + std_q_analytical, color='black', alpha=0.2, label='Analytical ±1 Std')
         axs[0, 0].set_title("Control $q(t)$: Learned vs Analytical")
         axs[0, 0].set_xlabel("Time $t$")
         axs[0, 0].set_ylabel("$q(t)$")
@@ -715,8 +659,8 @@ class FBSNN(nn.Module):
         diff = (approx_q - true_q) ** 2
         mean_diff = np.mean(diff, axis=1).squeeze()
         std_diff = np.std(diff, axis=1).squeeze()
-        axs[0, 1].fill_between(timesteps, mean_diff - std_diff, mean_diff + std_diff, color='red', alpha=0.4, label='±1 Std Dev')
-        axs[0, 1].plot(timesteps, mean_diff, color='red', label='Mean Difference')
+        axs[0, 1].fill_between(timesteps[:-1], mean_diff - std_diff, mean_diff + std_diff, color='red', alpha=0.4, label='±1 Std Dev')
+        axs[0, 1].plot(timesteps[:-1], mean_diff, color='red', label='Mean Difference')
         axs[0, 1].set_title("Error in Control $q(t)$")
         axs[0, 1].set_xlabel("Time $t$")
         axs[0, 1].set_ylabel("$|q(t) - q^*(t)|^2$")

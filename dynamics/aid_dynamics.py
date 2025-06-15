@@ -49,10 +49,9 @@ class AidDynamics(Dynamics):
         Sigma[:, 2, 1] = (1 - self.rho**2)**0.5 * self.sigma_D # dD = ... dW2
         return Sigma
 
-    # TODO: Check if on correct device
-    def optimal_control(self, t, y, dY):
-        dY_dX = dY[:, 0:1]
-        dY_dP = dY[:, 1:2]
+    def optimal_control(self, t, y, dY_dy):
+        dY_dX = dY_dy[:, 0:1]
+        dY_dP = dY_dy[:, 1:2]
         P = y[:, 1:2]
 
         q = -0.5 / self.gamma * (P + dY_dX + self.nu * dY_dP)

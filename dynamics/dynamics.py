@@ -63,7 +63,7 @@ class Dynamics(ABC):
         return y + mu * dt + diffusion  # shape: (batch, dim)    @abstractmethod
 
     @abstractmethod
-    def optimal_control(self, t, y, dY):
+    def optimal_control(self, t, y, dY_dy):
         pass
 
     @abstractmethod
@@ -108,7 +108,6 @@ class Dynamics(ABC):
         )
         y0_agent = y0.clone()
         Y0_agent = agent.predict_Y_initial(y0_agent)
-        q_agent = agent.predict(t0, y0_agent)
         
         if self.analytical_known:
             y0_analytical = y0.clone()
@@ -121,43 +120,41 @@ class Dynamics(ABC):
                 create_graph=False,
                 retain_graph=False,
             )[0]
-            q_analytical = self.optimal_control(
-                t0, y0_analytical, dY_analytical
-            )
-
+            
         # Storage for trajectories
         Y_agent_traj = [Y0_agent.detach().cpu().numpy()]
         y_agent_traj = [y0_agent.detach().cpu().numpy()]
-        q_agent_traj = [q_agent.detach().cpu().numpy()]
+        q_agent_traj = []
         if self.analytical_known:
             Y_analytical_traj = [Y0_analytical.detach().cpu().numpy()]
             y_analytical_traj = [y0_analytical.detach().cpu().numpy()]
-            q_analytical_traj = [q_analytical.detach().cpu().numpy()]
+            q_analytical_traj = []
             
         for n in range(self.N):
             t1 = t[:, n + 1, :]
 
             q_agent = agent.predict(t0, y0_agent)
+            y1_agent = self.forward_dynamics(y0_agent, q_agent, dW[:, n, :], t0, t1 - t0)
+            Y1_agent = agent.predict_Y_next(t0, y0_agent, t1 - t0, y1_agent - y0_agent, Y0_agent)
+            
+            y0_agent, Y0_agent = y1_agent, Y1_agent
+
             if self.analytical_known:
-                y0_analytical_temp = y0_analytical.requires_grad_(True)
-                Y0_analytical = self.value_function_analytic(t0, y0_analytical_temp)
+                q_analytical = self.optimal_control(t0, y0_analytical, dY_analytical)
+                y1_analytical = self.forward_dynamics(y0_analytical, q_analytical, dW[:, n, :], t0, t1 - t0)
+                y1_analytical_temp = y1_analytical.requires_grad_(True)
+                Y1_analytical = self.value_function_analytic(t1, y1_analytical_temp)
                 dY_analytical = torch.autograd.grad(
-                    outputs=Y0_analytical,
-                    inputs=y0_analytical_temp,
-                    grad_outputs=torch.ones_like(Y0_analytical),
+                    outputs=Y1_analytical,
+                    inputs=y1_analytical_temp,
+                    grad_outputs=torch.ones_like(Y1_analytical),
                     create_graph=False,
                     retain_graph=False,
                 )[0]
-                q_analytical = self.optimal_control(
-                    t0, y0_analytical, dY_analytical
-                )
+                
+                y0_analytical, Y0_analytical = y1_analytical, Y1_analytical
 
-            y1_agent = self.forward_dynamics(y0_agent, q_agent, dW[:, n, :], t0, t1 - t0)
-            y1_analytical = self.forward_dynamics(y0_analytical, q_analytical, dW[:, n, :], t0, t1 - t0)
-            
-            Y1_agent = agent.predict_Y_next(t0, y0_agent, t1 - t0, y1_agent - y0_agent, Y0_agent)
-
-            t0, y0_agent, y0_analytical, Y0_agent = t1, y1_agent, y1_analytical, Y1_agent
+            t0 = t1
 
             Y_agent_traj.append(Y0_agent.detach().cpu().numpy())
             y_agent_traj.append(y0_agent.detach().cpu().numpy())
@@ -168,7 +165,6 @@ class Dynamics(ABC):
                 y_analytical_traj.append(y0_analytical.detach().cpu().numpy())
                 q_analytical_traj.append(q_analytical.detach().cpu().numpy())
 
-        # Convert to numpy arrays with correct shapes: (N+1, n_sim, ...)
         Y_agent_traj = np.stack(Y_agent_traj)
         y_agent_traj = np.stack(y_agent_traj)
         q_agent_traj = np.stack(q_agent_traj)
