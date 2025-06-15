@@ -107,23 +107,37 @@ class Dynamics(ABC):
             else self.y0.repeat(n_sim, 1)
         )
         y0_agent = y0.clone()
+        Y0_agent = agent.predict_Y_initial(y0_agent)
+        q_agent = agent.predict(t0, y0_agent)
+        
         if self.analytical_known:
             y0_analytical = y0.clone()
+            y0_analytical_temp = y0_analytical.requires_grad_(True)
+            Y0_analytical = self.value_function_analytic(t0, y0_analytical_temp)
+            dY_analytical = torch.autograd.grad(
+                outputs=Y0_analytical,
+                inputs=y0_analytical_temp,
+                grad_outputs=torch.ones_like(Y0_analytical),
+                create_graph=False,
+                retain_graph=False,
+            )[0]
+            q_analytical = self.optimal_control(
+                t0, y0_analytical, dY_analytical
+            )
 
         # Storage for trajectories
-        Y_agent_traj = []
+        Y_agent_traj = [Y0_agent.detach().cpu().numpy()]
         y_agent_traj = [y0_agent.detach().cpu().numpy()]
-        q_agent_traj = []
+        q_agent_traj = [q_agent.detach().cpu().numpy()]
         if self.analytical_known:
-            Y_analytical_traj = []
+            Y_analytical_traj = [Y0_analytical.detach().cpu().numpy()]
             y_analytical_traj = [y0_analytical.detach().cpu().numpy()]
-            q_analytical_traj = []
+            q_analytical_traj = [q_analytical.detach().cpu().numpy()]
             
         for n in range(self.N):
             t1 = t[:, n + 1, :]
 
             q_agent = agent.predict(t0, y0_agent)
-            # TODO: Compute Y if agent provides information for this
             if self.analytical_known:
                 y0_analytical_temp = y0_analytical.requires_grad_(True)
                 Y0_analytical = self.value_function_analytic(t0, y0_analytical_temp)
@@ -140,10 +154,12 @@ class Dynamics(ABC):
 
             y1_agent = self.forward_dynamics(y0_agent, q_agent, dW[:, n, :], t0, t1 - t0)
             y1_analytical = self.forward_dynamics(y0_analytical, q_analytical, dW[:, n, :], t0, t1 - t0)
+            
+            Y1_agent = agent.predict_Y_next(t0, y0_agent, t1 - t0, y1_agent - y0_agent, Y0_agent)
 
-            t0, y0_agent, y0_analytical = t1, y1_agent, y1_analytical
+            t0, y0_agent, y0_analytical, Y0_agent = t1, y1_agent, y1_analytical, Y1_agent
 
-            Y_agent_traj.append(Y0_analytical.detach().cpu().numpy()) # TODO: Temporary solution to use Y0_analytical
+            Y_agent_traj.append(Y0_agent.detach().cpu().numpy())
             y_agent_traj.append(y0_agent.detach().cpu().numpy())
             q_agent_traj.append(q_agent.detach().cpu().numpy())
 

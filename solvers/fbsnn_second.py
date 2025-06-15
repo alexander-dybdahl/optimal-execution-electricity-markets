@@ -259,6 +259,20 @@ class FBSNN(nn.Module):
             + self.lambda_TG * terminal_gradient_loss
             + self.lambda_pinn * pinn_loss
         )
+    
+    def predict_Y_initial(self, y0):
+        self.Y_init_net.eval()
+        Y0 = self.Y_init_net(y0)
+        self.Y_init_net.train()
+        return Y0
+    
+    def predict_Y_next(self, t0, y0, dt, dy, Y0):
+        dY_outputs = self.dY_net(t0, y0)
+        dY_dt = dY_outputs[:, 0:1]
+        dY_dy = dY_outputs[:, 1:]
+
+        Y1 = Y0 + dY_dt * dt + (dY_dy * dy).sum(dim=1, keepdim=True)
+        return Y1
 
     def predict(self, t, y):
         self.dY_net.eval()
@@ -603,8 +617,8 @@ class FBSNN(nn.Module):
         colors = cm.get_cmap("tab10", approx_q.shape[1])
 
         for i in range(approx_q.shape[1]):
-            axs[0, 0].plot(timesteps[1:], approx_q[:, i], color=colors(i), alpha=0.6, label=f"Learned $q_{i}(t)$" if i == 0 else None)
-            axs[0, 0].plot(timesteps[1:], true_q[:, i], linestyle="--", color=colors(i), alpha=0.4, label=f"Analytical $q^*_{i}(t)$" if i == 0 else None)
+            axs[0, 0].plot(timesteps, approx_q[:, i], color=colors(i), alpha=0.6, label=f"Learned $q_{i}(t)$" if i == 0 else None)
+            axs[0, 0].plot(timesteps, true_q[:, i], linestyle="--", color=colors(i), alpha=0.4, label=f"Analytical $q^*_{i}(t)$" if i == 0 else None)
         axs[0, 0].set_title("Control $q(t)$: Learned vs Analytical")
         axs[0, 0].set_xlabel("Time $t$")
         axs[0, 0].set_ylabel("$q(t)$")
@@ -613,7 +627,7 @@ class FBSNN(nn.Module):
 
         for i in range(approx_q.shape[1]):
             diff = (approx_q[:, i] - true_q[:, i]) ** 2
-            axs[0, 1].plot(timesteps[1:], diff, color=colors(i), alpha=0.6, label=f"$q_{i}(t) - q^*_{i}(t)$" if i == 0 else None)
+            axs[0, 1].plot(timesteps, diff, color=colors(i), alpha=0.6, label=f"$q_{i}(t) - q^*_{i}(t)$" if i == 0 else None)
         axs[0, 1].axhline(0, color='red', linestyle='--', linewidth=0.8)
         axs[0, 1].set_title("Error in Control $q(t)$")
         axs[0, 1].set_xlabel("Time $t$")
@@ -622,8 +636,8 @@ class FBSNN(nn.Module):
         axs[0, 1].legend(loc='upper left')
 
         for i in range(Y_vals.shape[1]):
-            axs[1, 0].plot(timesteps[1:], Y_vals[:, i, 0], color=colors(i), alpha=0.6, label=f"Learned $Y_{i}(t)$" if i == 0 else None)
-            axs[1, 0].plot(timesteps[1:], true_Y[:, i, 0], linestyle="--", color=colors(i), alpha=0.4, label=f"Analytical $Y^*_{i}(t)$" if i == 0 else None)
+            axs[1, 0].plot(timesteps, Y_vals[:, i, 0], color=colors(i), alpha=0.6, label=f"Learned $Y_{i}(t)$" if i == 0 else None)
+            axs[1, 0].plot(timesteps, true_Y[:, i, 0], linestyle="--", color=colors(i), alpha=0.4, label=f"Analytical $Y^*_{i}(t)$" if i == 0 else None)
         axs[1, 0].set_title("Cost-to-Go $Y(t)$")
         axs[1, 0].set_xlabel("Time $t$")
         axs[1, 0].set_ylabel("Y(t)")
@@ -632,7 +646,7 @@ class FBSNN(nn.Module):
 
         for i in range(Y_vals.shape[1]):
             diff_Y = (Y_vals[:, i, 0] - true_Y[:, i, 0]) ** 2
-            axs[1, 1].plot(timesteps[1:], diff_Y, color=colors(i), alpha=0.6, label=f"$Y_{i}(t) - Y^*_{i}(t)$" if i == 0 else None)
+            axs[1, 1].plot(timesteps, diff_Y, color=colors(i), alpha=0.6, label=f"$Y_{i}(t) - Y^*_{i}(t)$" if i == 0 else None)
         axs[1, 1].axhline(0, color='red', linestyle='--', linewidth=0.8)
         axs[1, 1].set_title("Error in Cost-to-Go $Y(t)$")
         axs[1, 1].set_xlabel("Time $t$")
@@ -669,8 +683,6 @@ class FBSNN(nn.Module):
             plt.show()
 
     def plot_approx_vs_analytic_expectation(self, results, timesteps, plot=True, save_dir=None, num=None):
-        timesteps = timesteps[1:]
-
         approx_q = results["q_learned"]
         Y_vals = results["Y_learned"]
         true_q = results["q_analytical"]
