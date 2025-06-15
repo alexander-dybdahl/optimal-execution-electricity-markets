@@ -194,8 +194,7 @@ class FBSNN(nn.Module):
             y1 = self.dynamics.forward_dynamics(y0, q, dW[:, n, :], t0, t1 - t0)
             Y1 = Y0 + dY_dt * (t1 - t0) + (dY_dy * (y1 - y0)).sum(dim=1, keepdim=True)
             
-            f = self.dynamics.generator(y0, q)
-            Y1_tilde = Y0 - f * (t1 - t0) + (Z0 * (dW[:, n, :])).sum(dim=1, keepdim=True)
+            Y1_tilde = Y0 - self.dynamics.generator(y0, q) * (t1 - t0) + (Z0 * (dW[:, n, :])).sum(dim=1, keepdim=True)
             Y_loss += (Y1 - Y1_tilde).pow(2).mean()
 
             t_traj.append(t1)
@@ -208,13 +207,13 @@ class FBSNN(nn.Module):
         # === Terminal loss ===
         terminal_loss = 0.0
         if self.lambda_T > 0:
-            terminal_loss = (Y0 - self.dynamics.terminal_cost(y1)).pow(2).mean()
+            terminal_loss = (Y0 - self.dynamics.terminal_cost(y0)).pow(2).mean()
             self.terminal_loss = self.lambda_T * terminal_loss.detach()
 
         # === Terminal gradient loss ===
         terminal_gradient_loss = 0.0
         if self.lambda_TG > 0:
-            terminal_gradient_loss = (dY_dy - self.dynamics.terminal_cost_grad(y1)).pow(2).mean()
+            terminal_gradient_loss = (dY_dy - self.dynamics.terminal_cost_grad(y0)).pow(2).mean()
             self.terminal_gradient_loss = self.lambda_TG * terminal_gradient_loss.detach()
 
         # === Physics-based loss ===
@@ -253,14 +252,17 @@ class FBSNN(nn.Module):
     
     def predict_Y_initial(self, y0):
         self.Y_init_net.eval()
-        Y0 = self.Y_init_net(y0)
+        with torch.no_grad():
+            Y0 = self.Y_init_net(y0)
         self.Y_init_net.train()
         return Y0
     
     def predict_Y_next(self, t0, y0, dt, dy, Y0):
         self.dY_net.eval()
-        dY_outputs = self.dY_net(t0, y0)
+        with torch.no_grad():
+            dY_outputs = self.dY_net(t0, y0)
         self.dY_net.train()
+
         dY_dt = dY_outputs[:, 0:1]
         dY_dy = dY_outputs[:, 1:]
 
@@ -269,9 +271,11 @@ class FBSNN(nn.Module):
 
     def predict(self, t, y):
         self.dY_net.eval()
-        dY_outputs = self.dY_net(t, y)
-        dY_dy = dY_outputs[:, 1:]
+        with torch.no_grad():
+            dY_outputs = self.dY_net(t, y)
         self.dY_net.train()
+        
+        dY_dy = dY_outputs[:, 1:]
         return self.dynamics.optimal_control(t, y, dY_dy)
 
     def fetch_minibatch(self, batch_size):
