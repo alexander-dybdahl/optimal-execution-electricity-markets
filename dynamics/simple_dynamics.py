@@ -27,15 +27,8 @@ class SimpleDynamics(Dynamics):
         Sigma[:, 0, 0] = self.sigma_y
         return Sigma
     
-    def optimal_control(self, t, y, Y, create_graph=False):
-        dV = torch.autograd.grad(
-            outputs=Y,
-            inputs=y,
-            grad_outputs=torch.ones_like(Y),
-            create_graph=create_graph,
-            retain_graph=True,
-        )[0]
-        q = - 0.5 * dV
+    def optimal_control(self, t, y, dY_dy):
+        q = - 0.5 * dY_dy
         return q
 
     def K_analytic(self, t):
