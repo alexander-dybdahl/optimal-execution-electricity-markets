@@ -44,6 +44,7 @@ def main():
     parser.add_argument("--lambda_pinn", type=float, default=run_cfg["lambda_pinn"], help="Weight for the PINN term in the loss function")
     parser.add_argument("--loss_threshold", type=float, default=run_cfg["loss_threshold"], help="Threshold to linearly approximate the loss")
     parser.add_argument("--use_linear_approx", type=str2bool, nargs='?', const=True, default=run_cfg["use_linear_approx"], help="Use linear loss approximation beyond the threshold")
+    parser.add_argument("--second_order_taylor", type=str2bool, nargs='?', const=True, default=run_cfg["second_order_taylor"], help="Use second order Taylor approximation for Y reconstruction")
     parser.add_argument("--train", type=str2bool, nargs='?', const=True, default=run_cfg["train"], help="Train the model")
     parser.add_argument("--load_if_exists", type=str2bool, nargs='?', const=True, default=run_cfg["load_if_exists"], help="Load model if it exists")
     parser.add_argument("--save_path", type=str, default=run_cfg["save_path"], help="Path to save the model")

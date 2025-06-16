@@ -47,6 +47,7 @@ class FBSNN(nn.Module):
         # Loss threshold for linear approximation
         self.loss_threshold = args.loss_threshold
         self.use_linear_approx = args.use_linear_approx
+        self.second_order_taylor = args.second_order_taylor
 
         # Loss Tracking
         self.Y_loss = torch.tensor(0.0, device=self.device)
@@ -205,6 +206,11 @@ class FBSNN(nn.Module):
     def forward_fc(self, t, dW):
         t0 = t[:, 0, :]
         y0 = self.dynamics.y0.repeat(self.batch_size, 1).to(self.device)
+
+        if self.second_order_taylor:
+            t0 = t0.requires_grad_(True)
+            y0 = y0.requires_grad_(True)
+
         Y0 = self.Y_init_net(y0)
 
         y_traj, t_traj = [y0], []
@@ -212,6 +218,10 @@ class FBSNN(nn.Module):
         Y_loss = 0.0
         for n in range(self.dynamics.N):
             t1 = t[:, n + 1, :]
+
+            if self.second_order_taylor:
+                t0 = t0.requires_grad_(True)
+                y0 = y0.requires_grad_(True)
             
             dY_outputs = self.dY_net(t0, y0)
             dY_dt = dY_outputs[:, 0:1]
@@ -219,9 +229,30 @@ class FBSNN(nn.Module):
             Z0 = torch.bmm(self.dynamics.sigma(t0, y0).transpose(1, 2), dY_dy.unsqueeze(-1)).squeeze(-1)
             q = self.dynamics.optimal_control(t0, y0, dY_dy)
             y1 = self.dynamics.forward_dynamics(y0, q, dW[:, n, :], t0, t1 - t0)
-            Y1 = Y0 + dY_dt * (t1 - t0) + (dY_dy * (y1 - y0)).sum(dim=1, keepdim=True)
+            Y1 = Y0 - self.dynamics.generator(y0, q) * (t1 - t0) + (Z0 * (dW[:, n, :])).sum(dim=1, keepdim=True)
             
-            Y1_tilde = Y0 - self.dynamics.generator(y0, q) * (t1 - t0) + (Z0 * (dW[:, n, :])).sum(dim=1, keepdim=True)
+            Y1_tilde = Y0 + dY_dt * (t1 - t0) + (dY_dy * (y1 - y0)).sum(dim=1, keepdim=True)
+            if self.second_order_taylor:
+                # Second-order Taylor approximation
+                ddY_ddt_tilde = torch.autograd.grad(
+                    outputs=dY_dt,
+                    inputs=t0,
+                    grad_outputs=torch.ones_like(dY_dt),
+                    create_graph=False,
+                    retain_graph=True,
+                )[0]
+                ddY_ddy_tilde = torch.autograd.grad(
+                    outputs=dY_dy,
+                    inputs=y0,
+                    grad_outputs=torch.ones_like(dY_dy),
+                    create_graph=False,
+                    retain_graph=True,
+                )[0]
+                Y1_tilde += 0.5 * (
+                    ddY_ddt_tilde * (t1 - t0) +
+                    (ddY_ddy_tilde * (y1 - y0)).sum(dim=1, keepdim=True)
+                )
+
             Y_loss += self.apply_thresholded_loss(Y1 - Y1_tilde).mean()
 
             t_traj.append(t1)
@@ -286,14 +317,38 @@ class FBSNN(nn.Module):
     
     def predict_Y_next(self, t0, y0, dt, dy, Y0):
         self.dY_net.eval()
-        with torch.no_grad():
+        if self.second_order_taylor:
+            t0 = t0.requires_grad_(True)
+            y0 = y0.requires_grad_(True)
             dY_outputs = self.dY_net(t0, y0)
+        else:
+            with torch.no_grad():
+                dY_outputs = self.dY_net(t0, y0)
         self.dY_net.train()
 
         dY_dt = dY_outputs[:, 0:1]
         dY_dy = dY_outputs[:, 1:]
-
+        
         Y1 = Y0 + dY_dt * dt + (dY_dy * dy).sum(dim=1, keepdim=True)
+
+        if self.second_order_taylor:
+            # Second-order Taylor approximation
+            ddY_ddt_tilde = torch.autograd.grad(
+                outputs=dY_dt,
+                inputs=t0,
+                grad_outputs=torch.ones_like(dY_dt),
+                create_graph=False,
+                retain_graph=True,
+            )[0]
+            ddY_ddy_tilde = torch.autograd.grad(
+                outputs=dY_dy,
+                inputs=y0,
+                grad_outputs=torch.ones_like(dY_dy),
+                create_graph=False,
+                retain_graph=True,
+            )[0]
+            Y1 += 0.5 * (ddY_ddt_tilde * dt + (ddY_ddy_tilde * dy).sum(dim=1, keepdim=True))
+
         return Y1
 
     def predict(self, t, y):
