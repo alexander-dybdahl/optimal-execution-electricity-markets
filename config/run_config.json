@@ -20,7 +20,7 @@
   "lambda_dYt": 0,
   "lambda_T": 1,
   "lambda_TG": 1,
-  "lambda_pinn": 1,
+  "lambda_pinn": 0,
   "train": true,
   "load_if_exists": false,
   "save_path": "saved/aid",

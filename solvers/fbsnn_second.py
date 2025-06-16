@@ -200,9 +200,9 @@ class FBSNN(nn.Module):
             Z0 = torch.bmm(self.dynamics.sigma(t0, y0).transpose(1, 2), dY_dy.unsqueeze(-1)).squeeze(-1)
             q = self.dynamics.optimal_control(t0, y0, dY_dy)
             y1 = self.dynamics.forward_dynamics(y0, q, dW[:, n, :], t0, t1 - t0)
-            Y1 = Y0 + dY_dt * (t1 - t0) + (dY_dy * (y1 - y0)).sum(dim=1, keepdim=True)
+            Y1 = Y0 - self.dynamics.generator(y0, q) * (t1 - t0) + (Z0 * (dW[:, n, :])).sum(dim=1, keepdim=True)
             
-            Y1_tilde = Y0 - self.dynamics.generator(y0, q) * (t1 - t0) + (Z0 * (dW[:, n, :])).sum(dim=1, keepdim=True)
+            Y1_tilde = Y0 + dY_dt * (t1 - t0) + (dY_dy * (y1 - y0)).sum(dim=1, keepdim=True)
             Y_loss += (Y1 - Y1_tilde).pow(2).mean()
 
             t_traj.append(t1)
@@ -229,24 +229,6 @@ class FBSNN(nn.Module):
         if self.lambda_pinn > 0:
             t_traj = torch.cat(t_traj, dim=0).requires_grad_(True)
             y_traj = torch.cat(y_traj[1:], dim=0).requires_grad_(True)
-
-            # Sobol points for additional PINN loss
-            sobol = SobolEngine(dimension=self.dynamics.dim, scramble=True)
-            sobol_points = sobol.draw(self.batch_size * self.dynamics.N)
-            y0_cpu = self.dynamics.y0.detach().cpu()
-            x0, d0, p0 = y0_cpu[0]
-            std_mult = 3.0
-            T = self.dynamics.T
-            x_min, x_max = x0 - 10.0, x0 + 10.0
-            d_min, d_max = d0 - std_mult * self.dynamics.sigma_D * T**0.5, d0 + std_mult * self.dynamics.sigma_D * T**0.5
-            p_min, p_max = p0 - std_mult * self.dynamics.sigma_P * T**0.5, p0 + std_mult * self.dynamics.sigma_P * T**0.5
-            y_min = torch.tensor([x_min, d_min, p_min], device=self.device)
-            y_max = torch.tensor([x_max, d_max, p_max], device=self.device)
-            sobol_points = sobol_points.to(self.device)
-            sobol_points = y_min + (y_max - y_min) * sobol_points
-            t_sobol = torch.rand(self.batch_size * self.dynamics.N, 1, device=self.device) * T
-            t_traj = torch.cat([t_traj, t_sobol], dim=0).requires_grad_(True)
-            y_traj = torch.cat([y_traj, sobol_points], dim=0).requires_grad_(True)
 
             pinn_loss = self.hjb_residual(t_traj, y_traj)
             self.pinn_loss = self.lambda_pinn * pinn_loss.detach()
