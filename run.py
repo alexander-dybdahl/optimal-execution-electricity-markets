@@ -24,6 +24,7 @@ def main():
     parser.add_argument("--epochs", type=int, default=run_cfg["epochs"], help="Number of training epochs")
     parser.add_argument("--K", type=int, default=run_cfg["K"], help="Epochs between evaluations of the model")
     parser.add_argument("--batch_size", type=int, default=run_cfg["batch_size"], help="Batch size for training")
+    parser.add_argument("--input_bn", type=str2bool, nargs='?', const=True, default=run_cfg["input_bn"], help="Use batch normalization on input")
     parser.add_argument("--supervised", type=str2bool, default=run_cfg["supervised"], help="Use supervised learning using analytical solution")
     parser.add_argument("--architecture", type=str, default=run_cfg["architecture"], help="Neural network architecture to use")
     parser.add_argument("--activation", type=str, default=run_cfg["activation"], help="Activation function to use")

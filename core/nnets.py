@@ -144,8 +144,13 @@ class Sine(nn.Module):
 
 class FCnet(nn.Module):
 
-    def __init__(self, layers, activation):
+    def __init__(self, layers, activation, T, input_bn=True):
         super(FCnet, self).__init__()
+        self.T = T
+        self.input_bn = input_bn
+        
+        if input_bn:
+            self.input_bn_layer = nn.BatchNorm1d(layers[0]-1, affine=True, track_running_stats=True)
 
         self.layers = []
         for i in range(len(layers) - 2):
@@ -156,6 +161,11 @@ class FCnet(nn.Module):
         self.net = nn.Sequential(*self.layers)
 
     def forward(self, t, y):
+
+        if self.input_bn:
+            t = t / self.T
+            y = self.input_bn_layer(y)
+
         return self.net(torch.cat([t, y], dim=1))
 
 class Resnet(nn.Module):
@@ -218,11 +228,12 @@ class SeparateSubnets(nn.Module):
     This architecture creates a different subnetwork (FCnet or Resnet) for each time step,
     similar to the implementation in subnet.py and model.py examples.
     """
-    def __init__(self, layers, activation, num_time_steps, subnet_type="FC"):
+    def __init__(self, layers, activation, num_time_steps, T, subnet_type="FC", input_bn=True):
         super(SeparateSubnets, self).__init__()
-        self.num_time_steps = num_time_steps
-        self.subnet_type = subnet_type
         self.activation = activation
+        self.num_time_steps = num_time_steps
+        self.T = T
+        self.subnet_type = subnet_type
         
         input_dim = layers[0]  # dim + 1 (time + state)
         self.subnet_layers = layers[1:]  # layers for each subnet
@@ -230,28 +241,39 @@ class SeparateSubnets(nn.Module):
         self.subnets = nn.ModuleList()
         for i in range(num_time_steps):
             if subnet_type == "FC":
-                subnet = FCnet([input_dim] + self.subnet_layers, activation)
+                subnet = FCnet(
+                    layers=[input_dim] + self.subnet_layers,
+                    activation=activation,
+                    T=T,
+                    input_bn=input_bn
+                )
             elif subnet_type == "Resnet":
-                subnet = Resnet([input_dim] + self.subnet_layers, activation, stable=False)
+                subnet = Resnet(
+                    layers=[input_dim] + self.subnet_layers,
+                    activation=activation,
+                    stable=False
+                )
             elif subnet_type == "NAISnet":
-                subnet = Resnet([input_dim] + self.subnet_layers, activation, stable=True)
+                subnet = Resnet(
+                    layers=[input_dim] + self.subnet_layers,
+                    activation=activation,
+                    stable=True
+                )
             else:
                 raise ValueError(f"Unknown subnet type: {subnet_type}")
             self.subnets.append(subnet)
     
     def forward(self, t, y):
         # Determine which subnet to use based on time
-        # Assuming t ranges from 0 to T, map it to subnet index
-        T = 1.0  # Total time horizon (should match dynamics.T)
-        relative_t = t[0, 0] / T  # Normalize time to [0, 1]
+        relative_t = t[0, 0] / self.T  # Normalize time to [0, 1]
         time_idx = min(int(relative_t * self.num_time_steps), self.num_time_steps-1)
 
         # For subnets, we need to create dummy time input since they expect (t, y) format
-        dummy_t = torch.zeros_like(t, requires_grad=True)
+        dummy_t = torch.zeros_like(t)
         
         # Use the appropriate subnet for this time step
-        return self.subnets[time_idx](dummy_t, y)
 
+        return self.subnets[time_idx](dummy_t, y)
 
 class LSTMWithSubnets(nn.Module):
     """Architecture with shared LSTM layer followed by separate subnetworks per time step.
@@ -259,13 +281,14 @@ class LSTMWithSubnets(nn.Module):
     This architecture first processes input through a shared LSTM layer, then uses
     different subnetworks (FCnet or Resnet) for each time step.
     """
-    def __init__(self, layers, activation, num_time_steps, lstm_layers, subnet_type="FC", 
-                 lstm_type="LSTM"):
+    def __init__(self, layers, activation, num_time_steps, T, lstm_layers=[64], subnet_type="FC", 
+                 lstm_type="LSTM", input_bn=True):
         super(LSTMWithSubnets, self).__init__()
-        self.num_time_steps = num_time_steps
-        self.subnet_type = subnet_type
         self.activation = activation
+        self.num_time_steps = num_time_steps
+        self.T = T
         self.lstm_type = lstm_type
+        self.subnet_type = subnet_type
         
         input_size = layers[0]  # dim + 1 (time + state)
         lstm_hidden_sizes = lstm_layers  # LSTM layer configuration
@@ -299,11 +322,24 @@ class LSTMWithSubnets(nn.Module):
         self.subnets = nn.ModuleList()
         for i in range(num_time_steps):
             if subnet_type == "FC":
-                subnet = FCnet([subnet_input_size] + self.subnet_layers, activation)
+                subnet = FCnet(
+                    layers=[subnet_input_size] + self.subnet_layers,
+                    activation=activation,
+                    T=T,
+                    input_bn=input_bn
+                )
             elif subnet_type == "Resnet":
-                subnet = Resnet([subnet_input_size] + self.subnet_layers, activation, stable=False)
+                subnet = Resnet(
+                    layers=[subnet_input_size] + self.subnet_layers,
+                    activation=activation,
+                    stable=False
+                )
             elif subnet_type == "NAISnet":
-                subnet = Resnet([subnet_input_size] + self.subnet_layers, activation, stable=True)
+                subnet = Resnet(
+                    layers=[subnet_input_size] + self.subnet_layers,
+                    activation=activation,
+                    stable=True
+                )
             else:
                 raise ValueError(f"Unknown subnet type: {subnet_type}")
             self.subnets.append(subnet)
@@ -313,7 +349,6 @@ class LSTMWithSubnets(nn.Module):
         self.cell_states = None
     
     def forward(self, t, y):
-        # Concatenate time and state
         u = torch.cat([t, y], dim=1)  # shape: [batch, input_size]
         batch_size = u.size(0)
         # Initialize hidden and cell states if needed
@@ -342,15 +377,12 @@ class LSTMWithSubnets(nn.Module):
                 x = self.activation(h_new)
         
         # Now x contains the LSTM output
-        # Assuming all times in the batch are the same
-        # Determine which time step we're at based on the first time value
-        # Assuming t is normalized between 0 and T
-        T = self.num_time_steps
-        relative_t = t[0, 0] / self.num_time_steps
-        time_idx = min(int(relative_t * T), T-1)
+        # Determine which subnet to use based on time
+        relative_t = t[0, 0] / self.T  # Normalize time to [0, 1]
+        time_idx = min(int(relative_t * self.num_time_steps), self.num_time_steps-1)
 
         # For subnets, we need to create dummy time input since they expect (t, y) format
-        dummy_t = torch.zeros_like(t, requires_grad=True)
+        dummy_t = torch.zeros_like(t)
         
         # Use the appropriate subnet for this time step
         return self.subnets[time_idx](dummy_t, x)

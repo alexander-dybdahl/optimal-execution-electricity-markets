@@ -85,11 +85,15 @@ class FBSNN(nn.Module):
 
         if args.architecture == "Default":
             self.dY_net = FCnet(
-                layers=[self.dynamics.dim + 1] + [64, 64, 64, 64] + [self.dynamics.dim + 1], activation=self.activation
+                layers=[self.dynamics.dim + 1] + [64, 64, 64, 64] + [self.dynamics.dim + 1],
+                activation=self.activation,
             ).to(self.device)
         elif args.architecture == "FC":
             self.dY_net = FCnet(
-                layers=[self.dynamics.dim + 1] + args.Y_layers + [self.dynamics.dim + 1], activation=self.activation
+                layers=[self.dynamics.dim + 1] + args.Y_layers + [self.dynamics.dim + 1],
+                activation=self.activation,
+                T=self.dynamics.T,
+                input_bn=args.input_bn
             ).to(self.device)
         elif args.architecture == "NAISnet":
             self.dY_net = Resnet(
@@ -120,7 +124,9 @@ class FBSNN(nn.Module):
                 layers=[self.dynamics.dim + 1] + args.Y_layers + [self.dynamics.dim + 1],
                 activation=self.activation,
                 num_time_steps=self.dynamics.N,
+                T=self.dynamics.T,
                 subnet_type=subnet_type,
+                input_bn=args.input_bn
             ).to(self.device)
         elif args.architecture == "LSTMWithSubnets":
             # Get LSTM and subnet configuration from args
@@ -131,9 +137,11 @@ class FBSNN(nn.Module):
                 layers=[self.dynamics.dim + 1] + args.Y_layers + [self.dynamics.dim + 1],
                 activation=self.activation,
                 num_time_steps=self.dynamics.N,
+                T=self.dynamics.T,
                 lstm_layers=lstm_layers,
                 subnet_type=subnet_type,
                 lstm_type=lstm_type,
+                input_bn=args.input_bn
             ).to(self.device)
         else:
             raise ValueError(f"Unknown architecture: {args.architecture}")

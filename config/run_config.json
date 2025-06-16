@@ -4,6 +4,7 @@
   "epochs": 1000,
   "K": 50,
   "batch_size": 1024,
+  "input_bn": true,
   "supervised": false,
   "architecture": "SeparateSubnets",
   "activation": "GELU",
