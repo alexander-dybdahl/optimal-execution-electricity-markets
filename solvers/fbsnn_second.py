@@ -43,6 +43,10 @@ class FBSNN(nn.Module):
         self.lambda_T = args.lambda_T      # terminal value loss
         self.lambda_TG = args.lambda_TG    # terminal gradient loss
         self.lambda_pinn = args.lambda_pinn  # physics residual loss
+        
+        # Loss threshold for linear approximation
+        self.loss_threshold = args.loss_threshold
+        self.use_linear_approx = args.use_linear_approx
 
         # Loss Tracking
         self.Y_loss = torch.tensor(0.0, device=self.device)
@@ -87,25 +91,35 @@ class FBSNN(nn.Module):
             self.dY_net = FCnet(
                 layers=[self.dynamics.dim + 1] + [64, 64, 64, 64] + [self.dynamics.dim + 1],
                 activation=self.activation,
+                T=self.dynamics.T,
+                input_bn=args.input_bn,
+                affine=args.affine,
             ).to(self.device)
         elif args.architecture == "FC":
             self.dY_net = FCnet(
                 layers=[self.dynamics.dim + 1] + args.Y_layers + [self.dynamics.dim + 1],
                 activation=self.activation,
                 T=self.dynamics.T,
-                input_bn=args.input_bn
+                input_bn=args.input_bn,
+                affine=args.affine,
             ).to(self.device)
         elif args.architecture == "NAISnet":
             self.dY_net = Resnet(
                 layers=[self.dynamics.dim + 1] + args.Y_layers + [self.dynamics.dim + 1],
                 activation=self.activation,
                 stable=True,
+                T=self.dynamics.T,
+                input_bn=args.input_bn,
+                affine=args.affine,
             ).to(self.device)
         elif args.architecture == "Resnet":
             self.dY_net = Resnet(
                 layers=[self.dynamics.dim + 1] + args.Y_layers + [self.dynamics.dim + 1],
                 activation=self.activation,
                 stable=False,
+                T=self.dynamics.T,
+                input_bn=args.input_bn,
+                affine=args.affine,
             ).to(self.device)
         elif (
             args.architecture == "LSTM"
@@ -116,6 +130,9 @@ class FBSNN(nn.Module):
                 layers=[self.dynamics.dim + 1] + args.Y_layers + [self.dynamics.dim + 1],
                 activation=self.activation,
                 type=args.architecture,
+                T=self.dynamics.T,
+                input_bn=args.input_bn,
+                affine=args.affine,
             ).to(self.device)
         elif args.architecture == "SeparateSubnets":
             # Get subnet configuration from args
@@ -126,7 +143,8 @@ class FBSNN(nn.Module):
                 num_time_steps=self.dynamics.N,
                 T=self.dynamics.T,
                 subnet_type=subnet_type,
-                input_bn=args.input_bn
+                input_bn=args.input_bn,
+                affine=args.affine,
             ).to(self.device)
         elif args.architecture == "LSTMWithSubnets":
             # Get LSTM and subnet configuration from args
@@ -141,7 +159,8 @@ class FBSNN(nn.Module):
                 lstm_layers=lstm_layers,
                 subnet_type=subnet_type,
                 lstm_type=lstm_type,
-                input_bn=args.input_bn
+                input_bn=args.input_bn,
+                affine=args.affine,
             ).to(self.device)
         else:
             raise ValueError(f"Unknown architecture: {args.architecture}")
@@ -178,7 +197,7 @@ class FBSNN(nn.Module):
 
         # Residual from HJB
         residual = dY_dt + (mu * dY_dy).sum(dim=1, keepdim=True) + 0.5 * trace_term + f
-        return (residual**2).mean()
+        return self.apply_thresholded_loss(residual).mean()
 
     def forward(self, t, dW, supervised=False):
         return self.forward_fc(t, dW)
@@ -203,7 +222,7 @@ class FBSNN(nn.Module):
             Y1 = Y0 + dY_dt * (t1 - t0) + (dY_dy * (y1 - y0)).sum(dim=1, keepdim=True)
             
             Y1_tilde = Y0 - self.dynamics.generator(y0, q) * (t1 - t0) + (Z0 * (dW[:, n, :])).sum(dim=1, keepdim=True)
-            Y_loss += (Y1 - Y1_tilde).pow(2).mean()
+            Y_loss += self.apply_thresholded_loss(Y1 - Y1_tilde).mean()
 
             t_traj.append(t1)
             y_traj.append(y1)
@@ -215,13 +234,13 @@ class FBSNN(nn.Module):
         # === Terminal loss ===
         terminal_loss = 0.0
         if self.lambda_T > 0:
-            terminal_loss = (Y0 - self.dynamics.terminal_cost(y0)).pow(2).mean()
+            terminal_loss = self.apply_thresholded_loss(Y0 - self.dynamics.terminal_cost(y0)).mean()
             self.terminal_loss = self.lambda_T * terminal_loss.detach()
 
         # === Terminal gradient loss ===
         terminal_gradient_loss = 0.0
         if self.lambda_TG > 0:
-            terminal_gradient_loss = (dY_dy - self.dynamics.terminal_cost_grad(y0)).pow(2).mean()
+            terminal_gradient_loss = self.apply_thresholded_loss(dY_dy - self.dynamics.terminal_cost_grad(y0)).mean()
             self.terminal_gradient_loss = self.lambda_TG * terminal_gradient_loss.detach()
 
         # === Physics-based loss ===
@@ -777,3 +796,14 @@ class FBSNN(nn.Module):
             plt.close()
         if plot:
             plt.show()
+
+    def apply_thresholded_loss(self, diff):
+
+        if not self.use_linear_approx:
+            return diff.pow(2)
+        
+        large_diff_mask = (diff.abs() > self.loss_threshold).float()
+        squared_loss = diff.pow(2)
+        linear_loss = 2 * self.loss_threshold * diff.abs() - self.loss_threshold**2
+        
+        return large_diff_mask * linear_loss + (1 - large_diff_mask) * squared_loss
