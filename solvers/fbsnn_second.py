@@ -534,7 +534,7 @@ class FBSNN(nn.Module):
                     logger.log(" | ".join(row_parts))
                     start_time = time.time()
 
-                if self.plot_n is not None and epoch % self.plot_n == 0:
+                if epoch % self.plot_n == 0:
                     timesteps, results = self.dynamics.simulate_paths(agent=self, n_sim=self.n_simulations, seed=42)
                     self.plot_approx_vs_analytic(results, timesteps, plot=False, save_dir=save_dir, num=epoch)
                     timesteps, results = self.dynamics.simulate_paths(agent=self, n_sim=1000, seed=42)
