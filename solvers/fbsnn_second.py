@@ -280,24 +280,6 @@ class FBSNN(nn.Module):
             t_traj = torch.cat(t_traj, dim=0).requires_grad_(True)
             y_traj = torch.cat(y_traj[1:], dim=0).requires_grad_(True)
 
-            # Sobol points for additional PINN loss
-            sobol = SobolEngine(dimension=self.dynamics.dim, scramble=True)
-            sobol_points = sobol.draw(self.batch_size * self.dynamics.N)
-            y0_cpu = self.dynamics.y0.detach().cpu()
-            x0, d0, p0 = y0_cpu[0]
-            std_mult = 3.0
-            T = self.dynamics.T
-            x_min, x_max = x0 - 10.0, x0 + 10.0
-            d_min, d_max = d0 - std_mult * self.dynamics.sigma_D * T**0.5, d0 + std_mult * self.dynamics.sigma_D * T**0.5
-            p_min, p_max = p0 - std_mult * self.dynamics.sigma_P * T**0.5, p0 + std_mult * self.dynamics.sigma_P * T**0.5
-            y_min = torch.tensor([x_min, d_min, p_min], device=self.device)
-            y_max = torch.tensor([x_max, d_max, p_max], device=self.device)
-            sobol_points = sobol_points.to(self.device)
-            sobol_points = y_min + (y_max - y_min) * sobol_points
-            t_sobol = torch.rand(self.batch_size * self.dynamics.N, 1, device=self.device) * T
-            t_traj = torch.cat([t_traj, t_sobol], dim=0).requires_grad_(True)
-            y_traj = torch.cat([y_traj, sobol_points], dim=0).requires_grad_(True)
-
             pinn_loss = self.hjb_residual(t_traj, y_traj)
             self.pinn_loss = self.lambda_pinn * pinn_loss.detach()
 
@@ -347,7 +329,7 @@ class FBSNN(nn.Module):
                 create_graph=False,
                 retain_graph=True,
             )[0]
-            Y1 += 0.5 * (ddY_ddt_tilde * dt + (ddY_ddy_tilde * dy).sum(dim=1, keepdim=True))
+            Y1 += 0.5 * (ddY_ddt_tilde * dt ** 2 + (ddY_ddy_tilde * dy ** 2).sum(dim=1, keepdim=True))
 
         return Y1
 
@@ -682,20 +664,20 @@ class FBSNN(nn.Module):
         for i in range(y_vals.shape[1]):
             axs[2, 0].plot(timesteps, y_vals[:, i, 0], color=colors(i), alpha=0.6, label=f"$x_{i}(t)$" if i == 0 else None)
             axs[2, 0].plot(timesteps, true_y[:, i, 0], linestyle="--", color=colors(i), alpha=0.4, label=f"$x^*_{i}(t)$" if i == 0 else None)
-            axs[2, 0].plot(timesteps, true_y[:, i, 2], linestyle="-.", color=colors(i), alpha=0.6, label=f"$d_{i}(t)$" if i == 0 else None)
+            # axs[2, 0].plot(timesteps, true_y[:, i, 2], linestyle="-.", color=colors(i), alpha=0.6, label=f"$d_{i}(t)$" if i == 0 else None)
         axs[2, 0].set_title("States: $x(t)$ and $d(t)$")
         axs[2, 0].set_xlabel("Time $t$")
         axs[2, 0].set_ylabel("x(t), d(t)")
         axs[2, 0].grid(True)
         axs[2, 0].legend(loc='upper left')
 
-        for i in range(y_vals.shape[1]):
-            axs[2, 1].plot(timesteps, true_y[:, i, 1], color=colors(i), alpha=0.6, label=f"$p_{i}(t)$" if i == 0 else None)
-        axs[2, 1].set_title("State: $p(t)$")
-        axs[2, 1].set_xlabel("Time $t$")
-        axs[2, 1].set_ylabel("p(t)")
-        axs[2, 1].grid(True)
-        axs[2, 1].legend(loc='upper left')
+        # for i in range(y_vals.shape[1]):
+        #     axs[2, 1].plot(timesteps, true_y[:, i, 1], color=colors(i), alpha=0.6, label=f"$p_{i}(t)$" if i == 0 else None)
+        # axs[2, 1].set_title("State: $p(t)$")
+        # axs[2, 1].set_xlabel("Time $t$")
+        # axs[2, 1].set_ylabel("p(t)")
+        # axs[2, 1].grid(True)
+        # axs[2, 1].legend(loc='upper left')
 
         plt.tight_layout()
         if save_dir:
