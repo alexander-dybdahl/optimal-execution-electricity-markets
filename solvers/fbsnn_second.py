@@ -240,6 +240,7 @@ class FBSNN(nn.Module):
                     grad_outputs=torch.ones_like(dY_dt),
                     create_graph=False,
                     retain_graph=True,
+                    allow_unused=True,
                 )[0]
                 ddY_ddy_tilde = torch.autograd.grad(
                     outputs=dY_dy,
@@ -248,9 +249,14 @@ class FBSNN(nn.Module):
                     create_graph=False,
                     retain_graph=True,
                 )[0]
+
+                # Handle cases where gradients might be None due to separate subnet per time
+                if ddY_ddt_tilde is None:
+                    ddY_ddt_tilde = 0
+
                 Y1_tilde += 0.5 * (
-                    ddY_ddt_tilde * (t1 - t0) +
-                    (ddY_ddy_tilde * (y1 - y0)).sum(dim=1, keepdim=True)
+                    ddY_ddt_tilde * (t1 - t0) ** 2  +
+                    (ddY_ddy_tilde * (y1 - y0) ** 2).sum(dim=1, keepdim=True)
                 )
 
             Y_loss += self.apply_thresholded_loss(Y1 - Y1_tilde).mean()
