@@ -327,6 +327,7 @@ class FBSNN(nn.Module):
                 grad_outputs=torch.ones_like(dY_dt),
                 create_graph=False,
                 retain_graph=True,
+                allow_unused=True,
             )[0]
             ddY_ddy_tilde = torch.autograd.grad(
                 outputs=dY_dy,
@@ -335,6 +336,11 @@ class FBSNN(nn.Module):
                 create_graph=False,
                 retain_graph=True,
             )[0]
+
+            # Handle cases where gradient with respect to t might be None due to separate subnet per time
+            if ddY_ddt_tilde is None:
+                ddY_ddt_tilde = 0
+
             Y1 += 0.5 * (ddY_ddt_tilde * dt ** 2 + (ddY_ddy_tilde * dy ** 2).sum(dim=1, keepdim=True))
 
         return Y1
