@@ -250,7 +250,7 @@ class FBSNN(nn.Module):
                     retain_graph=True,
                 )[0]
 
-                # Handle cases where gradients might be None due to separate subnet per time
+                # Handle cases where gradient with respect to t might be None due to separate subnet per time
                 if ddY_ddt_tilde is None:
                     ddY_ddt_tilde = 0
 
