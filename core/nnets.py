@@ -180,10 +180,10 @@ class Resnet(nn.Module):
         super(Resnet, self).__init__()
         self.activation = activation
         self.stable = stable
-        self.T = T
         self.input_bn = input_bn
 
         if input_bn:
+            self.T = T
             self.input_bn_layer = nn.BatchNorm1d(layers[0]-1, affine=affine, track_running_stats=True)
 
         self.epsilon = 0.01
