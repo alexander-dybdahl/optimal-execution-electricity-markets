@@ -152,12 +152,12 @@ class Sine(nn.Module):
 
 class FCnet(nn.Module):
 
-    def __init__(self, layers, activation, T, input_bn=True, affine=False):
+    def __init__(self, layers, activation, T=None, input_bn=True, affine=False):
         super(FCnet, self).__init__()
-        self.T = T
         self.input_bn = input_bn
         
         if input_bn:
+            self.T = T
             self.input_bn_layer = nn.BatchNorm1d(layers[0]-1, affine=affine, track_running_stats=True)
 
         self.layers = []
