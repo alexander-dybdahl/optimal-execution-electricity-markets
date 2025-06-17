@@ -43,6 +43,7 @@ class FBSNN(nn.Module):
         self.lambda_T = args.lambda_T      # terminal value loss
         self.lambda_TG = args.lambda_TG    # terminal gradient loss
         self.lambda_pinn = args.lambda_pinn  # physics residual loss
+        self.lambda_reg = args.lambda_reg  # regularization loss
         
         # Loss threshold for linear approximation
         self.loss_threshold = args.loss_threshold
@@ -56,6 +57,7 @@ class FBSNN(nn.Module):
         self.terminal_loss = torch.tensor(0.0, device=self.device)
         self.terminal_gradient_loss = torch.tensor(0.0, device=self.device)
         self.pinn_loss = torch.tensor(0.0, device=self.device)
+        self.reg_loss = torch.tensor(0.0, device=self.device)
 
         # Saving & Checkpointing
         self.save = args.save              # e.g., "best", "every", "last"
@@ -85,7 +87,10 @@ class FBSNN(nn.Module):
             raise ValueError(f"Unknown activation function: {args.activation}")
 
         self.Y_init_net = FCnet_init(
-            layers=[self.dynamics.dim] + args.Y_layers + [1], activation=self.activation
+            layers=[self.dynamics.dim] + args.Y_layers + [1],
+            activation=self.activation,
+            y0=self.dynamics.y0,
+            rescale_y0=args.rescale_y0,
         ).to(self.device)
 
         if args.architecture == "Default":
@@ -213,7 +218,7 @@ class FBSNN(nn.Module):
 
         Y0 = self.Y_init_net(y0)
 
-        y_traj, t_traj = [y0], []
+        y_traj, t_traj, q_traj = [y0], [], []
         # === Compute fbsnn loss ===
         Y_loss = 0.0
         for n in range(self.dynamics.N):
@@ -263,6 +268,7 @@ class FBSNN(nn.Module):
 
             t_traj.append(t1)
             y_traj.append(y1)
+            q_traj.append(q)
 
             t0, y0, Y0 = t1, y1, Y1
 
@@ -289,11 +295,19 @@ class FBSNN(nn.Module):
             pinn_loss = self.hjb_residual(t_traj, y_traj)
             self.pinn_loss = self.lambda_pinn * pinn_loss.detach()
 
+        # === q regularization loss ===
+        reg_loss = 0.0
+        if self.lambda_reg > 0:
+            q_traj = torch.cat(q_traj, dim=0)
+            reg_loss = self.apply_thresholded_loss(q_traj).mean()
+            self.reg_loss = self.lambda_reg * reg_loss.detach()
+
         return (
             self.lambda_Y * Y_loss
             + self.lambda_T * terminal_loss
             + self.lambda_TG * terminal_gradient_loss
             + self.lambda_pinn * pinn_loss
+            + self.lambda_reg * reg_loss
         )
     
     def predict_Y_initial(self, y0):
@@ -403,7 +417,8 @@ class FBSNN(nn.Module):
             losses_terminal,
             losses_terminal_gradient,
             losses_pinn,
-        ) = [], [], [], [], [], [], []
+            losses_reg,
+        ) = [], [], [], [], [], [], [], []
 
         # Define active loss components
         loss_components = [
@@ -413,6 +428,7 @@ class FBSNN(nn.Module):
             ("T. loss", self.lambda_T, lambda: np.mean(losses_terminal[-K:])),
             ("T.G. loss", self.lambda_TG, lambda: np.mean(losses_terminal_gradient[-K:])),
             ("pinn loss", self.lambda_pinn, lambda: np.mean(losses_pinn[-K:])),
+            ("reg loss", self.lambda_reg, lambda: np.mean(losses_reg[-K:])),
         ]
         active_losses = [
             (name, fn) for name, lambda_, fn in loss_components if lambda_ > 0
@@ -451,6 +467,7 @@ class FBSNN(nn.Module):
             logger.log(f"| lambda_T (Terminal loss)  | {self.lambda_T:<25} |")
             logger.log(f"| lambda_TG (Gradient loss) | {self.lambda_TG:<25} |")
             logger.log(f"| lambda_pinn (PINN loss)   | {self.lambda_pinn:<25} |")
+            logger.log(f"| lambda_reg (Reg loss)     | {self.lambda_reg:<25} |")
             logger.log(f"| Batch Size per Epoch      | {self.batch_size * self.world_size:<25} |")
             logger.log(f"| Batch Size per Rank       | {self.batch_size:<25} |")
             logger.log(f"| Architecture              | {self.architecture:<25} |")
@@ -507,6 +524,7 @@ class FBSNN(nn.Module):
             terminal_loss = self.terminal_loss
             terminal_gradient_loss = self.terminal_gradient_loss
             pinn_loss = self.pinn_loss
+            reg_loss = self.reg_loss
 
             if self.is_distributed:
                 dist.reduce(loss, op=dist.ReduceOp.SUM, dst=0)
@@ -516,6 +534,7 @@ class FBSNN(nn.Module):
                 dist.reduce(terminal_loss, op=dist.ReduceOp.SUM, dst=0)
                 dist.reduce(terminal_gradient_loss, op=dist.ReduceOp.SUM, dst=0)
                 dist.reduce(pinn_loss, op=dist.ReduceOp.SUM, dst=0)
+                dist.reduce(reg_loss, op=dist.ReduceOp.SUM, dst=0)
 
                 loss /= self.world_size
                 Y_loss /= self.world_size
@@ -524,6 +543,7 @@ class FBSNN(nn.Module):
                 terminal_loss /= self.world_size
                 terminal_gradient_loss /= self.world_size
                 pinn_loss /= self.world_size
+                reg_loss /= self.world_size
 
             if self.is_main:
                 losses.append(loss.item())
@@ -533,6 +553,7 @@ class FBSNN(nn.Module):
                 losses_terminal.append(terminal_loss.item())
                 losses_terminal_gradient.append(terminal_gradient_loss.item())
                 losses_pinn.append(pinn_loss.item())
+                losses_reg.append(reg_loss.item())
 
                 if epoch % K == 0 or epoch == 1:
                     status = ""

@@ -5,9 +5,13 @@ import torch.nn.functional as F
 
 class FCnet_init(nn.Module):
 
-    def __init__(self, layers, activation):
+    def __init__(self, layers, activation, y0=None, rescale_y0=False):
         super(FCnet_init, self).__init__()
+        self.rescale_y0 = rescale_y0
 
+        if rescale_y0:
+            self.y0=y0
+        
         self.layers = []
         for i in range(len(layers) - 2):
             self.layers.append(nn.Linear(in_features=layers[i], out_features=layers[i + 1]))
@@ -17,6 +21,10 @@ class FCnet_init(nn.Module):
         self.net = nn.Sequential(*self.layers)
 
     def forward(self, y):
+        if self.rescale_y0:
+            # Only divide by the elements of y0 that are not zero
+            y = torch.where(self.y0 != 0, y / self.y0, torch.zeros_like(y))
+
         return self.net(y)
 
 class LSTMNet(nn.Module):
