@@ -110,12 +110,11 @@ class Dynamics(ABC):
         Y0_agent = agent.predict_Y_initial(y0_agent)
         
         if self.analytical_known:
-            y0_analytical = y0.clone()
-            y0_analytical_temp = y0_analytical.requires_grad_(True)
-            Y0_analytical = self.value_function_analytic(t0, y0_analytical_temp)
+            y0_analytical = y0.clone().requires_grad_(True)
+            Y0_analytical = self.value_function_analytic(t0, y0_analytical)
             dY_analytical = torch.autograd.grad(
                 outputs=Y0_analytical,
-                inputs=y0_analytical_temp,
+                inputs=y0_analytical,
                 grad_outputs=torch.ones_like(Y0_analytical),
                 create_graph=False,
                 retain_graph=False,
@@ -137,33 +136,29 @@ class Dynamics(ABC):
             y1_agent = self.forward_dynamics(y0_agent, q_agent, dW[:, n, :], t0, t1 - t0)
             Y1_agent = agent.predict_Y_next(t0, y0_agent, t1 - t0, y1_agent - y0_agent, Y0_agent)
             
-            y0_agent, Y0_agent = y1_agent, Y1_agent
-
             if self.analytical_known:
                 q_analytical = self.optimal_control(t0, y0_analytical, dY_analytical)
                 y1_analytical = self.forward_dynamics(y0_analytical, q_analytical, dW[:, n, :], t0, t1 - t0)
-                y1_analytical_temp = y1_analytical.requires_grad_(True)
-                Y1_analytical = self.value_function_analytic(t1, y1_analytical_temp)
+                Y1_analytical = self.value_function_analytic(t1, y1_analytical)
                 dY_analytical = torch.autograd.grad(
                     outputs=Y1_analytical,
-                    inputs=y1_analytical_temp,
+                    inputs=y1_analytical,
                     grad_outputs=torch.ones_like(Y1_analytical),
                     create_graph=False,
                     retain_graph=False,
                 )[0]
-                
+
                 y0_analytical, Y0_analytical = y1_analytical, Y1_analytical
-
-            t0 = t1
-
-            Y_agent_traj.append(Y0_agent.detach().cpu().numpy())
-            y_agent_traj.append(y0_agent.detach().cpu().numpy())
-            q_agent_traj.append(q_agent.detach().cpu().numpy())
-
-            if self.analytical_known:
+                
                 Y_analytical_traj.append(Y0_analytical.detach().cpu().numpy())
                 y_analytical_traj.append(y0_analytical.detach().cpu().numpy())
                 q_analytical_traj.append(q_analytical.detach().cpu().numpy())
+
+            t0, y0_agent, Y0_agent = t1, y1_agent, Y1_agent            
+            
+            Y_agent_traj.append(Y0_agent.detach().cpu().numpy())
+            y_agent_traj.append(y0_agent.detach().cpu().numpy())
+            q_agent_traj.append(q_agent.detach().cpu().numpy())
 
         Y_agent_traj = np.stack(Y_agent_traj)
         y_agent_traj = np.stack(y_agent_traj)

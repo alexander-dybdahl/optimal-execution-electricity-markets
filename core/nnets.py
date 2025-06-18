@@ -28,7 +28,7 @@ class FCnet_init(nn.Module):
         return self.net(y)
 
 class LSTMNet(nn.Module):
-    def __init__(self, layers, activation, type='LSTM', T=None, input_bn=True, affine=False):
+    def __init__(self, layers, activation, type='LSTM', T=None, input_bn=False, affine=False):
         super().__init__()
         input_size = layers[0]  # dim + 1 (time + state)
         hidden_sizes = layers[1:-1]
@@ -160,7 +160,7 @@ class Sine(nn.Module):
 
 class FCnet(nn.Module):
 
-    def __init__(self, layers, activation, T=None, input_bn=True, affine=False):
+    def __init__(self, layers, activation, T=None, input_bn=False, affine=False):
         super(FCnet, self).__init__()
         self.input_bn = input_bn
         
@@ -184,7 +184,7 @@ class FCnet(nn.Module):
         return self.net(torch.cat([t, y], dim=1))
 
 class Resnet(nn.Module):
-    def __init__(self, layers, activation, stable=False, T=None, input_bn=True, affine=False):
+    def __init__(self, layers, activation, stable=False, T=None, input_bn=False, affine=False):
         super(Resnet, self).__init__()
         self.activation = activation
         self.stable = stable
@@ -271,22 +271,19 @@ class SeparateSubnets(nn.Module):
             if subnet_type == "FC":
                 subnet = FCnet(
                     layers=[input_dim] + self.subnet_layers,
-                    activation=activation,
-                    input_bn=False # Already handled in the main class
+                    activation=activation
                 )
             elif subnet_type == "Resnet":
                 subnet = Resnet(
                     layers=[input_dim] + self.subnet_layers,
                     activation=activation,
-                    stable=False,
-                    input_bn=False # Already handled in the main class
+                    stable=False
                 )
             elif subnet_type == "NAISnet":
                 subnet = Resnet(
                     layers=[input_dim] + self.subnet_layers,
                     activation=activation,
-                    stable=True,
-                    input_bn=False # Already handled in the main class
+                    stable=True
                 )
             else:
                 raise ValueError(f"Unknown subnet type: {subnet_type}")
@@ -360,9 +357,7 @@ class LSTMWithSubnets(nn.Module):
             if subnet_type == "FC":
                 subnet = FCnet(
                     layers=[subnet_input_size] + self.subnet_layers,
-                    activation=activation,
-                    T=T,
-                    input_bn=input_bn
+                    activation=activation
                 )
             elif subnet_type == "Resnet":
                 subnet = Resnet(
@@ -413,8 +408,9 @@ class LSTMWithSubnets(nn.Module):
         for i, lstm_cell in enumerate(self.lstm_layers):
             if hasattr(lstm_cell, 'hidden_size'):  # Standard LSTM or ResLSTM
                 h_new, (h_state, c_state) = lstm_cell(x, (self.hidden_states[i], self.cell_states[i]))
-                self.hidden_states[i] = h_state
-                self.cell_states[i] = c_state
+                # TODO: Check if we need to detach states
+                self.hidden_states[i] = h_state.detach()
+                self.cell_states[i] = c_state.detach()
                 x = self.activation(h_new)
             else:
                 # For other LSTM types that might have different interfaces

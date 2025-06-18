@@ -30,6 +30,7 @@ class FBSNN(nn.Module):
         self.supervised = args.supervised
         if self.supervised and not self.dynamics.analytical_known:
             raise ValueError("Cannot proceed with supervised training when analytical value function is not know")
+        self.sobol_points = args.sobol_points
 
         # Network Architecture
         self.architecture = args.architecture
@@ -44,6 +45,8 @@ class FBSNN(nn.Module):
         self.lambda_TG = args.lambda_TG    # terminal gradient loss
         self.lambda_pinn = args.lambda_pinn  # physics residual loss
         self.lambda_reg = args.lambda_reg  # regularization loss
+        self.lambda_Y0 = args.lambda_Y0    # initial value regularization loss
+        self.lambda_trade = args.lambda_trade  # trading cost loss
         
         # Loss threshold for linear approximation
         self.loss_threshold = args.loss_threshold
@@ -51,6 +54,7 @@ class FBSNN(nn.Module):
         self.second_order_taylor = args.second_order_taylor
 
         # Loss Tracking
+        self.Y0_loss = torch.tensor(0.0, device=self.device)
         self.Y_loss = torch.tensor(0.0, device=self.device)
         self.dY_loss = torch.tensor(0.0, device=self.device)
         self.dYt_loss = torch.tensor(0.0, device=self.device)
@@ -58,6 +62,7 @@ class FBSNN(nn.Module):
         self.terminal_gradient_loss = torch.tensor(0.0, device=self.device)
         self.pinn_loss = torch.tensor(0.0, device=self.device)
         self.reg_loss = torch.tensor(0.0, device=self.device)
+        self.trade_loss = torch.tensor(0.0, device=self.device)
 
         # Saving & Checkpointing
         self.save = args.save              # e.g., "best", "every", "last"
@@ -87,7 +92,7 @@ class FBSNN(nn.Module):
             raise ValueError(f"Unknown activation function: {args.activation}")
 
         self.Y_init_net = FCnet_init(
-            layers=[self.dynamics.dim] + args.Y_layers + [1],
+            layers=[self.dynamics.dim] + args.Y0_layers + [1],
             activation=self.activation,
             y0=self.dynamics.y0,
             rescale_y0=args.rescale_y0,
@@ -205,6 +210,17 @@ class FBSNN(nn.Module):
         residual = dY_dt + (mu * dY_dy).sum(dim=1, keepdim=True) + 0.5 * trace_term + f
         return self.apply_thresholded_loss(residual).mean()
 
+    def apply_thresholded_loss(self, diff):
+
+        if not self.use_linear_approx:
+            return diff.pow(2)
+        
+        large_diff_mask = (diff.abs() > self.loss_threshold).float()
+        squared_loss = diff.pow(2)
+        linear_loss = 2 * self.loss_threshold * diff.abs() - self.loss_threshold**2
+        
+        return large_diff_mask * linear_loss + (1 - large_diff_mask) * squared_loss
+    
     def forward(self, t, dW, supervised=False):
         return self.forward_fc(t, dW)
 
@@ -218,7 +234,14 @@ class FBSNN(nn.Module):
 
         Y0 = self.Y_init_net(y0)
 
+        # === Y0 regularization loss ===
+        Y0_loss = 0.0
+        if self.lambda_Y0 > 0:
+            Y0_loss = self.apply_thresholded_loss(Y0).mean()
+            self.Y0_loss = self.lambda_Y0 * Y0_loss.detach()
+
         y_traj, t_traj, q_traj = [y0], [], []
+        
         # === Compute fbsnn loss ===
         Y_loss = 0.0
         for n in range(self.dynamics.N):
@@ -234,12 +257,11 @@ class FBSNN(nn.Module):
             Z0 = torch.bmm(self.dynamics.sigma(t0, y0).transpose(1, 2), dY_dy.unsqueeze(-1)).squeeze(-1)
             q = self.dynamics.optimal_control(t0, y0, dY_dy)
             y1 = self.dynamics.forward_dynamics(y0, q, dW[:, n, :], t0, t1 - t0)
-            Y1 = Y0 - self.dynamics.generator(y0, q) * (t1 - t0) + (Z0 * (dW[:, n, :])).sum(dim=1, keepdim=True)
+            Y1 = Y0 + dY_dt * (t1 - t0) + (dY_dy * (y1 - y0)).sum(dim=1, keepdim=True)
             
-            Y1_tilde = Y0 + dY_dt * (t1 - t0) + (dY_dy * (y1 - y0)).sum(dim=1, keepdim=True)
             if self.second_order_taylor:
                 # Second-order Taylor approximation
-                ddY_ddt_tilde = torch.autograd.grad(
+                ddY_ddt = torch.autograd.grad(
                     outputs=dY_dt,
                     inputs=t0,
                     grad_outputs=torch.ones_like(dY_dt),
@@ -247,7 +269,7 @@ class FBSNN(nn.Module):
                     retain_graph=True,
                     allow_unused=True,
                 )[0]
-                ddY_ddy_tilde = torch.autograd.grad(
+                ddY_ddy = torch.autograd.grad(
                     outputs=dY_dy,
                     inputs=y0,
                     grad_outputs=torch.ones_like(dY_dy),
@@ -256,14 +278,16 @@ class FBSNN(nn.Module):
                 )[0]
 
                 # Handle cases where gradient with respect to t might be None due to separate subnet per time
-                if ddY_ddt_tilde is None:
-                    ddY_ddt_tilde = 0
+                if ddY_ddt is None:
+                    ddY_ddt = 0
 
-                Y1_tilde += 0.5 * (
-                    ddY_ddt_tilde * (t1 - t0) ** 2  +
-                    (ddY_ddy_tilde * (y1 - y0) ** 2).sum(dim=1, keepdim=True)
+                Y1 += 0.5 * (
+                    ddY_ddt * (t1 - t0) ** 2  +
+                    (ddY_ddy * (y1 - y0) ** 2).sum(dim=1, keepdim=True)
                 )
 
+            Y1_tilde = Y0 - self.dynamics.generator(y0, q) * (t1 - t0) + (Z0 * (dW[:, n, :])).sum(dim=1, keepdim=True)
+            
             Y_loss += self.apply_thresholded_loss(Y1 - Y1_tilde).mean()
 
             t_traj.append(t1)
@@ -292,6 +316,35 @@ class FBSNN(nn.Module):
             t_traj = torch.cat(t_traj, dim=0).requires_grad_(True)
             y_traj = torch.cat(y_traj[1:], dim=0).requires_grad_(True)
 
+            # Sobol points for additional PINN loss
+            if self.sobol_points:
+                sobol = SobolEngine(dimension=self.dynamics.dim, scramble=True)
+                sobol_points = sobol.draw(self.batch_size * self.dynamics.N).to(self.device)
+                y0 = self.dynamics.y0.detach().flatten().cpu()  # shape: (dim,)
+                T = self.dynamics.T
+                std_mult = 3.0
+                abs_padding = 10.0  # fallback for dimensions with no dynamics-based std
+                y_min_list, y_max_list = [], []
+                for i in range(self.dynamics.dim):
+                    base = y0[i].item()
+                    try:
+                        # Construct dummy inputs for sigma (batch=1)
+                        dummy_t = torch.zeros(1, 1, device=self.device)
+                        dummy_y = self.dynamics.y0.detach()
+                        sigma = self.dynamics.sigma(dummy_t, dummy_y)[0]  # shape: (dim, dW)
+                        std_estimate = torch.norm(sigma[i]).item() * T**0.5
+                        delta = std_mult * std_estimate
+                    except Exception:
+                        delta = abs_padding  # fallback for unknown std
+                    y_min_list.append(base - delta)
+                    y_max_list.append(base + delta)
+                y_min = torch.tensor(y_min_list, device=self.device)
+                y_max = torch.tensor(y_max_list, device=self.device)
+                sobol_points = y_min + (y_max - y_min) * sobol_points
+                t_sobol = torch.rand(self.batch_size * self.dynamics.N, 1, device=self.device) * T
+                t_traj = torch.cat([t_traj, t_sobol], dim=0).requires_grad_(True)
+                y_traj = torch.cat([y_traj, sobol_points], dim=0).requires_grad_(True)
+
             pinn_loss = self.hjb_residual(t_traj, y_traj)
             self.pinn_loss = self.lambda_pinn * pinn_loss.detach()
 
@@ -302,12 +355,30 @@ class FBSNN(nn.Module):
             reg_loss = self.apply_thresholded_loss(q_traj).mean()
             self.reg_loss = self.lambda_reg * reg_loss.detach()
 
+        # === trading cost loss ===
+        trading_loss = 0.0
+        if self.lambda_trade > 0:
+            trading_cost = 0.0
+            for n in range(1, self.dynamics.N):
+                y_n = y_traj[n].view(-1, self.dynamics.dim)
+                q_n = q_traj[n]
+                dt_n = t_traj[n] - t_traj[n - 1]
+                f_n = self.dynamics.generator(y_n, q_n)
+                trading_cost += f_n * dt_n
+
+            terminal_cost = self.dynamics.terminal_cost(y_traj[-1].view(-1, self.dynamics.dim))
+            cost_to_go = trading_cost + terminal_cost
+            trading_loss = cost_to_go.mean()
+            self.trade_loss = self.lambda_trade * trading_loss.detach()
+
         return (
-            self.lambda_Y * Y_loss
+            self.lambda_Y0 * Y0_loss
+            + self.lambda_Y * Y_loss
             + self.lambda_T * terminal_loss
             + self.lambda_TG * terminal_gradient_loss
             + self.lambda_pinn * pinn_loss
             + self.lambda_reg * reg_loss
+            + self.lambda_trade * trading_loss
         )
     
     def predict_Y_initial(self, y0):
@@ -411,6 +482,7 @@ class FBSNN(nn.Module):
 
         (
             losses,
+            losses_Y0,
             losses_Y,
             losses_dY,
             losses_dYt,
@@ -418,10 +490,12 @@ class FBSNN(nn.Module):
             losses_terminal_gradient,
             losses_pinn,
             losses_reg,
-        ) = [], [], [], [], [], [], [], []
+            losses_trade,
+        ) = [], [], [], [], [], [], [], [], [], []
 
         # Define active loss components
         loss_components = [
+            ("Y0 loss", self.lambda_Y0, lambda: np.mean(losses_Y0[-K:])),
             ("Y loss", self.lambda_Y, lambda: np.mean(losses_Y[-K:])),
             ("dY loss", self.lambda_dY, lambda: np.mean(losses_dY[-K:])),
             ("dYt loss", self.lambda_dYt, lambda: np.mean(losses_dYt[-K:])),
@@ -429,6 +503,7 @@ class FBSNN(nn.Module):
             ("T.G. loss", self.lambda_TG, lambda: np.mean(losses_terminal_gradient[-K:])),
             ("pinn loss", self.lambda_pinn, lambda: np.mean(losses_pinn[-K:])),
             ("reg loss", self.lambda_reg, lambda: np.mean(losses_reg[-K:])),
+            ("trade loss", self.lambda_trade, lambda: np.mean(losses_trade[-K:])),
         ]
         active_losses = [
             (name, fn) for name, lambda_, fn in loss_components if lambda_ > 0
@@ -461,6 +536,7 @@ class FBSNN(nn.Module):
             logger.log(f"| Learning Rate             | {lr:<25} |")
             logger.log(f"| Adaptive LR               | {'True' if adaptive else 'False':<25} |")
             logger.log(f"| Adaptive Factor           | {self.adaptive_factor:<25} |")
+            logger.log(f"| lambda_Y0 (Y0 loss)       | {self.lambda_Y0:<25} |")
             logger.log(f"| lambda_Y (Y loss)         | {self.lambda_Y:<25} |")
             logger.log(f"| lambda_dY (Spatial loss)  | {self.lambda_dY:<25} |")
             logger.log(f"| lambda_dYt (Temporal loss)| {self.lambda_dYt:<25} |")
@@ -468,6 +544,7 @@ class FBSNN(nn.Module):
             logger.log(f"| lambda_TG (Gradient loss) | {self.lambda_TG:<25} |")
             logger.log(f"| lambda_pinn (PINN loss)   | {self.lambda_pinn:<25} |")
             logger.log(f"| lambda_reg (Reg loss)     | {self.lambda_reg:<25} |")
+            logger.log(f"| lambda_trade (Trade loss) | {self.lambda_trade:<25} |")
             logger.log(f"| Batch Size per Epoch      | {self.batch_size * self.world_size:<25} |")
             logger.log(f"| Batch Size per Rank       | {self.batch_size:<25} |")
             logger.log(f"| Architecture              | {self.architecture:<25} |")
@@ -518,6 +595,7 @@ class FBSNN(nn.Module):
             scheduler.step(loss.item() if adaptive else epoch)
 
             # Reduce losses across all processes if distributed
+            Y0_loss = self.Y0_loss
             Y_loss = self.Y_loss
             dY_loss = self.dY_loss
             dYt_loss = self.dYt_loss
@@ -525,9 +603,11 @@ class FBSNN(nn.Module):
             terminal_gradient_loss = self.terminal_gradient_loss
             pinn_loss = self.pinn_loss
             reg_loss = self.reg_loss
+            trade_loss = self.trade_loss
 
             if self.is_distributed:
                 dist.reduce(loss, op=dist.ReduceOp.SUM, dst=0)
+                dist.reduce(Y0_loss, op=dist.ReduceOp.SUM, dst=0)
                 dist.reduce(Y_loss, op=dist.ReduceOp.SUM, dst=0)
                 dist.reduce(dY_loss, op=dist.ReduceOp.SUM, dst=0)
                 dist.reduce(dYt_loss, op=dist.ReduceOp.SUM, dst=0)
@@ -535,8 +615,10 @@ class FBSNN(nn.Module):
                 dist.reduce(terminal_gradient_loss, op=dist.ReduceOp.SUM, dst=0)
                 dist.reduce(pinn_loss, op=dist.ReduceOp.SUM, dst=0)
                 dist.reduce(reg_loss, op=dist.ReduceOp.SUM, dst=0)
+                dist.reduce(trade_loss, op=dist.ReduceOp.SUM, dst=0)
 
                 loss /= self.world_size
+                Y0_loss /= self.world_size
                 Y_loss /= self.world_size
                 dY_loss /= self.world_size
                 dYt_loss /= self.world_size
@@ -544,9 +626,11 @@ class FBSNN(nn.Module):
                 terminal_gradient_loss /= self.world_size
                 pinn_loss /= self.world_size
                 reg_loss /= self.world_size
+                trade_loss /= self.world_size
 
             if self.is_main:
                 losses.append(loss.item())
+                losses_Y0.append(Y0_loss.item())
                 losses_Y.append(Y_loss.item())
                 losses_dY.append(dY_loss.item())
                 losses_dYt.append(dYt_loss.item())
@@ -554,6 +638,7 @@ class FBSNN(nn.Module):
                 losses_terminal_gradient.append(terminal_gradient_loss.item())
                 losses_pinn.append(pinn_loss.item())
                 losses_reg.append(reg_loss.item())
+                losses_trade.append(trade_loss.item())
 
                 if epoch % K == 0 or epoch == 1:
                     status = ""
@@ -608,7 +693,7 @@ class FBSNN(nn.Module):
                     timesteps, results = self.dynamics.simulate_paths(agent=self, n_sim=self.n_simulations, seed=42)
                     self.plot_approx_vs_analytic(results, timesteps, plot=False, save_dir=save_dir, num=epoch)
                     timesteps, results = self.dynamics.simulate_paths(agent=self, n_sim=1000, seed=42)
-                    self.plot_approx_vs_analytic_expectation(results, timesteps, plot=False, save_dir=save_dir, num=epoch)
+                    # self.plot_approx_vs_analytic_expectation(results, timesteps, plot=False, save_dir=save_dir, num=epoch)
                     self.plot_terminal_histogram(results, plot=False, save_dir=save_dir, num=epoch)
 
         if self.is_main:
@@ -621,12 +706,15 @@ class FBSNN(nn.Module):
             # Plotting losses
             plt.figure(figsize=(10, 6))
             plt.plot(losses, label="Total Loss")
+            plt.plot(losses_Y0, label="Y0 Loss")
             plt.plot(losses_Y, label="Y Loss")
             plt.plot(losses_dY, label="dY Loss")
             plt.plot(losses_dYt, label="dYt Loss")
             plt.plot(losses_terminal, label="Terminal Loss")
             plt.plot(losses_terminal_gradient, label="Terminal Gradient Loss")
             plt.plot(losses_pinn, label="PINN Loss")
+            plt.plot(losses_reg, label="Regularization Loss")
+            plt.plot(losses_trade, label="Trading Cost Loss")
             plt.xlabel("Epoch")
             plt.ylabel("Loss")
             plt.title("Training Loss")
@@ -635,7 +723,7 @@ class FBSNN(nn.Module):
             plt.grid()
             plt.tight_layout()
             if save_dir:
-                plt.savefig(f"{save_dir}/loss.png", dpi=300, bbox_inches="tight")
+                plt.savefig(f"{save_dir}/imgs/loss.png", dpi=300, bbox_inches="tight")
                 plt.close()
             if plot:
                 plt.show()
@@ -659,6 +747,16 @@ class FBSNN(nn.Module):
         for i in range(approx_q.shape[1]):
             axs[0, 0].plot(timesteps[:-1], approx_q[:, i], color=colors(i), alpha=0.6, label=f"Learned $q_{i}(t)$" if i == 0 else None)
             axs[0, 0].plot(timesteps[:-1], true_q[:, i], linestyle="--", color=colors(i), alpha=0.4, label=f"Analytical $q^*_{i}(t)$" if i == 0 else None)
+        V0_approx = Y_vals[0, 0, 0]
+        V0_analytical = true_Y[0, 0, 0]
+        axs[0, 0].text(
+            0.02, 0.98,
+            f"V₀ approx: {V0_approx:.4f}\nV₀ analytical: {V0_analytical:.4f}",
+            transform=axs[0, 0].transAxes,
+            fontsize=11,
+            verticalalignment='top',
+            bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.7)
+        )
         axs[0, 0].set_title("Control $q(t)$: Learned vs Analytical")
         axs[0, 0].set_xlabel("Time $t$")
         axs[0, 0].set_ylabel("$q(t)$")
@@ -697,7 +795,7 @@ class FBSNN(nn.Module):
         for i in range(y_vals.shape[1]):
             axs[2, 0].plot(timesteps, y_vals[:, i, 0], color=colors(i), alpha=0.6, label=f"$x_{i}(t)$" if i == 0 else None)
             axs[2, 0].plot(timesteps, true_y[:, i, 0], linestyle="--", color=colors(i), alpha=0.4, label=f"$x^*_{i}(t)$" if i == 0 else None)
-            axs[2, 0].plot(timesteps, true_y[:, i, 2], linestyle="-.", color=colors(i), alpha=0.6, label=f"$d_{i}(t)$" if i == 0 else None)
+            axs[2, 0].plot(timesteps, y_vals[:, i, 2], linestyle="-.", color=colors(i), alpha=0.6, label=f"$d_{i}(t)$" if i == 0 else None)
         axs[2, 0].set_title("States: $x(t)$ and $d(t)$")
         axs[2, 0].set_xlabel("Time $t$")
         axs[2, 0].set_ylabel("x(t), d(t)")
@@ -705,7 +803,8 @@ class FBSNN(nn.Module):
         axs[2, 0].legend(loc='upper left')
 
         for i in range(y_vals.shape[1]):
-            axs[2, 1].plot(timesteps, true_y[:, i, 1], color=colors(i), alpha=0.6, label=f"$p_{i}(t)$" if i == 0 else None)
+            axs[2, 1].plot(timesteps, y_vals[:, i, 1], color=colors(i), alpha=0.6, label=f"$p_{i}(t)$" if i == 0 else None)
+            axs[2, 1].plot(timesteps, true_y[:, i, 1], linestyle="--", color=colors(i), alpha=0.4, label=f"$p^*_{i}(t)$" if i == 0 else None)
         axs[2, 1].set_title("State: $p(t)$")
         axs[2, 1].set_xlabel("Time $t$")
         axs[2, 1].set_ylabel("p(t)")
@@ -715,9 +814,9 @@ class FBSNN(nn.Module):
         plt.tight_layout()
         if save_dir:
             if num:
-                plt.savefig(f"{save_dir}/approx_vs_analytic_{num}.png", dpi=300, bbox_inches='tight')
+                plt.savefig(f"{save_dir}/imgs/approx_vs_analytic_{num}.png", dpi=300, bbox_inches='tight')
             else:
-                plt.savefig(f"{save_dir}/approx_vs_analytic.png", dpi=300, bbox_inches='tight')
+                plt.savefig(f"{save_dir}/imgs/approx_vs_analytic.png", dpi=300, bbox_inches='tight')
             plt.close()
         if plot:
             plt.show()
@@ -787,9 +886,9 @@ class FBSNN(nn.Module):
         plt.tight_layout()
         if save_dir:
             if num:
-                plt.savefig(f"{save_dir}/approx_vs_analytic_expectation_{num}.png", dpi=300, bbox_inches='tight')
+                plt.savefig(f"{save_dir}/imgs/approx_vs_analytic_expectation_{num}.png", dpi=300, bbox_inches='tight')
             else:
-                plt.savefig(f"{save_dir}/approx_vs_analytic_expectation.png", dpi=300, bbox_inches='tight')
+                plt.savefig(f"{save_dir}/imgs/approx_vs_analytic_expectation.png", dpi=300, bbox_inches='tight')
             plt.close()
         if plot:
             plt.show()
@@ -860,20 +959,9 @@ class FBSNN(nn.Module):
 
         if save_dir:
             if num:
-                plt.savefig(f"{save_dir}/terminal_histogram_{num}.png", dpi=300, bbox_inches='tight')
+                plt.savefig(f"{save_dir}/imgs/terminal_histogram_{num}.png", dpi=300, bbox_inches='tight')
             else:
-                plt.savefig(f"{save_dir}/terminal_histogram.png", dpi=300, bbox_inches='tight')
+                plt.savefig(f"{save_dir}/imgs/terminal_histogram.png", dpi=300, bbox_inches='tight')
             plt.close()
         if plot:
             plt.show()
-
-    def apply_thresholded_loss(self, diff):
-
-        if not self.use_linear_approx:
-            return diff.pow(2)
-        
-        large_diff_mask = (diff.abs() > self.loss_threshold).float()
-        squared_loss = diff.pow(2)
-        linear_loss = 2 * self.loss_threshold * diff.abs() - self.loss_threshold**2
-        
-        return large_diff_mask * linear_loss + (1 - large_diff_mask) * squared_loss

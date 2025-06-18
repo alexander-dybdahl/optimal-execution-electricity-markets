@@ -31,12 +31,14 @@ def main():
     parser.add_argument("--architecture", type=str, default=run_cfg["architecture"], help="Neural network architecture to use")
     parser.add_argument("--activation", type=str, default=run_cfg["activation"], help="Activation function to use")
     parser.add_argument("--Y_layers", type=int, nargs="+", default=run_cfg["Y_layers"], help="List of hidden layer sizes for the neural network")
+    parser.add_argument("--Y0_layers", type=int, nargs="+", default=run_cfg["Y0_layers"], help="List of hidden layer sizes for the Y0 network")
     parser.add_argument("--subnet_type", type=str, default=run_cfg.get("subnet_type", "FC"), help="Type of subnet to use (FC, Resnet, or NAISnet) for SeparateSubnets and LSTMWithSubnets")
     parser.add_argument("--lstm_layers", type=int, nargs="+", default=run_cfg.get("lstm_layers", [64, 64]), help="Sizes for LSTM layers in LSTMWithSubnets")
     parser.add_argument("--lstm_type", type=str, default=run_cfg.get("lstm_type", "LSTM"), help="Type of LSTM to use in LSTMWithSubnets")
     parser.add_argument("--adaptive", type=str2bool, nargs='?', const=True, default=run_cfg["adaptive"], help="Use adaptive learning rate")
     parser.add_argument("--adaptive_factor", type=float, default=run_cfg["adaptive_factor"], help="Adaptive factor")
     parser.add_argument("--lr", type=float, default=run_cfg["lr"], help="Learning rate for the optimizer")
+    parser.add_argument("--lambda_Y0", type=float, default=run_cfg["lambda_Y0"], help="Weight for the Y0 term in the loss function")
     parser.add_argument("--lambda_Y", type=float, default=run_cfg["lambda_Y"], help="Weight for the Y term in the loss function")
     parser.add_argument("--lambda_dY", type=float, default=run_cfg["lambda_dY"], help="Weight for the dY term in the loss function")
     parser.add_argument("--lambda_dYt", type=float, default=run_cfg["lambda_dYt"], help="Weight for the dYt term in the loss function")
@@ -44,6 +46,8 @@ def main():
     parser.add_argument("--lambda_TG", type=float, default=run_cfg["lambda_TG"], help="Weight for the terminal gradient term in the loss function")
     parser.add_argument("--lambda_pinn", type=float, default=run_cfg["lambda_pinn"], help="Weight for the PINN term in the loss function")
     parser.add_argument("--lambda_reg", type=float, default=run_cfg["lambda_reg"], help="Weight for the regularization term in the loss function")
+    parser.add_argument("--lambda_trade", type=float, default=run_cfg["lambda_trade"], help="Weight for the trading cost term in the loss function")
+    parser.add_argument("--sobol_points", type=str2bool, nargs='?', const=True, default=run_cfg["sobol_points"], help="Use Sobol points for training")
     parser.add_argument("--loss_threshold", type=float, default=run_cfg["loss_threshold"], help="Threshold to linearly approximate the loss")
     parser.add_argument("--use_linear_approx", type=str2bool, nargs='?', const=True, default=run_cfg["use_linear_approx"], help="Use linear loss approximation beyond the threshold")
     parser.add_argument("--second_order_taylor", type=str2bool, nargs='?', const=True, default=run_cfg["second_order_taylor"], help="Use second order Taylor approximation for Y reconstruction")
@@ -94,6 +98,7 @@ def main():
     
     if is_main:
         os.makedirs(save_dir, exist_ok=True)
+        os.makedirs(save_dir + "/imgs", exist_ok=True)
 
     logger = Logger(save_dir=save_dir, is_main=is_main, verbose=args.verbose, filename="training.log", overwrite=args.train)
 
