@@ -30,8 +30,8 @@ def main():
     parser.add_argument("--supervised", type=str2bool, default=run_cfg["supervised"], help="Use supervised learning using analytical solution")
     parser.add_argument("--architecture", type=str, default=run_cfg["architecture"], help="Neural network architecture to use")
     parser.add_argument("--activation", type=str, default=run_cfg["activation"], help="Activation function to use")
-    parser.add_argument("--Y_layers", type=int, nargs="+", default=run_cfg["Y_layers"], help="List of hidden layer sizes for the neural network")
     parser.add_argument("--Y0_layers", type=int, nargs="+", default=run_cfg["Y0_layers"], help="List of hidden layer sizes for the Y0 network")
+    parser.add_argument("--Y_layers", type=int, nargs="+", default=run_cfg["Y_layers"], help="List of hidden layer sizes for the neural network")
     parser.add_argument("--subnet_type", type=str, default=run_cfg.get("subnet_type", "FC"), help="Type of subnet to use (FC, Resnet, or NAISnet) for SeparateSubnets and LSTMWithSubnets")
     parser.add_argument("--lstm_layers", type=int, nargs="+", default=run_cfg.get("lstm_layers", [64, 64]), help="Sizes for LSTM layers in LSTMWithSubnets")
     parser.add_argument("--lstm_type", type=str, default=run_cfg.get("lstm_type", "LSTM"), help="Type of LSTM to use in LSTMWithSubnets")
@@ -93,7 +93,7 @@ def main():
         args.device_set = device
         args.batch_size_per_rank = args.batch_size
 
-    save_dir = f"{args.save_path}_{args.architecture}_{args.activation}"
+    save_dir = f"{args.save_path}_{args.architecture.upper()}_{args.activation}"
     save_path = os.path.join(save_dir, "model")
     
     if is_main:

@@ -10,5 +10,5 @@ def load_model_config(path):
 def load_run_config(path="config/run_config.json"):
     with open(path, "r") as f:
         cfg = json.load(f)
-
+    cfg["architecture"] = cfg["architecture"].lower()
     return cfg

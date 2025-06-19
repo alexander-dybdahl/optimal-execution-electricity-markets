@@ -9,7 +9,7 @@
   "sigma_P": 20.0,
   "sigma_D": 20.0,
   "rho": -0.1,
-  "psi": 5,
+  "psi": 0,
   "gamma": 0.1,
   "nu": 0.1,
   "eta": 10,

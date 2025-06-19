@@ -110,15 +110,8 @@ class Dynamics(ABC):
         Y0_agent = agent.predict_Y_initial(y0_agent)
         
         if self.analytical_known:
-            y0_analytical = y0.clone().requires_grad_(True)
+            y0_analytical = y0.clone()
             Y0_analytical = self.value_function_analytic(t0, y0_analytical)
-            dY_analytical = torch.autograd.grad(
-                outputs=Y0_analytical,
-                inputs=y0_analytical,
-                grad_outputs=torch.ones_like(Y0_analytical),
-                create_graph=False,
-                retain_graph=False,
-            )[0]
             
         # Storage for trajectories
         Y_agent_traj = [Y0_agent.detach().cpu().numpy()]
@@ -137,16 +130,9 @@ class Dynamics(ABC):
             Y1_agent = agent.predict_Y_next(t0, y0_agent, t1 - t0, y1_agent - y0_agent, Y0_agent)
             
             if self.analytical_known:
-                q_analytical = self.optimal_control(t0, y0_analytical, dY_analytical)
+                q_analytical = self.optimal_control_analytic(t0, y0_analytical)
                 y1_analytical = self.forward_dynamics(y0_analytical, q_analytical, dW[:, n, :], t0, t1 - t0)
                 Y1_analytical = self.value_function_analytic(t1, y1_analytical)
-                dY_analytical = torch.autograd.grad(
-                    outputs=Y1_analytical,
-                    inputs=y1_analytical,
-                    grad_outputs=torch.ones_like(Y1_analytical),
-                    create_graph=False,
-                    retain_graph=False,
-                )[0]
 
                 y0_analytical, Y0_analytical = y1_analytical, Y1_analytical
                 

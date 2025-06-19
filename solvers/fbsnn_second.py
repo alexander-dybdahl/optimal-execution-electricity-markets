@@ -53,6 +53,10 @@ class FBSNN(nn.Module):
         self.use_linear_approx = args.use_linear_approx
         self.second_order_taylor = args.second_order_taylor
 
+        # Validation Losses
+        self.val_Y_loss = torch.tensor(0.0, device=self.device)
+        self.val_q_loss = torch.tensor(0.0, device=self.device)
+
         # Loss Tracking
         self.Y0_loss = torch.tensor(0.0, device=self.device)
         self.Y_loss = torch.tensor(0.0, device=self.device)
@@ -98,7 +102,7 @@ class FBSNN(nn.Module):
             rescale_y0=args.rescale_y0,
         ).to(self.device)
 
-        if args.architecture == "Default":
+        if args.architecture == "default":
             self.dY_net = FCnet(
                 layers=[self.dynamics.dim + 1] + [64, 64, 64, 64] + [self.dynamics.dim + 1],
                 activation=self.activation,
@@ -106,7 +110,7 @@ class FBSNN(nn.Module):
                 input_bn=args.input_bn,
                 affine=args.affine,
             ).to(self.device)
-        elif args.architecture == "FC":
+        elif args.architecture == "fc":
             self.dY_net = FCnet(
                 layers=[self.dynamics.dim + 1] + args.Y_layers + [self.dynamics.dim + 1],
                 activation=self.activation,
@@ -114,7 +118,7 @@ class FBSNN(nn.Module):
                 input_bn=args.input_bn,
                 affine=args.affine,
             ).to(self.device)
-        elif args.architecture == "NAISnet":
+        elif args.architecture == "naisnet":
             self.dY_net = Resnet(
                 layers=[self.dynamics.dim + 1] + args.Y_layers + [self.dynamics.dim + 1],
                 activation=self.activation,
@@ -123,7 +127,7 @@ class FBSNN(nn.Module):
                 input_bn=args.input_bn,
                 affine=args.affine,
             ).to(self.device)
-        elif args.architecture == "Resnet":
+        elif args.architecture == "resnet":
             self.dY_net = Resnet(
                 layers=[self.dynamics.dim + 1] + args.Y_layers + [self.dynamics.dim + 1],
                 activation=self.activation,
@@ -133,9 +137,9 @@ class FBSNN(nn.Module):
                 affine=args.affine,
             ).to(self.device)
         elif (
-            args.architecture == "LSTM"
-            or args.architecture == "ResLSTM"
-            or args.architecture == "NaisLSTM"
+            args.architecture == "lstm"
+            or args.architecture == "reslstm"
+            or args.architecture == "naislstm"
         ):
             self.dY_net = LSTMNet(
                 layers=[self.dynamics.dim + 1] + args.Y_layers + [self.dynamics.dim + 1],
@@ -145,7 +149,7 @@ class FBSNN(nn.Module):
                 input_bn=args.input_bn,
                 affine=args.affine,
             ).to(self.device)
-        elif args.architecture == "SeparateSubnets":
+        elif args.architecture == "separatesubnets":
             # Get subnet configuration from args
             subnet_type = args.subnet_type
             self.dY_net = SeparateSubnets(
@@ -157,7 +161,7 @@ class FBSNN(nn.Module):
                 input_bn=args.input_bn,
                 affine=args.affine,
             ).to(self.device)
-        elif args.architecture == "LSTMWithSubnets":
+        elif args.architecture == "lstmwithsubnets":
             # Get LSTM and subnet configuration from args
             lstm_layers = args.lstm_layers
             lstm_type = args.lstm_type
@@ -237,52 +241,10 @@ class FBSNN(nn.Module):
         # === Y0 fbsnn loss ===
         Y0_loss = 0.0
         if self.lambda_Y0 > 0:
-            small_dt = self.dynamics.dt * 0.1
-            
-            dY_outputs = self.dY_net(t0, y0)
-            dY_dt = dY_outputs[:, 0:1]
-            dY_dy = dY_outputs[:, 1:]
-            
-            q0 = self.dynamics.optimal_control(t0, y0, dY_dy)
-            small_dW = torch.randn_like(dW[:, 0, :]) * small_dt**0.5
-            y1 = self.dynamics.forward_dynamics(y0, q0, small_dW, t0, small_dt)
-            Y1 = Y0 + dY_dt * small_dt + (dY_dy * (y1 - y0)).sum(dim=1, keepdim=True)
-            
-            if self.second_order_taylor:
-                # Second-order Taylor approximation
-                ddY_ddt = torch.autograd.grad(
-                    outputs=dY_dt,
-                    inputs=t0,
-                    grad_outputs=torch.ones_like(dY_dt),
-                    create_graph=False,
-                    retain_graph=True,
-                    allow_unused=True,
-                )[0]
-                ddY_ddy = torch.autograd.grad(
-                    outputs=dY_dy,
-                    inputs=y0,
-                    grad_outputs=torch.ones_like(dY_dy),
-                    create_graph=False,
-                    retain_graph=True,
-                )[0]
-
-                # Handle cases where gradient with respect to t might be None due to separate subnet per time
-                if ddY_ddt is None:
-                    ddY_ddt = 0
-
-                Y1 += 0.5 * (
-                    ddY_ddt * small_dt ** 2 +
-                    (ddY_ddy * (y1 - y0) ** 2).sum(dim=1, keepdim=True)
-                )
-
-            Z0 = torch.bmm(self.dynamics.sigma(t0, y0).transpose(1, 2), dY_dy.unsqueeze(-1)).squeeze(-1)
-            Y0_tilde = Y1 + self.dynamics.generator(y0, q0) * small_dt - (Z0 * small_dW).sum(dim=1, keepdim=True)
-            
-            Y0_loss = self.apply_thresholded_loss(Y0 - Y0_tilde.detach()).mean()
-            
+            Y0_loss = self.apply_thresholded_loss(Y0).mean()            
             self.Y0_loss = self.lambda_Y0 * Y0_loss.detach()
 
-        y_traj, t_traj, q_traj = [y0], [], []
+        y_traj, t_traj, q_traj, Y_traj = [y0], [], [], [Y0]
         
         # === Compute fbsnn loss ===
         Y_loss = 0.0
@@ -336,10 +298,16 @@ class FBSNN(nn.Module):
             t_traj.append(t1)
             y_traj.append(y1)
             q_traj.append(q)
+            Y_traj.append(Y1)
 
             t0, y0, Y0 = t1, y1, Y1
 
         self.Y_loss = self.lambda_Y * Y_loss.detach()
+        
+        t_all = torch.cat(t_traj, dim=0).detach()
+        y_all = torch.cat(y_traj[1:], dim=0).detach()
+        q_all = torch.cat(q_traj, dim=0).detach()
+        Y_all = torch.cat(Y_traj[1:], dim=0).detach()
 
         # === Terminal loss ===
         terminal_loss = 0.0
@@ -356,8 +324,8 @@ class FBSNN(nn.Module):
         # === Physics-based loss ===
         pinn_loss = 0.0
         if self.lambda_pinn > 0:
-            t_traj = torch.cat(t_traj, dim=0).requires_grad_(True)
-            y_traj = torch.cat(y_traj[1:], dim=0).requires_grad_(True)
+            t_pinn = torch.cat(t_traj, dim=0).requires_grad_(True)
+            y_pinn = torch.cat(y_traj[1:], dim=0).requires_grad_(True)
 
             # Sobol points for additional PINN loss
             if self.sobol_points:
@@ -385,17 +353,16 @@ class FBSNN(nn.Module):
                 y_max = torch.tensor(y_max_list, device=self.device)
                 sobol_points = y_min + (y_max - y_min) * sobol_points
                 t_sobol = torch.rand(self.batch_size * self.dynamics.N, 1, device=self.device) * T
-                t_traj = torch.cat([t_traj, t_sobol], dim=0).requires_grad_(True)
-                y_traj = torch.cat([y_traj, sobol_points], dim=0).requires_grad_(True)
+                t_pinn = torch.cat([t_pinn, t_sobol], dim=0).requires_grad_(True)
+                y_pinn = torch.cat([y_pinn, sobol_points], dim=0).requires_grad_(True)
 
-            pinn_loss = self.hjb_residual(t_traj, y_traj)
+            pinn_loss = self.hjb_residual(t_pinn, y_pinn)
             self.pinn_loss = self.lambda_pinn * pinn_loss.detach()
 
         # === q regularization loss ===
         reg_loss = 0.0
         if self.lambda_reg > 0:
-            q_traj = torch.cat(q_traj, dim=0)
-            reg_loss = self.apply_thresholded_loss(q_traj).mean()
+            reg_loss = self.apply_thresholded_loss(q_all).mean()
             self.reg_loss = self.lambda_reg * reg_loss.detach()
 
         # === trading cost loss ===
@@ -403,16 +370,26 @@ class FBSNN(nn.Module):
         if self.lambda_trade > 0:
             trading_cost = 0.0
             for n in range(1, self.dynamics.N):
-                y_n = y_traj[n].view(-1, self.dynamics.dim)
-                q_n = q_traj[n]
-                dt_n = t_traj[n] - t_traj[n - 1]
+                y_n = y_all[n].view(-1, self.dynamics.dim)
+                q_n = q_all[n]
+                dt_n = t_all[n] - t_all[n - 1]
                 f_n = self.dynamics.generator(y_n, q_n)
                 trading_cost += f_n * dt_n
 
-            terminal_cost = self.dynamics.terminal_cost(y_traj[-1].view(-1, self.dynamics.dim))
+            terminal_cost = self.dynamics.terminal_cost(y_all[-1].view(-1, self.dynamics.dim))
             cost_to_go = trading_cost + terminal_cost
             trading_loss = cost_to_go.mean()
             self.trade_loss = self.lambda_trade * trading_loss.detach()
+
+        # === Y and q validation loss ===
+        if self.dynamics.analytical_known:
+            Y_true = self.dynamics.value_function_analytic(t_all, y_all)
+            Y_val_loss = self.apply_thresholded_loss(Y_all - Y_true).mean()
+            self.val_Y_loss = Y_val_loss.detach()
+
+            q_true = self.dynamics.optimal_control_analytic(t_all, y_all)
+            q_val_loss = self.apply_thresholded_loss(q_all - q_true).mean()
+            self.val_q_loss = q_val_loss.detach()
 
         return (
             self.lambda_Y0 * Y0_loss
@@ -515,6 +492,7 @@ class FBSNN(nn.Module):
         # Dynamic width calculation based on loss components
         max_widths = {
             "epoch": 8,
+            "val loss": 8 if self.dynamics.analytical_known else 0,
             "loss": 8,
             "lr": 10,
             "mem": 12,
@@ -524,6 +502,8 @@ class FBSNN(nn.Module):
         }
 
         (
+            val_Y_losses,
+            val_q_losses,
             losses,
             losses_Y0,
             losses_Y,
@@ -534,7 +514,7 @@ class FBSNN(nn.Module):
             losses_pinn,
             losses_reg,
             losses_trade,
-        ) = [], [], [], [], [], [], [], [], [], []
+        ) = [], [], [], [], [], [], [], [], [], [], [], []
 
         # Define active loss components
         loss_components = [
@@ -557,6 +537,7 @@ class FBSNN(nn.Module):
             max_widths[name] = max(10, len(name) + 2)
         width = (
             max_widths["epoch"]
+            + 2 * max_widths["val loss"]
             + sum(max_widths[name] for name, _ in active_losses)
             + max_widths["lr"]
             + max_widths["mem"]
@@ -590,7 +571,7 @@ class FBSNN(nn.Module):
             logger.log(f"| lambda_trade (Trade loss) | {self.lambda_trade:<25} |")
             logger.log(f"| Batch Size per Epoch      | {self.batch_size * self.world_size:<25} |")
             logger.log(f"| Batch Size per Rank       | {self.batch_size:<25} |")
-            logger.log(f"| Architecture              | {self.architecture:<25} |")
+            logger.log(f"| Architecture              | {self.architecture.upper():<25} |")
             logger.log(f"| Depth                     | {len(self.Y_layers):<25} |")
             logger.log(f"| Width                     | {self.Y_layers[0]:<25} |")
             logger.log(f"| Activation                | {self.activation.__class__.__name__:<25} |")
@@ -605,6 +586,8 @@ class FBSNN(nn.Module):
             # Print header
             header_parts = [
                 f"{'Epoch':>{max_widths['epoch']}}",
+                f"{'Y val':>{max_widths['val loss']}}" if self.dynamics.analytical_known else "",
+                f"{'q val':>{max_widths['val loss']}}" if self.dynamics.analytical_known else "",
                 f"{'Total loss':>10}",
             ]
             for name, _ in active_losses:
@@ -646,6 +629,8 @@ class FBSNN(nn.Module):
                 current_lr = new_lr
 
             # Reduce losses across all processes if distributed
+            val_Y_loss = self.val_Y_loss
+            val_q_loss = self.val_q_loss
             Y0_loss = self.Y0_loss
             Y_loss = self.Y_loss
             dY_loss = self.dY_loss
@@ -657,6 +642,8 @@ class FBSNN(nn.Module):
             trade_loss = self.trade_loss
 
             if self.is_distributed:
+                dist.reduce(val_Y_loss, op=dist.ReduceOp.SUM, dst=0)
+                dist.reduce(val_q_loss, op=dist.ReduceOp.SUM, dst=0)
                 dist.reduce(loss, op=dist.ReduceOp.SUM, dst=0)
                 dist.reduce(Y0_loss, op=dist.ReduceOp.SUM, dst=0)
                 dist.reduce(Y_loss, op=dist.ReduceOp.SUM, dst=0)
@@ -668,6 +655,8 @@ class FBSNN(nn.Module):
                 dist.reduce(reg_loss, op=dist.ReduceOp.SUM, dst=0)
                 dist.reduce(trade_loss, op=dist.ReduceOp.SUM, dst=0)
 
+                val_Y_loss /= self.world_size
+                val_q_loss /= self.world_size
                 loss /= self.world_size
                 Y0_loss /= self.world_size
                 Y_loss /= self.world_size
@@ -680,6 +669,8 @@ class FBSNN(nn.Module):
                 trade_loss /= self.world_size
 
             if self.is_main:
+                val_Y_losses.append(val_Y_loss.item())
+                val_q_losses.append(val_q_loss.item())
                 losses.append(loss.item())
                 losses_Y0.append(Y0_loss.item())
                 losses_Y.append(Y_loss.item())
@@ -726,6 +717,8 @@ class FBSNN(nn.Module):
 
                     row_parts = [
                         f"{epoch:>{max_widths['epoch']}}",
+                        f"{np.mean(val_Y_losses[-K:]):>{max_widths['val loss']}.2e}" if self.dynamics.analytical_known else "",
+                        f"{np.mean(val_q_losses[-K:]):>{max_widths['val loss']}.2e}" if self.dynamics.analytical_known else "",
                         f"{np.mean(losses[-K:]):>10.2e}",
                     ]
                     for name, fn in active_losses:
@@ -775,6 +768,26 @@ class FBSNN(nn.Module):
                     if plot:
                         plt.show()
 
+                    # Plotting validation losses
+                    if self.dynamics.analytical_known:
+                        # Plot validation losses
+                        plt.figure(figsize=(10, 6))
+                        plt.plot(val_Y_losses, label="Validation Y Loss")
+                        plt.plot(val_q_losses, label="Validation q Loss")
+                        plt.plot(losses, label="Total Loss")
+                        plt.xlabel("Epoch")
+                        plt.ylabel("Loss")
+                        plt.title("Validation Losses")
+                        plt.yscale("log")
+                        plt.legend()
+                        plt.grid()
+                        plt.tight_layout()
+                        if save_dir:
+                            plt.savefig(f"{save_dir}/imgs/val_loss_{epoch}.png", dpi=300, bbox_inches="tight")
+                            plt.close()
+                        if plot:
+                            plt.show()
+
         if self.is_main:
             if self.is_distributed:
                 dist.barrier()
@@ -809,7 +822,7 @@ class FBSNN(nn.Module):
 
         for i in range(approx_q.shape[1]):
             diff = (approx_q[:, i] - true_q[:, i]) ** 2
-            axs[0, 1].plot(timesteps[:-1], diff, color=colors(i), alpha=0.6, label=f"$q_{i}(t) - q^*_{i}(t)$" if i == 0 else None)
+            axs[0, 1].plot(timesteps[:-1], diff, color=colors(i), alpha=0.6, label=f"$|q_{i}(t) - q^*_{i}(t)|^2$" if i == 0 else None)
         axs[0, 1].axhline(0, color='red', linestyle='--', linewidth=0.8)
         axs[0, 1].set_title("Error in Control $q(t)$")
         axs[0, 1].set_xlabel("Time $t$")
@@ -828,7 +841,7 @@ class FBSNN(nn.Module):
 
         for i in range(Y_vals.shape[1]):
             diff_Y = (Y_vals[:, i, 0] - true_Y[:, i, 0]) ** 2
-            axs[1, 1].plot(timesteps, diff_Y, color=colors(i), alpha=0.6, label=f"$Y_{i}(t) - Y^*_{i}(t)$" if i == 0 else None)
+            axs[1, 1].plot(timesteps, diff_Y, color=colors(i), alpha=0.6, label=f"$|Y_{i}(t) - Y^*_{i}(t)|^2$" if i == 0 else None)
         axs[1, 1].axhline(0, color='red', linestyle='--', linewidth=0.8)
         axs[1, 1].set_title("Error in Cost-to-Go $Y(t)$")
         axs[1, 1].set_xlabel("Time $t$")
@@ -973,8 +986,6 @@ class FBSNN(nn.Module):
         # Choose bins depending on data spread
         bins = min(30, max(1, int(range_combined / 1e-2)))
 
-        plt.figure(figsize=(14, 10))
-        
         plt.figure(figsize=(14, 10))
 
         plt.subplot(2, 1, 1)
