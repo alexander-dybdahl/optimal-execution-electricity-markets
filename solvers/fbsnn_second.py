@@ -628,6 +628,8 @@ class FBSNN(nn.Module):
             if adaptive
             else torch.optim.lr_scheduler.StepLR(optimizer, step_size=5000, gamma=0.5)
         )
+        current_lr = optimizer.param_groups[0]["lr"]
+        lr_decay_epochs = []
 
         for epoch in range(1, epochs + 1):
             optimizer.zero_grad()
@@ -636,6 +638,12 @@ class FBSNN(nn.Module):
             loss.backward()
             optimizer.step()
             scheduler.step(loss.item() if adaptive else epoch)
+
+            # Check if the LR was reduced
+            new_lr = optimizer.param_groups[0]["lr"]
+            if new_lr < current_lr:
+                lr_decay_epochs.append(epoch)
+                current_lr = new_lr
 
             # Reduce losses across all processes if distributed
             Y0_loss = self.Y0_loss
@@ -739,37 +747,40 @@ class FBSNN(nn.Module):
                     # self.plot_approx_vs_analytic_expectation(results, timesteps, plot=False, save_dir=save_dir, num=epoch)
                     self.plot_terminal_histogram(results, plot=False, save_dir=save_dir, num=epoch)
 
+                if epoch % 1000 == 0 and epoch > 0:
+                    # Plotting losses
+                    plt.figure(figsize=(10, 6))
+                    plt.plot(losses, label="Total Loss")
+                    plt.plot(losses_Y0, label="Y0 Loss") if self.lambda_Y0 > 0 else None
+                    plt.plot(losses_Y, label="Y Loss") if self.lambda_Y > 0 else None
+                    plt.plot(losses_dY, label="dY Loss") if self.lambda_dY > 0 else None
+                    plt.plot(losses_dYt, label="dYt Loss") if self.lambda_dYt > 0 else None
+                    plt.plot(losses_terminal, label="Terminal Loss") if self.lambda_T > 0 else None
+                    plt.plot(losses_terminal_gradient, label="Terminal Gradient Loss") if self.lambda_TG > 0 else None
+                    plt.plot(losses_pinn, label="PINN Loss") if self.lambda_pinn > 0 else None
+                    plt.plot(losses_reg, label="Regularization Loss") if self.lambda_reg > 0 else None
+                    plt.plot(losses_trade, label="Trading Cost Loss") if self.lambda_trade > 0 else None
+                    for decay_epoch in lr_decay_epochs:
+                        plt.axvline(x=decay_epoch, color='red', linestyle='--', alpha=0.6, label='LR Drop' if decay_epoch == lr_decay_epochs[0] else "")
+                    plt.xlabel("Epoch")
+                    plt.ylabel("Loss")
+                    plt.title("Training Loss")
+                    plt.yscale("log")
+                    plt.legend()
+                    plt.grid()
+                    plt.tight_layout()
+                    if save_dir:
+                        plt.savefig(f"{save_dir}/imgs/loss_{epoch}.png", dpi=300, bbox_inches="tight")
+                        plt.close()
+                    if plot:
+                        plt.show()
+
         if self.is_main:
             if self.is_distributed:
                 dist.barrier()
 
             logger.log(f"Training completed. Lowest loss: {self.lowest_loss:.6f}. Total time: {time.time() - init_time:.2f} seconds")
             logger.log(f"Model saved to {save_path}.pth")
-
-            # Plotting losses
-            plt.figure(figsize=(10, 6))
-            plt.plot(losses, label="Total Loss")
-            plt.plot(losses_Y0, label="Y0 Loss")
-            plt.plot(losses_Y, label="Y Loss")
-            plt.plot(losses_dY, label="dY Loss")
-            plt.plot(losses_dYt, label="dYt Loss")
-            plt.plot(losses_terminal, label="Terminal Loss")
-            plt.plot(losses_terminal_gradient, label="Terminal Gradient Loss")
-            plt.plot(losses_pinn, label="PINN Loss")
-            plt.plot(losses_reg, label="Regularization Loss")
-            plt.plot(losses_trade, label="Trading Cost Loss")
-            plt.xlabel("Epoch")
-            plt.ylabel("Loss")
-            plt.title("Training Loss")
-            plt.yscale("log")
-            plt.legend()
-            plt.grid()
-            plt.tight_layout()
-            if save_dir:
-                plt.savefig(f"{save_dir}/imgs/loss.png", dpi=300, bbox_inches="tight")
-                plt.close()
-            if plot:
-                plt.show()
 
         return losses
 
@@ -790,16 +801,6 @@ class FBSNN(nn.Module):
         for i in range(approx_q.shape[1]):
             axs[0, 0].plot(timesteps[:-1], approx_q[:, i], color=colors(i), alpha=0.6, label=f"Learned $q_{i}(t)$" if i == 0 else None)
             axs[0, 0].plot(timesteps[:-1], true_q[:, i], linestyle="--", color=colors(i), alpha=0.4, label=f"Analytical $q^*_{i}(t)$" if i == 0 else None)
-        V0_approx = Y_vals[0, 0, 0]
-        V0_analytical = true_Y[0, 0, 0]
-        axs[0, 0].text(
-            0.02, 0.98,
-            f"V₀ approx: {V0_approx:.4f}\nV₀ analytical: {V0_analytical:.4f}",
-            transform=axs[0, 0].transAxes,
-            fontsize=11,
-            verticalalignment='top',
-            bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.7)
-        )
         axs[0, 0].set_title("Control $q(t)$: Learned vs Analytical")
         axs[0, 0].set_xlabel("Time $t$")
         axs[0, 0].set_ylabel("$q(t)$")
@@ -817,8 +818,8 @@ class FBSNN(nn.Module):
         axs[0, 1].legend(loc='upper left')
 
         for i in range(Y_vals.shape[1]):
-            axs[1, 0].plot(timesteps, Y_vals[:, i, 0], color=colors(i), alpha=0.6, label=f"Learned $Y_{i}(t)$" if i == 0 else None)
-            axs[1, 0].plot(timesteps, true_Y[:, i, 0], linestyle="--", color=colors(i), alpha=0.4, label=f"Analytical $Y^*_{i}(t)$" if i == 0 else None)
+            axs[1, 0].plot(timesteps, Y_vals[:, i, 0], color=colors(i), alpha=0.6, label=f"Learned $Y_{i}(t)$ ($Y_{i}(0) = {Y_vals[0, 0, 0]:.2f}$)" if i == 0 else None)
+            axs[1, 0].plot(timesteps, true_Y[:, i, 0], linestyle="--", color=colors(i), alpha=0.4, label=f"Analytical $Y^*_{i}(t)$ ($Y_{i}(0) = {true_Y[0, 0, 0]:.2f}$)" if i == 0 else None)
         axs[1, 0].set_title("Cost-to-Go $Y(t)$")
         axs[1, 0].set_xlabel("Time $t$")
         axs[1, 0].set_ylabel("Y(t)")
