@@ -9,7 +9,7 @@ import torch.nn as nn
 from torch.quasirandom import SobolEngine
 
 from utils.logger import Logger
-from utils.plotters import plot_approx_vs_analytic, plot_approx_vs_analytic_expectation, plot_terminal_histogram
+from utils.plots import plot_approx_vs_analytic, plot_approx_vs_analytic_expectation, plot_terminal_histogram
 from utils.simulator import simulate_paths
 from utils.nnets import (
     FCnet,
@@ -57,7 +57,7 @@ class DeepAgent(nn.Module):
         self.lambda_pinn = args.lambda_pinn  # physics residual loss
         self.lambda_reg = args.lambda_reg  # regularization loss
         self.lambda_Y0 = args.lambda_Y0    # initial value regularization loss
-        self.lambda_trade = args.lambda_trade  # trading cost loss
+        self.lambda_cost = args.lambda_cost  # cost loss
         
         # Loss threshold for linear approximation
         self.loss_threshold = args.loss_threshold
@@ -379,9 +379,9 @@ class DeepAgent(nn.Module):
             reg_loss = self.apply_thresholded_loss(q_all).mean() + self.apply_thresholded_loss(dq_all).mean() 
             self.reg_loss = reg_loss.detach()
 
-        # === trading cost loss ===
-        trading_loss = 0.0
-        if self.lambda_trade > 0:
+        # === cost objective ===
+        cost_objective = 0.0
+        if self.lambda_cost > 0:
             running_cost = 0.0
             dt = self.dynamics.dt
             for n in range(self.dynamics.N):
@@ -393,9 +393,8 @@ class DeepAgent(nn.Module):
                 running_cost += f_n * dt
 
             terminal_cost = self.dynamics.terminal_cost(y_all[-self.batch_size:])  # final time step
-            cost_to_go = running_cost + terminal_cost
-            trading_loss = cost_to_go.mean()
-            self.trade_loss = trading_loss.detach()
+            cost_objective = (running_cost + terminal_cost).mean()
+            self.trade_loss = cost_objective.detach()
 
         # === Y0 fbsnn loss ===
         Y0_loss = 0.0
@@ -420,7 +419,7 @@ class DeepAgent(nn.Module):
             + self.lambda_TG * terminal_gradient_loss
             + self.lambda_pinn * pinn_loss
             + self.lambda_reg * reg_loss
-            + self.lambda_trade * trading_loss
+            + self.lambda_cost * cost_objective
         )
     
     def predict_Y_initial(self, y0):
@@ -542,7 +541,7 @@ class DeepAgent(nn.Module):
             ("T.G. loss", self.lambda_TG, lambda: np.mean(losses_terminal_gradient[-K:])),
             ("pinn loss", self.lambda_pinn, lambda: np.mean(losses_pinn[-K:])),
             ("reg loss", self.lambda_reg, lambda: np.mean(losses_reg[-K:])),
-            ("trade loss", self.lambda_trade, lambda: np.mean(losses_trade[-K:])),
+            ("trade loss", self.lambda_cost, lambda: np.mean(losses_trade[-K:])),
         ]
         active_losses = [
             (name, fn) for name, lambda_, fn in loss_components if lambda_ > 0
@@ -584,7 +583,7 @@ class DeepAgent(nn.Module):
             logger.log(f"| lambda_TG (Gradient loss) | {self.lambda_TG:<25} |")
             logger.log(f"| lambda_pinn (PINN loss)   | {self.lambda_pinn:<25} |")
             logger.log(f"| lambda_reg (Reg loss)     | {self.lambda_reg:<25} |")
-            logger.log(f"| lambda_trade (Trade loss) | {self.lambda_trade:<25} |")
+            logger.log(f"| lambda_cost (Trade loss) | {self.lambda_cost:<25} |")
             logger.log(f"| Batch Size per Epoch      | {self.batch_size * self.world_size:<25} |")
             logger.log(f"| Batch Size per Rank       | {self.batch_size:<25} |")
             logger.log(f"| Architecture              | {self.architecture.upper():<25} |")
@@ -765,26 +764,30 @@ class DeepAgent(nn.Module):
                     plot_terminal_histogram(results=results, dynamics=self.dynamics, plot=False, save_dir=save_dir, num=epoch)
 
                 if epoch % 1000 == 0 and epoch > 0:
-                    # Plotting losses
+                    # === Plot training losses ===
                     plt.figure(figsize=(12, 8))
                     plt.plot(losses, label="Total Loss")
-                    plt.plot(losses_Y0, label="Y0 Loss") if self.lambda_Y0 > 0 else None
-                    plt.plot(losses_Y, label="Y Loss") if self.lambda_Y > 0 else None
-                    plt.plot(losses_dY, label="dY Loss") if self.lambda_dY > 0 else None
-                    plt.plot(losses_dYt, label="dYt Loss") if self.lambda_dYt > 0 else None
-                    plt.plot(losses_terminal, label="Terminal Loss") if self.lambda_T > 0 else None
-                    plt.plot(losses_terminal_gradient, label="Terminal Gradient Loss") if self.lambda_TG > 0 else None
-                    plt.plot(losses_pinn, label="PINN Loss") if self.lambda_pinn > 0 else None
-                    plt.plot(losses_reg, label="Regularization Loss") if self.lambda_reg > 0 else None
-                    plt.plot(losses_trade, label="Trading Cost Loss") if self.lambda_trade > 0 else None
+                    if self.lambda_Y0 > 0: plt.plot(losses_Y0, label="Y0 Loss")
+                    if self.lambda_Y > 0: plt.plot(losses_Y, label="Y Loss")
+                    if self.lambda_dY > 0: plt.plot(losses_dY, label="dY Loss")
+                    if self.lambda_dYt > 0: plt.plot(losses_dYt, label="dYt Loss")
+                    if self.lambda_T > 0: plt.plot(losses_terminal, label="Terminal Loss")
+                    if self.lambda_TG > 0: plt.plot(losses_terminal_gradient, label="Terminal Gradient Loss")
+                    if self.lambda_pinn > 0: plt.plot(losses_pinn, label="PINN Loss")
+                    if self.lambda_reg > 0: plt.plot(losses_reg, label="Regularization Loss")
+                    if self.lambda_cost > 0: plt.plot(losses_trade, label="Cost Loss")
+
                     for decay_epoch in lr_decay_epochs:
-                        plt.axvline(x=decay_epoch, color='red', linestyle='--', alpha=0.6, label='LR Drop' if decay_epoch == lr_decay_epochs[0] else "")
+                        plt.axvline(x=decay_epoch, color='red', linestyle='--', alpha=0.6,
+                                    label='LR Drop' if decay_epoch == lr_decay_epochs[0] else "")
+
                     plt.xlabel("Epoch")
                     plt.ylabel("Loss")
                     plt.title("Training Loss")
-                    plt.yscale("log")
+                    plt.yscale("symlog", linthresh=1e-1)  # Use symlog scale with linear region near 0
+                    plt.axhline(0, color='black', linestyle='--', linewidth=1)
                     plt.legend()
-                    plt.grid()
+                    plt.grid(True, which='both', linestyle='--', alpha=0.4)
                     plt.tight_layout()
                     if save_dir:
                         plt.savefig(f"{save_dir}/imgs/loss_{epoch}.png", dpi=300, bbox_inches="tight")
@@ -792,9 +795,8 @@ class DeepAgent(nn.Module):
                     if plot:
                         plt.show()
 
-                    # Plotting validation losses
+                    # === Plot validation losses ===
                     if self.dynamics.analytical_known:
-                        # Plot validation losses
                         plt.figure(figsize=(12, 8))
                         plt.plot(self.validation["q_loss"], label="Validation q Loss")
                         plt.plot(self.validation["Y_loss"], label="Validation Y Loss")
@@ -802,9 +804,10 @@ class DeepAgent(nn.Module):
                         plt.xlabel("Epoch")
                         plt.ylabel("Loss")
                         plt.title("Validation Losses")
-                        plt.yscale("log")
+                        plt.yscale("symlog", linthresh=1e-1)  # same symlog scale
+                        plt.axhline(0, color='black', linestyle='--', linewidth=1)
                         plt.legend()
-                        plt.grid()
+                        plt.grid(True, which='both', linestyle='--', alpha=0.4)
                         plt.tight_layout()
                         if save_dir:
                             plt.savefig(f"{save_dir}/imgs/val_loss_{epoch}.png", dpi=300, bbox_inches="tight")

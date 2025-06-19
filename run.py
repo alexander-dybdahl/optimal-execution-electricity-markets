@@ -14,7 +14,7 @@ from dynamics.hjb_dynamics import HJBDynamics
 from dynamics.simple_dynamics import SimpleDynamics
 from core.solver import Solver
 from utils.load_config import load_model_config, load_run_config
-from utils.plotters import plot_approx_vs_analytic, plot_approx_vs_analytic_expectation, plot_terminal_histogram 
+from utils.plots import plot_approx_vs_analytic, plot_approx_vs_analytic_expectation, plot_terminal_histogram 
 from utils.tools import str2bool
 
 
@@ -50,7 +50,7 @@ def main():
     parser.add_argument("--lambda_TG", type=float, default=run_cfg["lambda_TG"], help="Weight for the terminal gradient term in the loss function")
     parser.add_argument("--lambda_pinn", type=float, default=run_cfg["lambda_pinn"], help="Weight for the PINN term in the loss function")
     parser.add_argument("--lambda_reg", type=float, default=run_cfg["lambda_reg"], help="Weight for the regularization term in the loss function")
-    parser.add_argument("--lambda_trade", type=float, default=run_cfg["lambda_trade"], help="Weight for the trading cost term in the loss function")
+    parser.add_argument("--lambda_cost", type=float, default=run_cfg["lambda_cost"], help="Weight for the cost term in the loss function")
     parser.add_argument("--sobol_points", type=str2bool, nargs='?', const=True, default=run_cfg["sobol_points"], help="Use Sobol points for training")
     parser.add_argument("--use_linear_approx", type=str2bool, nargs='?', const=True, default=run_cfg["use_linear_approx"], help="Use linear loss approximation beyond the threshold")
     parser.add_argument("--loss_threshold", type=float, default=run_cfg["loss_threshold"], help="Threshold to linearly approximate the loss")
