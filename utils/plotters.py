@@ -6,7 +6,6 @@ import torch
 
 # All these plotting functions assume that the results include both learned and analytical results
 # TODO: Make the following plotting function more general by allowing for other number of states and controls
-# TODO: Make the following plotting function more general by allowing for that mabye Y_learned and Y_analytical is not in the results
 def plot_approx_vs_analytic(results, timesteps, validation=None, plot=True, save_dir=None, num=None):
 
     approx_q = results["q_learned"]
