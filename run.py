@@ -14,6 +14,7 @@ from dynamics.hjb_dynamics import HJBDynamics
 from dynamics.simple_dynamics import SimpleDynamics
 from core.solver import Solver
 from utils.load_config import load_model_config, load_run_config
+from utils.plotters import plot_approx_vs_analytic, plot_approx_vs_analytic_expectation, plot_terminal_histogram 
 from utils.tools import str2bool
 
 
@@ -97,11 +98,11 @@ def main():
         args.batch_size_per_rank = args.batch_size
 
     if args.architecture.lower() == "lstmwithsubnets":
-        save_dir = f"{args.save_path}_{args.architecture.upper()}_{args.lstm_type.upper()}_{args.subnet_type.upper()}_{args.activation}"
+        save_dir = f"{args.save_path}_{args.architecture.lower()}_{args.lstm_type.lower()}_{args.subnet_type.lower()}_{args.activation}"
     elif args.architecture.lower() == "separatesubnets":
-        save_dir = f"{args.save_path}_{args.architecture.upper()}_{args.subnet_type.upper()}_{args.activation}"
+        save_dir = f"{args.save_path}_{args.architecture.lower()}_{args.subnet_type.lower()}_{args.activation}"
     else:
-        save_dir = f"{args.save_path}_{args.architecture.upper()}_{args.activation}"
+        save_dir = f"{args.save_path}_{args.architecture.lower()}_{args.activation}"
     save_path = os.path.join(save_dir, "model")
     
     if is_main:
@@ -153,7 +154,7 @@ def main():
         
         # Wrap in DDP if applicable
         if args.parallel:
-            if  is_distributed:
+            if is_distributed:
                 logger.log("Applying DDP for parallel training.")
                 model = DDP(model, device_ids=[env_local_rank] if args.device == "cuda" else None)
             else:
@@ -168,9 +169,9 @@ def main():
         call_model = model.module if isinstance(model, DDP) else model
         validation = call_model.validation
         timesteps, results = solver.simulate_paths(agent=call_model, n_sim=args.n_simulations, seed=np.random.randint(0, 1000))
-        solver.plot_approx_vs_analytic(results=results, timesteps=timesteps, validation=validation, plot=args.plot, save_dir=save_dir)
-        solver.plot_approx_vs_analytic_expectation(results=results, timesteps=timesteps, plot=args.plot, save_dir=save_dir)
-        solver.plot_terminal_histogram(results=results, plot=args.plot, save_dir=save_dir)
+        plot_approx_vs_analytic(results=results, timesteps=timesteps, validation=validation, plot=args.plot, save_dir=save_dir)
+        plot_approx_vs_analytic_expectation(results=results, timesteps=timesteps, plot=args.plot, save_dir=save_dir)
+        plot_terminal_histogram(results=results, dynamics=dynamics, plot=args.plot, save_dir=save_dir)
 
     # Sync & cleanup
     if is_distributed:

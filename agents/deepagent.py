@@ -9,6 +9,7 @@ import torch.nn as nn
 from torch.quasirandom import SobolEngine
 
 from utils.logger import Logger
+from utils.plotters import plot_approx_vs_analytic, plot_approx_vs_analytic_expectation, plot_terminal_histogram
 from utils.nnets import (
     FCnet,
     FCnet_init,
@@ -65,7 +66,10 @@ class DeepAgent(nn.Module):
         # Validation Losses
         self.val_q_loss = torch.tensor(0.0, device=self.device)
         self.val_Y_loss = torch.tensor(0.0, device=self.device)
-        self.validation = None
+        self.validation = {
+            "q_loss": [],
+            "Y_loss": []
+        }
 
         # Loss Tracking
         self.Y0_loss = torch.tensor(0.0, device=self.device)
@@ -511,8 +515,6 @@ class DeepAgent(nn.Module):
         }
 
         (
-            val_q_losses,
-            val_Y_losses,
             losses,
             losses_Y0,
             losses_Y,
@@ -523,7 +525,7 @@ class DeepAgent(nn.Module):
             losses_pinn,
             losses_reg,
             losses_trade,
-        ) = [], [], [], [], [], [], [], [], [], [], [], []
+        ) = [], [], [], [], [], [], [], [], [], []
 
         # Define active loss components
         loss_components = [
@@ -678,8 +680,8 @@ class DeepAgent(nn.Module):
                 trade_loss /= self.world_size
 
             if self.is_main:
-                val_q_losses.append(val_q_loss.item())
-                val_Y_losses.append(val_Y_loss.item())
+                self.validation["q_loss"].append(val_q_loss.item())
+                self.validation["Y_loss"].append(val_Y_loss.item())
                 losses.append(loss.item())
                 losses_Y0.append(Y0_loss.item())
                 losses_Y.append(Y_loss.item())
@@ -690,11 +692,6 @@ class DeepAgent(nn.Module):
                 losses_pinn.append(pinn_loss.item())
                 losses_reg.append(reg_loss.item())
                 losses_trade.append(trade_loss.item())
-
-                self.validation = {
-                    "q_loss": val_q_losses,
-                    "Y_loss": val_Y_losses,
-                }
 
                 if epoch % K == 0 or epoch == 1:
                     status = ""
@@ -731,8 +728,8 @@ class DeepAgent(nn.Module):
 
                     row_parts = [
                         f"{epoch:>{max_widths['epoch']}}",
-                        f"{np.mean(val_q_losses[-K:]):>{max_widths['val loss']}.2e}" if self.dynamics.analytical_known else "",
-                        f"{np.mean(val_Y_losses[-K:]):>{max_widths['val loss']}.2e}" if self.dynamics.analytical_known else "",
+                        f"{np.mean(self.validation["q_loss"][-K:]):>{max_widths['val loss']}.2e}" if self.dynamics.analytical_known else "",
+                        f"{np.mean(self.validation["Y_loss"][-K:]):>{max_widths['val loss']}.2e}" if self.dynamics.analytical_known else "",
                         f"{np.mean(losses[-K:]):>10.2e}",
                     ]
                     for name, fn in active_losses:
@@ -749,10 +746,18 @@ class DeepAgent(nn.Module):
 
                 if epoch % self.plot_n == 0:
                     timesteps, results = self.dynamics.simulate_paths(agent=self, n_sim=self.n_simulations, seed=42)
-                    self.plot_approx_vs_analytic(results, timesteps, plot=False, save_dir=save_dir, num=epoch)
+                    
+                    plot_approx_vs_analytic(
+                        results = results,
+                        timesteps = timesteps,
+                        validation = self.validation,
+                        plot=False,
+                        save_dir=save_dir,
+                        num=epoch
+                    )
                     timesteps, results = self.dynamics.simulate_paths(agent=self, n_sim=1000, seed=42)
                     # self.plot_approx_vs_analytic_expectation(results, timesteps, plot=False, save_dir=save_dir, num=epoch)
-                    self.plot_terminal_histogram(results, plot=False, save_dir=save_dir, num=epoch)
+                    plot_terminal_histogram(results=results, dynamics=self.dynamics, plot=False, save_dir=save_dir, num=epoch)
 
                 if epoch % 1000 == 0 and epoch > 0:
                     # Plotting losses
@@ -786,8 +791,8 @@ class DeepAgent(nn.Module):
                     if self.dynamics.analytical_known:
                         # Plot validation losses
                         plt.figure(figsize=(12, 8))
-                        plt.plot(val_q_losses, label="Validation q Loss")
-                        plt.plot(val_Y_losses, label="Validation Y Loss")
+                        plt.plot(self.validation["q_loss"], label="Validation q Loss")
+                        plt.plot(self.validation["Y_loss"], label="Validation Y Loss")
                         plt.plot(losses, label="Total Loss")
                         plt.xlabel("Epoch")
                         plt.ylabel("Loss")
