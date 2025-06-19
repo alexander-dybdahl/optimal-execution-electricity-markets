@@ -9,11 +9,11 @@ import torch.distributed as dist
 import torch.nn as nn
 from torch.quasirandom import SobolEngine
 
-from core.nnets import FCnet_init, FCnet, LSTMNet, Resnet, Sine, SeparateSubnets, LSTMWithSubnets
+from utils.nnets import FCnet_init, FCnet, LSTMNet, Resnet, Sine, SeparateSubnets, LSTMWithSubnets
 from utils.logger import Logger
 
 
-class FBSNN(nn.Module):
+class DeepAgent(nn.Module):
     def __init__(self, dynamics, args):
         super().__init__()
         # System & Execution Settings

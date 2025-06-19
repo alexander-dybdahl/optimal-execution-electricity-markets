@@ -8,7 +8,7 @@ import torch
 import torch.distributed as dist
 from torch.nn.parallel import DistributedDataParallel as DDP
 
-from solvers.fbsnn_second import FBSNN
+from agents.deepagent import DeepAgent
 from dynamics.aid_dynamics import AidDynamics
 from dynamics.hjb_dynamics import HJBDynamics
 from dynamics.simple_dynamics import SimpleDynamics
@@ -115,7 +115,7 @@ def main():
 
     model_cfg = load_model_config(args.model_config)
     dynamics = AidDynamics(args=args, model_cfg=model_cfg)
-    model = FBSNN(dynamics=dynamics, args=args).to(device)
+    model = DeepAgent(dynamics=dynamics, args=args).to(device)
 
     # Determine whether to load a model
     if args.load_if_exists:
