@@ -508,7 +508,6 @@ class FBSNN(nn.Module):
         active_losses = [
             (name, fn) for name, lambda_, fn in loss_components if lambda_ > 0
         ]
-        lr_decay_epochs = [lr]
 
         # Calculate max widths
         for name, _ in active_losses:
@@ -586,6 +585,8 @@ class FBSNN(nn.Module):
             if adaptive
             else torch.optim.lr_scheduler.StepLR(optimizer, step_size=5000, gamma=0.5)
         )
+        current_lr = optimizer.param_groups[0]["lr"]
+        lr_decay_epochs = []
 
         for epoch in range(1, epochs + 1):
             optimizer.zero_grad()
@@ -594,11 +595,12 @@ class FBSNN(nn.Module):
             loss.backward()
             optimizer.step()
             scheduler.step(loss.item() if adaptive else epoch)
-            new_lr = optimizer.param_groups[0]["lr"]
 
             # Check if the LR was reduced
-            if new_lr < lr_decay_epochs[-1]:
+            new_lr = optimizer.param_groups[0]["lr"]
+            if new_lr < current_lr:
                 lr_decay_epochs.append(epoch)
+                current_lr = new_lr
 
             # Reduce losses across all processes if distributed
             Y0_loss = self.Y0_loss
@@ -706,15 +708,15 @@ class FBSNN(nn.Module):
                     # Plotting losses
                     plt.figure(figsize=(10, 6))
                     plt.plot(losses, label="Total Loss")
-                    plt.plot(losses_Y0, label="Y0 Loss")
-                    plt.plot(losses_Y, label="Y Loss")
-                    plt.plot(losses_dY, label="dY Loss")
-                    plt.plot(losses_dYt, label="dYt Loss")
-                    plt.plot(losses_terminal, label="Terminal Loss")
-                    plt.plot(losses_terminal_gradient, label="Terminal Gradient Loss")
-                    plt.plot(losses_pinn, label="PINN Loss")
-                    plt.plot(losses_reg, label="Regularization Loss")
-                    plt.plot(losses_trade, label="Trading Cost Loss")
+                    plt.plot(losses_Y0, label="Y0 Loss") if self.lambda_Y0 > 0 else None
+                    plt.plot(losses_Y, label="Y Loss") if self.lambda_Y > 0 else None
+                    plt.plot(losses_dY, label="dY Loss") if self.lambda_dY > 0 else None
+                    plt.plot(losses_dYt, label="dYt Loss") if self.lambda_dYt > 0 else None
+                    plt.plot(losses_terminal, label="Terminal Loss") if self.lambda_T > 0 else None
+                    plt.plot(losses_terminal_gradient, label="Terminal Gradient Loss") if self.lambda_TG > 0 else None
+                    plt.plot(losses_pinn, label="PINN Loss") if self.lambda_pinn > 0 else None
+                    plt.plot(losses_reg, label="Regularization Loss") if self.lambda_reg > 0 else None
+                    plt.plot(losses_trade, label="Trading Cost Loss") if self.lambda_trade > 0 else None
                     for decay_epoch in lr_decay_epochs:
                         plt.axvline(x=decay_epoch, color='red', linestyle='--', alpha=0.6, label='LR Drop' if decay_epoch == lr_decay_epochs[0] else "")
                     plt.xlabel("Epoch")

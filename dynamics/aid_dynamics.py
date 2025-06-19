@@ -12,16 +12,18 @@ class AidDynamics(Dynamics):
         self.sigma_P = model_cfg["sigma_P"]
         self.sigma_D = model_cfg["sigma_D"]
         self.rho = model_cfg["rho"]
-        self.gamma = model_cfg["gamma"]  # temp impact
-        self.nu = model_cfg["nu"]        # perm impact
-        self.eta = model_cfg["eta"]        # terminal penalty
-        self.mu_D = model_cfg["mu_D"]     # drift for D
-        self.mu_P = model_cfg["mu_P"]     # drift for D
+        self.psi = model_cfg["psi"]         # bid-ask spread
+        self.gamma = model_cfg["gamma"]     # temp impact
+        self.nu = model_cfg["nu"]           # perm impact
+        self.eta = model_cfg["eta"]         # terminal penalty
+        self.mu_D = model_cfg["mu_D"]       # drift for D
+        self.mu_P = model_cfg["mu_P"]       # drift for D
 
     def generator(self, y, q):
         P = y[:, 1:2]
         temporary_impact = self.gamma * q
-        execution_price = P + temporary_impact
+        bid_ask_spread = torch.sign(q) * self.psi
+        execution_price = P + bid_ask_spread + temporary_impact
         return q * execution_price
 
     def terminal_cost(self, y):
@@ -54,7 +56,22 @@ class AidDynamics(Dynamics):
         dY_dP = dY_dy[:, 1:2]
         P = y[:, 1:2]
 
-        q = -0.5 / self.gamma * (P + dY_dX + self.nu * dY_dP)
+        # Define xi = P + dV/dX + nu * dV/dP
+        xi = P + dY_dX + self.nu * dY_dP
+        psi = self.psi  # assumed to be a scalar or tensor of shape [1]
+
+        # Compute the candidate optimal q in each region
+        q_pos = -(xi + psi) / (2 * self.gamma)  # candidate when q > 0
+        q_neg = -(xi - psi) / (2 * self.gamma)  # candidate when q < 0
+
+        # Piecewise definition: check which region gives the minimum
+        q = torch.where(
+            xi > psi, q_pos,  # If xi > psi, optimal q is positive
+            torch.where(
+                xi < -psi, q_neg,  # If xi < -psi, optimal q is negative
+                torch.zeros_like(xi)  # Else, zero is optimal
+            )
+        )
         return q
 
     def optimal_control_analytic(self, t, y):
