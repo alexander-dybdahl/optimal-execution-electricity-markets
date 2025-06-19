@@ -237,7 +237,7 @@ class FBSNN(nn.Module):
         # === Y0 fbsnn loss ===
         Y0_loss = 0.0
         if self.lambda_Y0 > 0:
-            small_dt = self.dt * 0.1
+            small_dt = self.dynamics.dt * 0.1
             
             dY_outputs = self.dY_net(t0, y0)
             dY_dt = dY_outputs[:, 0:1]
