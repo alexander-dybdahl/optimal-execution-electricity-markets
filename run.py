@@ -12,6 +12,7 @@ from agents.deepagent import DeepAgent
 from dynamics.aid_dynamics import AidDynamics
 from dynamics.hjb_dynamics import HJBDynamics
 from dynamics.simple_dynamics import SimpleDynamics
+from core.solver import Solver
 from utils.load_config import load_model_config, load_run_config
 from utils.tools import str2bool
 
@@ -115,7 +116,8 @@ def main():
 
     model_cfg = load_model_config(args.model_config)
     dynamics = AidDynamics(args=args, model_cfg=model_cfg)
-    model = DeepAgent(dynamics=dynamics, args=args).to(device)
+    model = DeepAgent(dynamics=dynamics, args=args)
+    model.to(device)
 
     # Determine whether to load a model
     if args.load_if_exists:
@@ -157,12 +159,13 @@ def main():
 
     # Evaluate and plot only on main
     if is_main:
+        solver = Solver(dynamics=dynamics, args=args)
         call_model = model.module if isinstance(model, DDP) else model
-        call_model.eval()
-        timesteps, results = dynamics.simulate_paths(agent=call_model, n_sim=args.n_simulations, seed=np.random.randint(0, 1000))
-        model.plot_approx_vs_analytic(results, timesteps, plot=args.plot, save_dir=save_dir)
-        model.plot_approx_vs_analytic_expectation(results, timesteps, plot=args.plot, save_dir=save_dir)
-        model.plot_terminal_histogram(results, plot=args.plot, save_dir=save_dir)
+        validation = call_model.validation
+        timesteps, results = solver.simulate_paths(agent=call_model, n_sim=args.n_simulations, seed=np.random.randint(0, 1000))
+        solver.plot_approx_vs_analytic(results=results, timesteps=timesteps, validation=validation, plot=args.plot, save_dir=save_dir)
+        solver.plot_approx_vs_analytic_expectation(results=results, timesteps=timesteps, plot=args.plot, save_dir=save_dir)
+        solver.plot_terminal_histogram(results=results, plot=args.plot, save_dir=save_dir)
 
     # Sync & cleanup
     if is_distributed:

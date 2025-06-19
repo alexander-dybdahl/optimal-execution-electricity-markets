@@ -1,7 +1,6 @@
 import os
 import time
 
-import matplotlib.cm as cm
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
@@ -9,8 +8,16 @@ import torch.distributed as dist
 import torch.nn as nn
 from torch.quasirandom import SobolEngine
 
-from utils.nnets import FCnet_init, FCnet, LSTMNet, Resnet, Sine, SeparateSubnets, LSTMWithSubnets
 from utils.logger import Logger
+from utils.nnets import (
+    FCnet,
+    FCnet_init,
+    LSTMNet,
+    LSTMWithSubnets,
+    Resnet,
+    SeparateSubnets,
+    Sine,
+)
 
 
 class DeepAgent(nn.Module):
@@ -56,8 +63,9 @@ class DeepAgent(nn.Module):
         self.second_order_taylor = args.second_order_taylor
 
         # Validation Losses
-        self.val_Y_loss = torch.tensor(0.0, device=self.device)
         self.val_q_loss = torch.tensor(0.0, device=self.device)
+        self.val_Y_loss = torch.tensor(0.0, device=self.device)
+        self.validation = None
 
         # Loss Tracking
         self.Y0_loss = torch.tensor(0.0, device=self.device)
@@ -104,7 +112,7 @@ class DeepAgent(nn.Module):
             rescale_y0=args.rescale_y0,
             strong_grad_output=args.strong_grad_output,
             scale_output=args.scale_output,
-        ).to(self.device)
+        )
 
         if args.architecture == "default":
             self.dY_net = FCnet(
@@ -113,7 +121,7 @@ class DeepAgent(nn.Module):
                 T=self.dynamics.T,
                 input_bn=args.input_bn,
                 affine=args.affine,
-            ).to(self.device)
+            )
         elif args.architecture == "fc":
             self.dY_net = FCnet(
                 layers=[self.dynamics.dim + 1] + args.Y_layers + [self.dynamics.dim + 1],
@@ -121,7 +129,7 @@ class DeepAgent(nn.Module):
                 T=self.dynamics.T,
                 input_bn=args.input_bn,
                 affine=args.affine,
-            ).to(self.device)
+            )
         elif args.architecture == "naisnet":
             self.dY_net = Resnet(
                 layers=[self.dynamics.dim + 1] + args.Y_layers + [self.dynamics.dim + 1],
@@ -130,7 +138,7 @@ class DeepAgent(nn.Module):
                 T=self.dynamics.T,
                 input_bn=args.input_bn,
                 affine=args.affine,
-            ).to(self.device)
+            )
         elif args.architecture == "resnet":
             self.dY_net = Resnet(
                 layers=[self.dynamics.dim + 1] + args.Y_layers + [self.dynamics.dim + 1],
@@ -139,7 +147,7 @@ class DeepAgent(nn.Module):
                 T=self.dynamics.T,
                 input_bn=args.input_bn,
                 affine=args.affine,
-            ).to(self.device)
+            )
         elif (
             args.architecture == "lstm"
             or args.architecture == "reslstm"
@@ -152,7 +160,7 @@ class DeepAgent(nn.Module):
                 T=self.dynamics.T,
                 input_bn=args.input_bn,
                 affine=args.affine,
-            ).to(self.device)
+            )
         elif args.architecture == "separatesubnets":
             # Get subnet configuration from args
             subnet_type = args.subnet_type
@@ -164,7 +172,7 @@ class DeepAgent(nn.Module):
                 subnet_type=subnet_type,
                 input_bn=args.input_bn,
                 affine=args.affine,
-            ).to(self.device)
+            )
         elif args.architecture == "lstmwithsubnets":
             # Get LSTM and subnet configuration from args
             lstm_layers = args.lstm_layers
@@ -180,7 +188,7 @@ class DeepAgent(nn.Module):
                 lstm_type=lstm_type,
                 input_bn=args.input_bn,
                 affine=args.affine,
-            ).to(self.device)
+            )
         else:
             raise ValueError(f"Unknown architecture: {args.architecture}")
 
@@ -388,13 +396,13 @@ class DeepAgent(nn.Module):
 
         # === Y and q validation loss ===
         if self.dynamics.analytical_known:
-            Y_true = self.dynamics.value_function_analytic(t_all, y_all)
-            Y_val_loss = self.apply_thresholded_loss(Y_all - Y_true).mean()
-            self.val_Y_loss = Y_val_loss.detach()
-
             q_true = self.dynamics.optimal_control_analytic(t_all, y_all)
-            q_val_loss = self.apply_thresholded_loss(q_all - q_true).mean()
-            self.val_q_loss = q_val_loss.detach()
+            val_q_loss = self.apply_thresholded_loss(q_all - q_true).mean()
+            self.val_q_loss = val_q_loss.detach()
+
+            Y_true = self.dynamics.value_function_analytic(t_all, y_all)
+            val_Y_loss = self.apply_thresholded_loss(Y_all - Y_true).mean()
+            self.val_Y_loss = val_Y_loss.detach()
 
         return (
             self.lambda_Y0 * Y0_loss
@@ -464,10 +472,6 @@ class DeepAgent(nn.Module):
         dY_dy = dY_outputs[:, 1:]
         return self.dynamics.optimal_control(t, y, dY_dy)
 
-    def fetch_minibatch(self, batch_size):
-        t, dW, _ = self.dynamics.generate_paths(batch_size)
-        return t, dW
-
     def save_model(self, save_path):
         state_dict = self.state_dict()
 
@@ -507,8 +511,8 @@ class DeepAgent(nn.Module):
         }
 
         (
-            val_Y_losses,
             val_q_losses,
+            val_Y_losses,
             losses,
             losses_Y0,
             losses_Y,
@@ -621,7 +625,7 @@ class DeepAgent(nn.Module):
 
         for epoch in range(1, epochs + 1):
             optimizer.zero_grad()
-            t, dW = self.fetch_minibatch(self.batch_size)
+            t, dW, _ = self.dynamics.generate_paths(self.batch_size)
             loss = self(t=t, dW=dW, supervised=self.supervised)
             loss.backward()
             optimizer.step()
@@ -634,8 +638,8 @@ class DeepAgent(nn.Module):
                 current_lr = new_lr
 
             # Reduce losses across all processes if distributed
-            val_Y_loss = self.val_Y_loss
             val_q_loss = self.val_q_loss
+            val_Y_loss = self.val_Y_loss
             Y0_loss = self.Y0_loss
             Y_loss = self.Y_loss
             dY_loss = self.dY_loss
@@ -647,8 +651,8 @@ class DeepAgent(nn.Module):
             trade_loss = self.trade_loss
 
             if self.is_distributed:
-                dist.reduce(val_Y_loss, op=dist.ReduceOp.SUM, dst=0)
                 dist.reduce(val_q_loss, op=dist.ReduceOp.SUM, dst=0)
+                dist.reduce(val_Y_loss, op=dist.ReduceOp.SUM, dst=0)
                 dist.reduce(loss, op=dist.ReduceOp.SUM, dst=0)
                 dist.reduce(Y0_loss, op=dist.ReduceOp.SUM, dst=0)
                 dist.reduce(Y_loss, op=dist.ReduceOp.SUM, dst=0)
@@ -660,8 +664,8 @@ class DeepAgent(nn.Module):
                 dist.reduce(reg_loss, op=dist.ReduceOp.SUM, dst=0)
                 dist.reduce(trade_loss, op=dist.ReduceOp.SUM, dst=0)
 
-                val_Y_loss /= self.world_size
                 val_q_loss /= self.world_size
+                val_Y_loss /= self.world_size
                 loss /= self.world_size
                 Y0_loss /= self.world_size
                 Y_loss /= self.world_size
@@ -674,8 +678,8 @@ class DeepAgent(nn.Module):
                 trade_loss /= self.world_size
 
             if self.is_main:
-                val_Y_losses.append(val_Y_loss.item())
                 val_q_losses.append(val_q_loss.item())
+                val_Y_losses.append(val_Y_loss.item())
                 losses.append(loss.item())
                 losses_Y0.append(Y0_loss.item())
                 losses_Y.append(Y_loss.item())
@@ -686,6 +690,11 @@ class DeepAgent(nn.Module):
                 losses_pinn.append(pinn_loss.item())
                 losses_reg.append(reg_loss.item())
                 losses_trade.append(trade_loss.item())
+
+                self.validation = {
+                    "q_loss": val_q_losses,
+                    "Y_loss": val_Y_losses,
+                }
 
                 if epoch % K == 0 or epoch == 1:
                     status = ""
@@ -722,8 +731,8 @@ class DeepAgent(nn.Module):
 
                     row_parts = [
                         f"{epoch:>{max_widths['epoch']}}",
-                        f"{np.mean(val_Y_losses[-K:]):>{max_widths['val loss']}.2e}" if self.dynamics.analytical_known else "",
                         f"{np.mean(val_q_losses[-K:]):>{max_widths['val loss']}.2e}" if self.dynamics.analytical_known else "",
+                        f"{np.mean(val_Y_losses[-K:]):>{max_widths['val loss']}.2e}" if self.dynamics.analytical_known else "",
                         f"{np.mean(losses[-K:]):>10.2e}",
                     ]
                     for name, fn in active_losses:
@@ -777,8 +786,8 @@ class DeepAgent(nn.Module):
                     if self.dynamics.analytical_known:
                         # Plot validation losses
                         plt.figure(figsize=(12, 8))
-                        plt.plot(val_Y_losses, label="Validation Y Loss")
                         plt.plot(val_q_losses, label="Validation q Loss")
+                        plt.plot(val_Y_losses, label="Validation Y Loss")
                         plt.plot(losses, label="Total Loss")
                         plt.xlabel("Epoch")
                         plt.ylabel("Loss")
@@ -801,230 +810,3 @@ class DeepAgent(nn.Module):
             logger.log(f"Model saved to {save_path}.pth")
 
         return losses
-
-
-    # TODO: Implement these functions to be more flexible depending if analytical is known
-    def plot_approx_vs_analytic(self, results, timesteps, plot=True, save_dir=None, num=None):
-
-        approx_q = results["q_learned"]
-        y_vals = results["y_learned"]
-        Y_vals = results["Y_learned"]
-        true_q = results["q_analytical"]
-        true_y = results["y_analytical"]
-        true_Y = results["Y_analytical"]
-
-        fig, axs = plt.subplots(3, 2, figsize=(14, 10))
-        colors = cm.get_cmap("tab10", approx_q.shape[1])
-
-        for i in range(approx_q.shape[1]):
-            axs[0, 0].plot(timesteps[:-1], approx_q[:, i], color=colors(i), alpha=0.6, label=f"Learned $q_{i}(t)$" if i == 0 else None)
-            axs[0, 0].plot(timesteps[:-1], true_q[:, i], linestyle="--", color=colors(i), alpha=0.4, label=f"Analytical $q^*_{i}(t)$" if i == 0 else None)
-        axs[0, 0].set_title("Control $q(t)$: Learned vs Analytical")
-        axs[0, 0].set_xlabel("Time $t$")
-        axs[0, 0].set_ylabel("$q(t)$")
-        axs[0, 0].grid(True)
-        axs[0, 0].legend(loc='upper left')
-
-        for i in range(approx_q.shape[1]):
-            diff = (approx_q[:, i] - true_q[:, i]) ** 2
-            axs[0, 1].plot(timesteps[:-1], diff, color=colors(i), alpha=0.6, label=f"$|q_{i}(t) - q^*_{i}(t)|^2 ({self.val_q_loss:.2f})$" if i == 0 else None)
-        axs[0, 1].axhline(0, color='red', linestyle='--', linewidth=0.8)
-        axs[0, 1].set_title("Error in Control $q(t)$")
-        axs[0, 1].set_xlabel("Time $t$")
-        axs[0, 1].set_ylabel("$|q(t) - q^*(t)|^2$")
-        axs[0, 1].grid(True)
-        axs[0, 1].legend(loc='upper left')
-
-        for i in range(Y_vals.shape[1]):
-            axs[1, 0].plot(timesteps, Y_vals[:, i, 0], color=colors(i), alpha=0.6, label=f"Learned $Y_{i}(t)$ ($Y_{i}(0) = {Y_vals[0, 0, 0]:.2f}$)" if i == 0 else None)
-            axs[1, 0].plot(timesteps, true_Y[:, i, 0], linestyle="--", color=colors(i), alpha=0.4, label=f"Analytical $Y^*_{i}(t)$ ($Y_{i}(0) = {true_Y[0, 0, 0]:.2f}$)" if i == 0 else None)
-        axs[1, 0].set_title("Cost-to-Go $Y(t)$")
-        axs[1, 0].set_xlabel("Time $t$")
-        axs[1, 0].set_ylabel("Y(t)")
-        axs[1, 0].grid(True)
-        axs[1, 0].legend(loc='upper left')
-
-        for i in range(Y_vals.shape[1]):
-            diff_Y = (Y_vals[:, i, 0] - true_Y[:, i, 0]) ** 2
-            axs[1, 1].plot(timesteps, diff_Y, color=colors(i), alpha=0.6, label=f"$|Y_{i}(t) - Y^*_{i}(t)|^2$ ({self.val_Y_loss:.2f})" if i == 0 else None)
-        axs[1, 1].axhline(0, color='red', linestyle='--', linewidth=0.8)
-        axs[1, 1].set_title("Error in Cost-to-Go $Y(t)$")
-        axs[1, 1].set_xlabel("Time $t$")
-        axs[1, 1].set_ylabel("$|Y(t) - Y^*(t)|^2$")
-        axs[1, 1].grid(True)
-        axs[1, 1].legend(loc='upper left')
-
-        for i in range(y_vals.shape[1]):
-            axs[2, 0].plot(timesteps, y_vals[:, i, 0], color=colors(i), alpha=0.6, label=f"$x_{i}(t)$" if i == 0 else None)
-            axs[2, 0].plot(timesteps, true_y[:, i, 0], linestyle="--", color=colors(i), alpha=0.4, label=f"$x^*_{i}(t)$" if i == 0 else None)
-            axs[2, 0].plot(timesteps, y_vals[:, i, 2], linestyle="-.", color=colors(i), alpha=0.6, label=f"$d_{i}(t)$" if i == 0 else None)
-        axs[2, 0].set_title("States: $x(t)$ and $d(t)$")
-        axs[2, 0].set_xlabel("Time $t$")
-        axs[2, 0].set_ylabel("x(t), d(t)")
-        axs[2, 0].grid(True)
-        axs[2, 0].legend(loc='upper left')
-
-        for i in range(y_vals.shape[1]):
-            axs[2, 1].plot(timesteps, y_vals[:, i, 1], color=colors(i), alpha=0.6, label=f"$p_{i}(t)$" if i == 0 else None)
-            axs[2, 1].plot(timesteps, true_y[:, i, 1], linestyle="--", color=colors(i), alpha=0.4, label=f"$p^*_{i}(t)$" if i == 0 else None)
-        axs[2, 1].set_title("State: $p(t)$")
-        axs[2, 1].set_xlabel("Time $t$")
-        axs[2, 1].set_ylabel("p(t)")
-        axs[2, 1].grid(True)
-        axs[2, 1].legend(loc='upper left')
-
-        plt.tight_layout()
-        if save_dir:
-            if num:
-                plt.savefig(f"{save_dir}/imgs/approx_vs_analytic_{num}.png", dpi=300, bbox_inches='tight')
-            else:
-                plt.savefig(f"{save_dir}/imgs/approx_vs_analytic.png", dpi=300, bbox_inches='tight')
-            plt.close()
-        if plot:
-            plt.show()
-
-    def plot_approx_vs_analytic_expectation(self, results, timesteps, plot=True, save_dir=None, num=None):
-        approx_q = results["q_learned"]
-        Y_vals = results["Y_learned"]
-        true_q = results["q_analytical"]
-        true_Y = results["Y_analytical"]
-
-        # Learned results
-        mean_q = approx_q.mean(axis=1).squeeze()
-        std_q = approx_q.std(axis=1).squeeze()
-        mean_Y = Y_vals[:, :, 0].mean(axis=1).squeeze()
-        std_Y = Y_vals[:, :, 0].std(axis=1).squeeze()
-
-        # Analytic results
-        mean_q_analytical = true_q.mean(axis=1).squeeze()
-        std_q_analytical = true_q.std(axis=1).squeeze()
-        mean_true_Y = true_Y.mean(axis=1).squeeze()
-        std_true_Y = true_Y.std(axis=1).squeeze()
-
-        fig, axs = plt.subplots(2, 2, figsize=(14, 10))
-
-        axs[0, 0].plot(timesteps[:-1], mean_q, label='Learned Mean', color='blue')
-        axs[0, 0].fill_between(timesteps[:-1], mean_q - std_q, mean_q + std_q, color='blue', alpha=0.3, label='Learned ±1 Std')
-        axs[0, 0].plot(timesteps[:-1], mean_q_analytical, label='Analytical Mean', color='black', linestyle='--')
-        axs[0, 0].fill_between(timesteps[:-1], mean_q_analytical - std_q_analytical, mean_q_analytical + std_q_analytical, color='black', alpha=0.2, label='Analytical ±1 Std')
-        axs[0, 0].set_title("Control $q(t)$: Learned vs Analytical")
-        axs[0, 0].set_xlabel("Time $t$")
-        axs[0, 0].set_ylabel("$q(t)$")
-        axs[0, 0].grid(True)
-        axs[0, 0].legend(loc='upper left')
-
-        diff = (approx_q - true_q) ** 2
-        mean_diff = np.mean(diff, axis=1).squeeze()
-        std_diff = np.std(diff, axis=1).squeeze()
-        axs[0, 1].fill_between(timesteps[:-1], mean_diff - std_diff, mean_diff + std_diff, color='red', alpha=0.4, label='±1 Std Dev')
-        axs[0, 1].plot(timesteps[:-1], mean_diff, color='red', label='Mean Difference')
-        axs[0, 1].set_title("Error in Control $q(t)$")
-        axs[0, 1].set_xlabel("Time $t$")
-        axs[0, 1].set_ylabel("$|q(t) - q^*(t)|^2$")
-        axs[0, 1].grid(True)
-        axs[0, 1].legend(loc='upper left')
-
-        axs[1, 0].plot(timesteps, mean_Y, color='blue', label='Learned Mean')
-        axs[1, 0].fill_between(timesteps, mean_Y - std_Y, mean_Y + std_Y, color='blue', alpha=0.3, label='Learned ±1 Std')
-        axs[1, 0].plot(timesteps, mean_true_Y, color='black', linestyle='--', label='Analytical Mean')
-        axs[1, 0].fill_between(timesteps, mean_true_Y - std_true_Y, mean_true_Y + std_true_Y, color='black', alpha=0.2, label='Analytical ±1 Std')
-        axs[1, 0].set_title("Cost-to-Go $Y(t)$")
-        axs[1, 0].set_xlabel("Time $t$")
-        axs[1, 0].set_ylabel("Y(t)")
-        axs[1, 0].grid(True)
-        axs[1, 0].legend(loc='upper left')
-
-        diff_Y = (Y_vals - true_Y) ** 2
-        mean_diff_Y = np.mean(diff_Y, axis=1).squeeze()
-        std_diff_Y = np.std(diff_Y, axis=1).squeeze()
-        axs[1, 1].fill_between(timesteps, mean_diff_Y - std_diff_Y, mean_diff_Y + std_diff_Y, color='red', alpha=0.4, label='±1 Std Dev')
-        axs[1, 1].plot(timesteps, mean_diff_Y, color='red', label='Mean Difference')
-        axs[1, 1].set_title("Error in Cost-to-Go $Y(t)$")
-        axs[1, 1].set_xlabel("Time $t$")
-        axs[1, 1].set_ylabel("$|Y(t) - Y^*(t)|^2$")
-        axs[1, 1].grid(True)
-        axs[1, 1].legend(loc='upper left')
-
-        plt.tight_layout()
-        if save_dir:
-            if num:
-                plt.savefig(f"{save_dir}/imgs/approx_vs_analytic_expectation_{num}.png", dpi=300, bbox_inches='tight')
-            else:
-                plt.savefig(f"{save_dir}/imgs/approx_vs_analytic_expectation.png", dpi=300, bbox_inches='tight')
-            plt.close()
-        if plot:
-            plt.show()
-        
-    def plot_terminal_histogram(self, results, plot=True, save_dir=None, num=None):
-        y_vals = results["y_learned"]
-        q_vals = results["q_learned"]
-        Y_vals = results["Y_learned"]
-
-        y_T = y_vals[-1, :, :]
-        Y_T_approx = Y_vals[-1, :, 0]
-        q_T_approx = q_vals[-1, :, 0]
-        y_T_tensor = torch.tensor(y_T, dtype=torch.float32, device=self.device)
-        Y_T_true = self.dynamics.terminal_cost(y_T_tensor).detach().cpu().numpy().squeeze()
-        if self.dynamics.analytical_known:
-            q_T_true = self.dynamics.optimal_control_analytic(self.dynamics.T - self.dynamics.dt, y_T_tensor).detach().cpu().numpy().squeeze()
-
-        # Filter out NaN or Inf
-        mask = np.isfinite(Y_T_approx) & np.isfinite(Y_T_true)
-        Y_T_approx = Y_T_approx[mask]
-        Y_T_true = Y_T_true[mask]
-
-        if self.dynamics.analytical_known:
-            mask_q = np.isfinite(q_T_approx) & np.isfinite(q_T_true)
-            q_T_approx = q_T_approx[mask_q]
-            q_T_true = q_T_true[mask_q]
-
-        if len(Y_T_approx) == 0 or len(Y_T_true) == 0:
-            print("Warning: No valid terminal values to plot.")
-            return
-
-        range_approx = np.ptp(Y_T_approx)  # Peak-to-peak (max - min)
-        range_true = np.ptp(Y_T_true)
-        range_combined = max(range_approx, range_true)
-
-        if range_combined == 0:
-            print("Warning: No variation in terminal values. Skipping histogram.")
-            return
-
-        # Choose bins depending on data spread
-        bins = min(30, max(1, int(range_combined / 1e-2)))
-
-        plt.figure(figsize=(14, 10))
-
-        plt.subplot(2, 1, 1)
-        plt.hist(Y_T_approx, bins=bins, alpha=0.6, label="Approx. $Y_T$", color="blue", density=True)
-        plt.hist(Y_T_true, bins=bins, alpha=0.6, label="Analytical $g(y_T)$", color="green", density=True)
-        plt.axvline(np.mean(Y_T_approx), color='blue', linestyle='--', label=f"Mean approx: {np.mean(Y_T_approx):.3f}")
-        plt.axvline(np.mean(Y_T_true), color='green', linestyle='--', label=f"Mean true: {np.mean(Y_T_true):.3f}")
-        plt.title("Distribution of Terminal Values")
-        plt.xlabel("$Y(T)$ / $g(y_T)$")
-        plt.ylabel("Density")
-        plt.legend()
-        plt.grid(True)
-        plt.tight_layout()
-
-        plt.subplot(2, 1, 2)
-        plt.hist(q_T_approx, bins=bins, alpha=0.6, label="Approx. $q_T$", color="blue", density=True)
-        plt.axvline(np.mean(q_T_approx), color='blue', linestyle='--', label=f"Mean approx: {np.mean(q_T_approx):.3f}")
-        if self.dynamics.analytical_known:
-            plt.hist(q_T_true, bins=bins, alpha=0.6, label="Analytical $q^*(y_T)$", color="green", density=True)
-            plt.axvline(np.mean(q_T_true), color='green', linestyle='--', label=f"Mean true: {np.mean(q_T_true):.3f}")
-        plt.title("Distribution of Terminal Controls")
-        plt.xlabel("$q(T)$ / $q^*(y_T)$")
-        plt.ylabel("Density")
-        plt.legend()
-        plt.grid(True)
-        plt.tight_layout()
-
-        if save_dir:
-            if num:
-                plt.savefig(f"{save_dir}/imgs/terminal_histogram_{num}.png", dpi=300, bbox_inches='tight')
-            else:
-                plt.savefig(f"{save_dir}/imgs/terminal_histogram.png", dpi=300, bbox_inches='tight')
-            plt.close()
-        if plot:
-            plt.show()
