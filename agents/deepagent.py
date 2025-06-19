@@ -410,7 +410,7 @@ class DeepAgent(nn.Module):
             q_val_loss = self.apply_thresholded_loss(q_all - q_true).mean()
             self.val_q_loss = q_val_loss.detach()
 
-        return (
+        total_loss = (
             self.lambda_Y0 * Y0_loss
             + self.lambda_Y * Y_loss
             + self.lambda_T * terminal_loss
@@ -418,10 +418,15 @@ class DeepAgent(nn.Module):
             + self.lambda_pinn * pinn_loss
             + self.lambda_reg * reg_loss
             + self.lambda_cost * cost_objective
-            + Y_val_loss if (self.dynamics.analytical_known and self.supervised) else 0
-            + q_val_loss if (self.dynamics.analytical_known and self.supervised) else 0
         )
-    
+
+        # === Supervised loss ===
+        if self.dynamics.analytical_known and self.supervised:
+            total_loss += Y_val_loss
+            total_loss += q_val_loss
+
+        return total_loss
+
     def predict_Y_initial(self, y0):
         self.Y_init_net.eval()
         with torch.no_grad():
