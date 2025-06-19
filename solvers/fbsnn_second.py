@@ -36,6 +36,8 @@ class FBSNN(nn.Module):
         self.architecture = args.architecture
         self.Y_layers = args.Y_layers      # e.g., [64, 64, 64]
         self.adaptive_factor = args.adaptive_factor
+        self.strong_grad_output = args.strong_grad_output  # whether to use strong output gradient
+        self.scale_output = args.scale_output  # how much to scale the output of the network
 
         # Loss Weights
         self.lambda_Y = args.lambda_Y      # value function loss
@@ -100,6 +102,8 @@ class FBSNN(nn.Module):
             activation=self.activation,
             y0=self.dynamics.y0,
             rescale_y0=args.rescale_y0,
+            strong_grad_output=args.strong_grad_output,
+            scale_output=args.scale_output,
         ).to(self.device)
 
         if args.architecture == "default":

@@ -5,9 +5,12 @@ import torch.nn.functional as F
 
 class FCnet_init(nn.Module):
 
-    def __init__(self, layers, activation, y0=None, rescale_y0=False):
+    def __init__(self, layers, activation, y0=None, rescale_y0=False, strong_grad_output=False, scale_output=1.0):
         super(FCnet_init, self).__init__()
         self.rescale_y0 = rescale_y0
+        self.strong_grad_output = strong_grad_output
+        if self.strong_grad_output:
+            self.scale_output = nn.Parameter(torch.tensor(scale_output))
 
         if rescale_y0:
             self.y0=y0
@@ -16,8 +19,8 @@ class FCnet_init(nn.Module):
         for i in range(len(layers) - 2):
             self.layers.append(nn.Linear(in_features=layers[i], out_features=layers[i + 1]))
             self.layers.append(activation)
-        self.layers.append(nn.Linear(in_features=layers[-2], out_features=layers[-1]))
-
+        self.final_linear = nn.Linear(in_features=layers[-2], out_features=layers[-1])
+        
         self.net = nn.Sequential(*self.layers)
 
     def forward(self, y):
@@ -25,7 +28,14 @@ class FCnet_init(nn.Module):
             # Only divide by the elements of y0 that are not zero
             y = torch.where(self.y0 != 0, y / self.y0, torch.zeros_like(y))
 
-        return self.net(y)
+        x = self.net(y)
+        out = self.final_linear(x)
+
+        if self.strong_grad_output:
+            # Apply a scaled identity to avoid gradient vanishing near 0
+            return self.scale_output * out
+        else:
+            return out
 
 class LSTMNet(nn.Module):
     def __init__(self, layers, activation, type='lstm', T=None, input_bn=False, affine=False):
