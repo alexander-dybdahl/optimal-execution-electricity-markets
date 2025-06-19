@@ -10,6 +10,7 @@ from torch.quasirandom import SobolEngine
 
 from utils.logger import Logger
 from utils.plotters import plot_approx_vs_analytic, plot_approx_vs_analytic_expectation, plot_terminal_histogram
+from utils.simulator import simulate_paths
 from utils.nnets import (
     FCnet,
     FCnet_init,
@@ -253,14 +254,9 @@ class DeepAgent(nn.Module):
             y0 = y0.requires_grad_(True)
 
         Y0 = self.Y_init_net(y0)
+        Y0_init = Y0
 
-        # === Y0 fbsnn loss ===
-        Y0_loss = 0.0
-        if self.lambda_Y0 > 0:
-            Y0_loss = self.apply_thresholded_loss(Y0).mean()            
-            self.Y0_loss = Y0_loss.detach()
-
-        y_traj, t_traj, q_traj, Y_traj = [y0], [], [], [Y0]
+        t_traj, y_traj, q_traj, Y_traj = [t0], [y0], [], [Y0]
         
         # === Compute fbsnn loss ===
         Y_loss = 0.0
@@ -321,9 +317,9 @@ class DeepAgent(nn.Module):
         self.Y_loss = self.lambda_Y * Y_loss.detach()
         
         t_all = torch.cat(t_traj, dim=0).detach()
-        y_all = torch.cat(y_traj[1:], dim=0).detach()
+        y_all = torch.cat(y_traj, dim=0).detach()
         q_all = torch.cat(q_traj, dim=0).detach()
-        Y_all = torch.cat(Y_traj[1:], dim=0).detach()
+        Y_all = torch.cat(Y_traj, dim=0).detach()
 
         # === Terminal loss ===
         terminal_loss = 0.0
@@ -341,7 +337,7 @@ class DeepAgent(nn.Module):
         pinn_loss = 0.0
         if self.lambda_pinn > 0:
             t_pinn = torch.cat(t_traj, dim=0).requires_grad_(True)
-            y_pinn = torch.cat(y_traj[1:], dim=0).requires_grad_(True)
+            y_pinn = torch.cat(y_traj, dim=0).requires_grad_(True)
 
             # Sobol points for additional PINN loss
             if self.sobol_points:
@@ -388,25 +384,34 @@ class DeepAgent(nn.Module):
         if self.lambda_trade > 0:
             running_cost = 0.0
             dt = self.dynamics.dt
-            for n in range(1, self.dynamics.N):
-                y_n = y_all[n].view(-1, self.dynamics.dim)
-                q_n = q_all[n]
+            for n in range(self.dynamics.N):
+                start = n * self.batch_size
+                end = (n + 1) * self.batch_size
+                y_n = y_all[start:end]
+                q_n = q_all[start:end]
                 f_n = self.dynamics.generator(y_n, q_n)
                 running_cost += f_n * dt
-            terminal_cost = self.dynamics.terminal_cost(y_all[-1].view(-1, self.dynamics.dim))
+
+            terminal_cost = self.dynamics.terminal_cost(y_all[-self.batch_size:])  # final time step
             cost_to_go = running_cost + terminal_cost
             trading_loss = cost_to_go.mean()
             self.trade_loss = trading_loss.detach()
 
+        # === Y0 fbsnn loss ===
+        Y0_loss = 0.0
+        if self.lambda_Y0 > 0:
+            Y0_loss = self.apply_thresholded_loss(Y0_init - self.trade_loss).mean()
+            self.Y0_loss = Y0_loss.detach()
+
         # === Y and q validation loss ===
         if self.dynamics.analytical_known:
-            q_true = self.dynamics.optimal_control_analytic(t_all, y_all)
-            val_q_loss = self.apply_thresholded_loss(q_all - q_true).mean()
-            self.val_q_loss = val_q_loss.detach()
-
             Y_true = self.dynamics.value_function_analytic(t_all, y_all)
-            val_Y_loss = self.apply_thresholded_loss(Y_all - Y_true).mean()
-            self.val_Y_loss = val_Y_loss.detach()
+            Y_val_loss = self.apply_thresholded_loss(Y_all - Y_true).mean()
+            self.val_Y_loss = Y_val_loss.detach()
+
+            q_true = self.dynamics.optimal_control_analytic(t_all[:-self.batch_size], y_all[:-self.batch_size])
+            q_val_loss = self.apply_thresholded_loss(q_all - q_true).mean()
+            self.val_q_loss = q_val_loss.detach()
 
         return (
             self.lambda_Y0 * Y0_loss
@@ -510,7 +515,7 @@ class DeepAgent(nn.Module):
             "lr": 10,
             "mem": 12,
             "time": 8,
-            "eta": 8,
+            "eta": 10,
             "status": 20,
         }
 
@@ -728,8 +733,8 @@ class DeepAgent(nn.Module):
 
                     row_parts = [
                         f"{epoch:>{max_widths['epoch']}}",
-                        f"{np.mean(self.validation["q_loss"][-K:]):>{max_widths['val loss']}.2e}" if self.dynamics.analytical_known else "",
-                        f"{np.mean(self.validation["Y_loss"][-K:]):>{max_widths['val loss']}.2e}" if self.dynamics.analytical_known else "",
+                        f"{np.mean(self.validation['q_loss'][-K:]):>{max_widths['val loss']}.2e}" if self.dynamics.analytical_known else "",
+                        f"{np.mean(self.validation['Y_loss'][-K:]):>{max_widths['val loss']}.2e}" if self.dynamics.analytical_known else "",
                         f"{np.mean(losses[-K:]):>10.2e}",
                     ]
                     for name, fn in active_losses:
@@ -745,7 +750,7 @@ class DeepAgent(nn.Module):
                     start_time = time.time()
 
                 if epoch % self.plot_n == 0:
-                    timesteps, results = self.dynamics.simulate_paths(agent=self, n_sim=self.n_simulations, seed=42)
+                    timesteps, results = simulate_paths(dynamics=self.dynamics, agent=self, n_sim=self.n_simulations, seed=42)
                     
                     plot_approx_vs_analytic(
                         results = results,
@@ -755,8 +760,8 @@ class DeepAgent(nn.Module):
                         save_dir=save_dir,
                         num=epoch
                     )
-                    timesteps, results = self.dynamics.simulate_paths(agent=self, n_sim=1000, seed=42)
-                    # self.plot_approx_vs_analytic_expectation(results, timesteps, plot=False, save_dir=save_dir, num=epoch)
+                    timesteps, results = simulate_paths(dynamics=self.dynamics, agent=self, n_sim=1000, seed=42)
+                    # plot_approx_vs_analytic_expectation(results, timesteps, plot=False, save_dir=save_dir, num=epoch)
                     plot_terminal_histogram(results=results, dynamics=self.dynamics, plot=False, save_dir=save_dir, num=epoch)
 
                 if epoch % 1000 == 0 and epoch > 0:

@@ -8,87 +8,6 @@ class Solver:
     def __init__(self, dynamics, args):
         self.dynamics = dynamics
         self.device = args.device_set
-                
-    def simulate_paths(self, agent, n_sim=5, seed=42, y0_single=None):
-        t, dW, _ = self.dynamics.generate_paths(n_sim, seed=seed)
-        
-        t0 = t[:, 0, :]
-        y0 = (
-            y0_single.repeat(n_sim, 1)
-            if y0_single is not None
-            else self.dynamics.y0.repeat(n_sim, 1)
-        )
-        y0_agent = y0.clone()
-        
-        agent_predicts_Y = hasattr(agent, "predict_Y_initial") and hasattr(agent, "predict_Y_next")
-        if agent_predicts_Y:
-            Y0_agent = agent.predict_Y_initial(y0_agent)
-        
-        if self.dynamics.analytical_known:
-            y0_analytical = y0.clone()
-            Y0_analytical = self.dynamics.value_function_analytic(t0, y0_analytical)
-            
-        # Storage for trajectories
-        q_agent_traj = []
-        y_agent_traj = [y0_agent.detach().cpu().numpy()]
-        if agent_predicts_Y:
-            Y_agent_traj = [Y0_agent.detach().cpu().numpy()]
-        
-        if self.dynamics.analytical_known:
-            q_analytical_traj = []
-            y_analytical_traj = [y0_analytical.detach().cpu().numpy()]
-            Y_analytical_traj = [Y0_analytical.detach().cpu().numpy()]
-            
-        for n in range(self.dynamics.N):
-            t1 = t[:, n + 1, :]
-
-            q_agent = agent.predict(t0, y0_agent)
-            y1_agent = self.dynamics.forward_dynamics(y0_agent, q_agent, dW[:, n, :], t0, t1 - t0)
-            if agent_predicts_Y:
-                Y1_agent = agent.predict_Y_next(t0, y0_agent, t1 - t0, y1_agent - y0_agent, Y0_agent)
-            
-            if self.dynamics.analytical_known:
-                q_analytical = self.dynamics.optimal_control_analytic(t0, y0_analytical)
-                y1_analytical = self.dynamics.forward_dynamics(y0_analytical, q_analytical, dW[:, n, :], t0, t1 - t0)
-                Y1_analytical = self.dynamics.value_function_analytic(t1, y1_analytical)
-
-                y0_analytical, Y0_analytical = y1_analytical, Y1_analytical
-                
-                q_analytical_traj.append(q_analytical.detach().cpu().numpy())
-                y_analytical_traj.append(y0_analytical.detach().cpu().numpy())
-                Y_analytical_traj.append(Y0_analytical.detach().cpu().numpy())
-
-            t0, y0_agent, Y0_agent = t1, y1_agent, Y1_agent            
-            
-            q_agent_traj.append(q_agent.detach().cpu().numpy())
-            y_agent_traj.append(y0_agent.detach().cpu().numpy())
-            if agent_predicts_Y:
-                Y_agent_traj.append(Y0_agent.detach().cpu().numpy())
-
-        q_agent_traj = np.stack(q_agent_traj)
-        y_agent_traj = np.stack(y_agent_traj)
-        if agent_predicts_Y:
-            Y_agent_traj = np.stack(Y_agent_traj)
-        else:
-            Y_agent_traj = None
-
-        if self.dynamics.analytical_known:
-            q_analytical_traj = np.stack(q_analytical_traj)
-            y_analytical_traj = np.stack(y_analytical_traj)
-            Y_analytical_traj = np.stack(Y_analytical_traj)
-        else:
-            q_analytical_traj = None
-            y_analytical_traj = None
-            Y_analytical_traj = None
-
-        return torch.linspace(0, self.dynamics.T, self.dynamics.N + 1).cpu().numpy(), {
-            "q_learned": q_agent_traj,
-            "y_learned": y_agent_traj,
-            "Y_learned": Y_agent_traj,
-            "q_analytical": q_analytical_traj,
-            "y_analytical": y_analytical_traj,
-            "Y_analytical": Y_analytical_traj,
-        }
 
     # All these plotting functions assume that the results include both learned and analytical results
     # TODO: Make the following plotting function more general by allowing for other number of states and controls
@@ -121,7 +40,7 @@ class Solver:
         if val_q_loss is not None:
             for i in range(approx_q.shape[1]):
                 diff = (approx_q[:, i] - true_q[:, i]) ** 2
-                axs[0, 1].plot(timesteps[:-1], diff, color=colors(i), alpha=0.6, label=f"$|q_{i}(t) - q^*_{i}(t)|^2 ({val_q_loss:.2f})$" if i == 0 else None)
+                axs[0, 1].plot(timesteps[:-1], diff, color=colors(i), alpha=0.6, label=f"$|q_{i}(t) - q^*_{i}(t)|^2$ ({val_q_loss[-1]:.2f})" if i == 0 else None)
             axs[0, 1].axhline(0, color='red', linestyle='--', linewidth=0.8)
             axs[0, 1].set_title("Error in Control $q(t)$")
             axs[0, 1].set_xlabel("Time $t$")
@@ -141,7 +60,7 @@ class Solver:
         if val_Y_loss is not None:
             for i in range(Y_vals.shape[1]):
                 diff_Y = (Y_vals[:, i, 0] - true_Y[:, i, 0]) ** 2
-                axs[1, 1].plot(timesteps, diff_Y, color=colors(i), alpha=0.6, label=f"$|Y_{i}(t) - Y^*_{i}(t)|^2$ ({val_Y_loss:.2f})" if i == 0 else None)
+                axs[1, 1].plot(timesteps, diff_Y, color=colors(i), alpha=0.6, label=f"$|Y_{i}(t) - Y^*_{i}(t)|^2$ ({val_Y_loss[-1]:.2f})" if i == 0 else None)
             axs[1, 1].axhline(0, color='red', linestyle='--', linewidth=0.8)
             axs[1, 1].set_title("Error in Cost-to-Go $Y(t)$")
             axs[1, 1].set_xlabel("Time $t$")
@@ -255,13 +174,16 @@ class Solver:
         q_vals = results["q_learned"]
         Y_vals = results["Y_learned"]
 
-        y_T = y_vals[-1, :, :]
-        Y_T_approx = Y_vals[-1, :, 0]
-        q_T_approx = q_vals[-1, :, 0]
-        y_T_tensor = torch.tensor(y_T, dtype=torch.float32, device=self.device)
-        Y_T_true = self.dynamics.terminal_cost(y_T_tensor).detach().cpu().numpy().squeeze()
+        # === Terminal value ===
+        Y_T_approx = Y_vals[self.dynamics.N, :, 0]  # Time T
+        y_T = torch.tensor(y_vals[self.dynamics.N, :, :], dtype=torch.float32, device=self.device)
+        Y_T_true = self.dynamics.terminal_cost(y_T).detach().cpu().numpy().squeeze()
+
+        # === Last control value ===
+        q_T_approx = q_vals[self.dynamics.N - 1, :, 0]  # Time T - dt
+        y_Tm1 = torch.tensor(y_vals[self.dynamics.N - 1, :, :], dtype=torch.float32, device=self.device)
         if self.dynamics.analytical_known:
-            q_T_true = self.dynamics.optimal_control_analytic(self.dynamics.T - self.dynamics.dt, y_T_tensor).detach().cpu().numpy().squeeze()
+            q_T_true = self.dynamics.optimal_control_analytic(self.dynamics.T - self.dynamics.dt, y_Tm1).detach().cpu().numpy().squeeze()
 
         # Filter out NaN or Inf
         mask = np.isfinite(Y_T_approx) & np.isfinite(Y_T_true)

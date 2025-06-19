@@ -25,7 +25,7 @@
   "lambda_dY": 0,
   "lambda_dYt": 0,
   "lambda_T": 1,
-  "lambda_TG": 1,
+  "lambda_TG": 100,
   "lambda_pinn": 0,
   "lambda_reg": 0,
   "lambda_trade": 100,
