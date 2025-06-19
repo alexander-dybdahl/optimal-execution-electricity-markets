@@ -96,7 +96,12 @@ def main():
         args.device_set = device
         args.batch_size_per_rank = args.batch_size
 
-    save_dir = f"{args.save_path}_{args.architecture.upper()}_{args.activation}"
+    if args.architecture.lower() == "lstmwithsubnets":
+        save_dir = f"{args.save_path}_{args.architecture.upper()}_{args.lstm_type.upper()}_{args.subnet_type.upper()}_{args.activation}"
+    elif args.architecture.lower() == "separatesubnets":
+        save_dir = f"{args.save_path}_{args.architecture.upper()}_{args.subnet_type.upper()}_{args.activation}"
+    else:
+        save_dir = f"{args.save_path}_{args.architecture.upper()}_{args.activation}"
     save_path = os.path.join(save_dir, "model")
     
     if is_main:
