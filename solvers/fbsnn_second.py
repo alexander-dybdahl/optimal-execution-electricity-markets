@@ -237,7 +237,49 @@ class FBSNN(nn.Module):
         # === Y0 regularization loss ===
         Y0_loss = 0.0
         if self.lambda_Y0 > 0:
-            Y0_loss = self.apply_thresholded_loss(Y0).mean()
+            small_dt = self.dt * 0.1
+            
+            dY_outputs = self.dY_net(t0, y0)
+            dY_dt = dY_outputs[:, 0:1]
+            dY_dy = dY_outputs[:, 1:]
+            
+            q0 = self.dynamics.optimal_control(t0, y0, dY_dy)
+            small_dW = torch.randn_like(dW[:, 0, :]) * small_dt**0.5
+            y1 = self.dynamics.forward_dynamics(y0, q0, small_dW, t0, small_dt)
+            Y1 = Y0 + dY_dt * small_dt + (dY_dy * (y1 - y0)).sum(dim=1, keepdim=True)
+            
+            if self.second_order_taylor:
+                # Second-order Taylor approximation
+                ddY_ddt = torch.autograd.grad(
+                    outputs=dY_dt,
+                    inputs=t0,
+                    grad_outputs=torch.ones_like(dY_dt),
+                    create_graph=False,
+                    retain_graph=True,
+                    allow_unused=True,
+                )[0]
+                ddY_ddy = torch.autograd.grad(
+                    outputs=dY_dy,
+                    inputs=y0,
+                    grad_outputs=torch.ones_like(dY_dy),
+                    create_graph=False,
+                    retain_graph=True,
+                )[0]
+
+                # Handle cases where gradient with respect to t might be None due to separate subnet per time
+                if ddY_ddt is None:
+                    ddY_ddt = 0
+
+                Y1 += 0.5 * (
+                    ddY_ddt * small_dt ** 2 +
+                    (ddY_ddy * (y1 - y0) ** 2).sum(dim=1, keepdim=True)
+                )
+
+            Z0 = torch.bmm(self.dynamics.sigma(t0, y0).transpose(1, 2), dY_dy.unsqueeze(-1)).squeeze(-1)
+            Y0_tilde = Y1 + self.dynamics.generator(y0, q0) * small_dt - (Z0 * small_dW).sum(dim=1, keepdim=True)
+            
+            Y0_loss = self.apply_thresholded_loss(Y0 - Y0_tilde.detach()).mean()
+            
             self.Y0_loss = self.lambda_Y0 * Y0_loss.detach()
 
         y_traj, t_traj, q_traj = [y0], [], []
@@ -254,7 +296,7 @@ class FBSNN(nn.Module):
             dY_outputs = self.dY_net(t0, y0)
             dY_dt = dY_outputs[:, 0:1]
             dY_dy = dY_outputs[:, 1:]
-            Z0 = torch.bmm(self.dynamics.sigma(t0, y0).transpose(1, 2), dY_dy.unsqueeze(-1)).squeeze(-1)
+            
             q = self.dynamics.optimal_control(t0, y0, dY_dy)
             y1 = self.dynamics.forward_dynamics(y0, q, dW[:, n, :], t0, t1 - t0)
             Y1 = Y0 + dY_dt * (t1 - t0) + (dY_dy * (y1 - y0)).sum(dim=1, keepdim=True)
@@ -286,6 +328,7 @@ class FBSNN(nn.Module):
                     (ddY_ddy * (y1 - y0) ** 2).sum(dim=1, keepdim=True)
                 )
 
+            Z0 = torch.bmm(self.dynamics.sigma(t0, y0).transpose(1, 2), dY_dy.unsqueeze(-1)).squeeze(-1)
             Y1_tilde = Y0 - self.dynamics.generator(y0, q) * (t1 - t0) + (Z0 * (dW[:, n, :])).sum(dim=1, keepdim=True)
             
             Y_loss += self.apply_thresholded_loss(Y1 - Y1_tilde).mean()
