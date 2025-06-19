@@ -2,7 +2,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-
 class FCnet_init(nn.Module):
 
     def __init__(self, layers, activation, y0=None, rescale_y0=False, strong_grad_output=False, scale_output=1.0):

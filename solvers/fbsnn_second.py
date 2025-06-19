@@ -246,7 +246,7 @@ class FBSNN(nn.Module):
         Y0_loss = 0.0
         if self.lambda_Y0 > 0:
             Y0_loss = self.apply_thresholded_loss(Y0).mean()            
-            self.Y0_loss = self.lambda_Y0 * Y0_loss.detach()
+            self.Y0_loss = Y0_loss.detach()
 
         y_traj, t_traj, q_traj, Y_traj = [y0], [], [], [Y0]
         
@@ -317,13 +317,13 @@ class FBSNN(nn.Module):
         terminal_loss = 0.0
         if self.lambda_T > 0:
             terminal_loss = self.apply_thresholded_loss(Y0 - self.dynamics.terminal_cost(y0)).mean()
-            self.terminal_loss = self.lambda_T * terminal_loss.detach()
+            self.terminal_loss = terminal_loss.detach()
 
         # === Terminal gradient loss ===
         terminal_gradient_loss = 0.0
         if self.lambda_TG > 0:
             terminal_gradient_loss = self.apply_thresholded_loss(dY_dy - self.dynamics.terminal_cost_grad(y0)).mean()
-            self.terminal_gradient_loss = self.lambda_TG * terminal_gradient_loss.detach()
+            self.terminal_gradient_loss = terminal_gradient_loss.detach()
 
         # === Physics-based loss ===
         pinn_loss = 0.0
@@ -361,29 +361,30 @@ class FBSNN(nn.Module):
                 y_pinn = torch.cat([y_pinn, sobol_points], dim=0).requires_grad_(True)
 
             pinn_loss = self.hjb_residual(t_pinn, y_pinn)
-            self.pinn_loss = self.lambda_pinn * pinn_loss.detach()
+            self.pinn_loss = pinn_loss.detach()
 
         # === q regularization loss ===
         reg_loss = 0.0
         if self.lambda_reg > 0:
-            reg_loss = self.apply_thresholded_loss(q_all).mean()
-            self.reg_loss = self.lambda_reg * reg_loss.detach()
+            q_diffs = [q_traj[i+1] - q_traj[i] for i in range(len(q_traj) - 1)]
+            dq_all = torch.cat(q_diffs, dim=0)
+            reg_loss = self.apply_thresholded_loss(q_all).mean() + self.apply_thresholded_loss(dq_all).mean() 
+            self.reg_loss = reg_loss.detach()
 
         # === trading cost loss ===
         trading_loss = 0.0
         if self.lambda_trade > 0:
-            trading_cost = 0.0
+            running_cost = 0.0
+            dt = self.dynamics.dt
             for n in range(1, self.dynamics.N):
                 y_n = y_all[n].view(-1, self.dynamics.dim)
                 q_n = q_all[n]
-                dt_n = t_all[n] - t_all[n - 1]
                 f_n = self.dynamics.generator(y_n, q_n)
-                trading_cost += f_n * dt_n
-
+                running_cost += f_n * dt
             terminal_cost = self.dynamics.terminal_cost(y_all[-1].view(-1, self.dynamics.dim))
-            cost_to_go = trading_cost + terminal_cost
+            cost_to_go = running_cost + terminal_cost
             trading_loss = cost_to_go.mean()
-            self.trade_loss = self.lambda_trade * trading_loss.detach()
+            self.trade_loss = trading_loss.detach()
 
         # === Y and q validation loss ===
         if self.dynamics.analytical_known:
@@ -496,7 +497,7 @@ class FBSNN(nn.Module):
         # Dynamic width calculation based on loss components
         max_widths = {
             "epoch": 8,
-            "val loss": 8 if self.dynamics.analytical_known else 0,
+            "val loss": 10 if self.dynamics.analytical_known else 0,
             "loss": 8,
             "lr": 10,
             "mem": 12,
@@ -746,7 +747,7 @@ class FBSNN(nn.Module):
 
                 if epoch % 1000 == 0 and epoch > 0:
                     # Plotting losses
-                    plt.figure(figsize=(10, 6))
+                    plt.figure(figsize=(12, 8))
                     plt.plot(losses, label="Total Loss")
                     plt.plot(losses_Y0, label="Y0 Loss") if self.lambda_Y0 > 0 else None
                     plt.plot(losses_Y, label="Y Loss") if self.lambda_Y > 0 else None
@@ -775,7 +776,7 @@ class FBSNN(nn.Module):
                     # Plotting validation losses
                     if self.dynamics.analytical_known:
                         # Plot validation losses
-                        plt.figure(figsize=(10, 6))
+                        plt.figure(figsize=(12, 8))
                         plt.plot(val_Y_losses, label="Validation Y Loss")
                         plt.plot(val_q_losses, label="Validation q Loss")
                         plt.plot(losses, label="Total Loss")
@@ -826,7 +827,7 @@ class FBSNN(nn.Module):
 
         for i in range(approx_q.shape[1]):
             diff = (approx_q[:, i] - true_q[:, i]) ** 2
-            axs[0, 1].plot(timesteps[:-1], diff, color=colors(i), alpha=0.6, label=f"$|q_{i}(t) - q^*_{i}(t)|^2$" if i == 0 else None)
+            axs[0, 1].plot(timesteps[:-1], diff, color=colors(i), alpha=0.6, label=f"$|q_{i}(t) - q^*_{i}(t)|^2 ({self.val_q_loss:.2f})$" if i == 0 else None)
         axs[0, 1].axhline(0, color='red', linestyle='--', linewidth=0.8)
         axs[0, 1].set_title("Error in Control $q(t)$")
         axs[0, 1].set_xlabel("Time $t$")
@@ -845,7 +846,7 @@ class FBSNN(nn.Module):
 
         for i in range(Y_vals.shape[1]):
             diff_Y = (Y_vals[:, i, 0] - true_Y[:, i, 0]) ** 2
-            axs[1, 1].plot(timesteps, diff_Y, color=colors(i), alpha=0.6, label=f"$|Y_{i}(t) - Y^*_{i}(t)|^2$" if i == 0 else None)
+            axs[1, 1].plot(timesteps, diff_Y, color=colors(i), alpha=0.6, label=f"$|Y_{i}(t) - Y^*_{i}(t)|^2$ ({self.val_Y_loss:.2f})" if i == 0 else None)
         axs[1, 1].axhline(0, color='red', linestyle='--', linewidth=0.8)
         axs[1, 1].set_title("Error in Cost-to-Go $Y(t)$")
         axs[1, 1].set_xlabel("Time $t$")
@@ -964,16 +965,18 @@ class FBSNN(nn.Module):
         q_T_approx = q_vals[-1, :, 0]
         y_T_tensor = torch.tensor(y_T, dtype=torch.float32, device=self.device)
         Y_T_true = self.dynamics.terminal_cost(y_T_tensor).detach().cpu().numpy().squeeze()
-        q_T_true = self.dynamics.optimal_control_analytic(self.dynamics.T, y_T_tensor).detach().cpu().numpy().squeeze()
+        if self.dynamics.analytical_known:
+            q_T_true = self.dynamics.optimal_control_analytic(self.dynamics.T - self.dynamics.dt, y_T_tensor).detach().cpu().numpy().squeeze()
 
         # Filter out NaN or Inf
         mask = np.isfinite(Y_T_approx) & np.isfinite(Y_T_true)
         Y_T_approx = Y_T_approx[mask]
         Y_T_true = Y_T_true[mask]
 
-        mask_q = np.isfinite(q_T_approx) & np.isfinite(q_T_true)
-        q_T_approx = q_T_approx[mask_q]
-        q_T_true = q_T_true[mask_q]
+        if self.dynamics.analytical_known:
+            mask_q = np.isfinite(q_T_approx) & np.isfinite(q_T_true)
+            q_T_approx = q_T_approx[mask_q]
+            q_T_true = q_T_true[mask_q]
 
         if len(Y_T_approx) == 0 or len(Y_T_true) == 0:
             print("Warning: No valid terminal values to plot.")
@@ -1006,9 +1009,10 @@ class FBSNN(nn.Module):
 
         plt.subplot(2, 1, 2)
         plt.hist(q_T_approx, bins=bins, alpha=0.6, label="Approx. $q_T$", color="blue", density=True)
-        plt.hist(q_T_true, bins=bins, alpha=0.6, label="Analytical $q^*(y_T)$", color="green", density=True)
         plt.axvline(np.mean(q_T_approx), color='blue', linestyle='--', label=f"Mean approx: {np.mean(q_T_approx):.3f}")
-        plt.axvline(np.mean(q_T_true), color='green', linestyle='--', label=f"Mean true: {np.mean(q_T_true):.3f}")
+        if self.dynamics.analytical_known:
+            plt.hist(q_T_true, bins=bins, alpha=0.6, label="Analytical $q^*(y_T)$", color="green", density=True)
+            plt.axvline(np.mean(q_T_true), color='green', linestyle='--', label=f"Mean true: {np.mean(q_T_true):.3f}")
         plt.title("Distribution of Terminal Controls")
         plt.xlabel("$q(T)$ / $q^*(y_T)$")
         plt.ylabel("Density")
