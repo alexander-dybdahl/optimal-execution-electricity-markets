@@ -234,7 +234,7 @@ class FBSNN(nn.Module):
 
         Y0 = self.Y_init_net(y0)
 
-        # === Y0 regularization loss ===
+        # === Y0 fbsnn loss ===
         Y0_loss = 0.0
         if self.lambda_Y0 > 0:
             small_dt = self.dt * 0.1
