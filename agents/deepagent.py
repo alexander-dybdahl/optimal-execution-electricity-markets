@@ -20,8 +20,8 @@ from utils.nnets import (
     SeparateSubnets,
     Sine,
     UncertaintyWeightedLoss,
+    DeterministicNeuralODETrajectory,
 )
-
 
 class DeepAgent(nn.Module):
     def __init__(self, dynamics, args):
@@ -50,6 +50,7 @@ class DeepAgent(nn.Module):
         self.scale_output = args.scale_output  # how much to scale the output of the network
 
         # Loss Weights
+        self.loss_threshold = args.loss_threshold
         self.lambda_Y = args.lambda_Y      # value function loss
         self.lambda_dY = args.lambda_dY    # spatial gradient loss
         self.lambda_dYt = args.lambda_dYt  # temporal gradient loss
@@ -60,10 +61,10 @@ class DeepAgent(nn.Module):
         self.lambda_Y0 = args.lambda_Y0    # initial value regularization loss
         self.lambda_cost = args.lambda_cost  # cost loss
         
-        # Loss threshold for linear approximation
-        self.loss_threshold = args.loss_threshold
+        # Loss Settings
         self.use_linear_approx = args.use_linear_approx
         self.second_order_taylor = args.second_order_taylor
+        self.adaptive_loss = args.adaptive_loss
 
         # Validation Losses
         self.val_q_loss = torch.tensor(0.0, device=self.device)
@@ -275,33 +276,6 @@ class DeepAgent(nn.Module):
             q = self.dynamics.optimal_control(t0, y0, dY_dy)
             y1 = self.dynamics.forward_dynamics(y0, q, dW[:, n, :], t0, t1 - t0)
             Y1 = Y0 + dY_dt * (t1 - t0) + (dY_dy * (y1 - y0)).sum(dim=1, keepdim=True)
-            
-            if self.second_order_taylor:
-                # Second-order Taylor approximation
-                ddY_ddt = torch.autograd.grad(
-                    outputs=dY_dt,
-                    inputs=t0,
-                    grad_outputs=torch.ones_like(dY_dt),
-                    create_graph=False,
-                    retain_graph=True,
-                    allow_unused=True,
-                )[0]
-                ddY_ddy = torch.autograd.grad(
-                    outputs=dY_dy,
-                    inputs=y0,
-                    grad_outputs=torch.ones_like(dY_dy),
-                    create_graph=False,
-                    retain_graph=True,
-                )[0]
-
-                # Handle cases where gradient with respect to t might be None due to separate subnet per time
-                if ddY_ddt is None:
-                    ddY_ddt = 0
-
-                Y1 += 0.5 * (
-                    ddY_ddt * (t1 - t0) ** 2  +
-                    (ddY_ddy * (y1 - y0) ** 2).sum(dim=1, keepdim=True)
-                )
 
             Z0 = torch.bmm(self.dynamics.sigma(t0, y0).transpose(1, 2), dY_dy.unsqueeze(-1)).squeeze(-1)
             Y1_tilde = Y0 - self.dynamics.generator(y0, q) * (t1 - t0) + (Z0 * (dW[:, n, :])).sum(dim=1, keepdim=True)
@@ -315,8 +289,8 @@ class DeepAgent(nn.Module):
 
             t0, y0, Y0 = t1, y1, Y1
 
-        losses_dict["Y_loss"] = self.Y_loss
-        self.Y_loss = self.lambda_Y * Y_loss.detach()
+        losses_dict["Y_loss"] = self.lambda_Y * Y_loss
+        self.Y_loss = Y_loss.detach()
         
         t_all = torch.cat(t_traj, dim=0).detach()
         y_all = torch.cat(y_traj, dim=0).detach()
@@ -421,8 +395,11 @@ class DeepAgent(nn.Module):
             self.val_q_loss = q_val_loss.detach()
 
         # === Total loss computation ===
-        loss_fn = UncertaintyWeightedLoss(losses_dict.keys())
-        total_loss = loss_fn(losses_dict)
+        if self.adaptive_loss:
+            loss_fn = UncertaintyWeightedLoss(losses_dict.keys())
+            total_loss = loss_fn(losses_dict)
+        else:
+            total_loss = sum(losses_dict.values())
 
         # === Supervised loss ===
         if self.dynamics.analytical_known and self.supervised:
@@ -440,43 +417,12 @@ class DeepAgent(nn.Module):
     
     def predict_Y_next(self, t0, y0, dt, dy, Y0):
         self.dY_net.eval()
-        if self.second_order_taylor:
-            t0 = t0.requires_grad_(True)
-            y0 = y0.requires_grad_(True)
-            dY_outputs = self.dY_net(t0, y0)
-        else:
-            with torch.no_grad():
-                dY_outputs = self.dY_net(t0, y0)
+        dY_outputs = self.dY_net(t0, y0)
         self.dY_net.train()
 
         dY_dt = dY_outputs[:, 0:1]
         dY_dy = dY_outputs[:, 1:]
-        
         Y1 = Y0 + dY_dt * dt + (dY_dy * dy).sum(dim=1, keepdim=True)
-
-        if self.second_order_taylor:
-            # Second-order Taylor approximation
-            ddY_ddt_tilde = torch.autograd.grad(
-                outputs=dY_dt,
-                inputs=t0,
-                grad_outputs=torch.ones_like(dY_dt),
-                create_graph=False,
-                retain_graph=True,
-                allow_unused=True,
-            )[0]
-            ddY_ddy_tilde = torch.autograd.grad(
-                outputs=dY_dy,
-                inputs=y0,
-                grad_outputs=torch.ones_like(dY_dy),
-                create_graph=False,
-                retain_graph=True,
-            )[0]
-
-            # Handle cases where gradient with respect to t might be None due to separate subnet per time
-            if ddY_ddt_tilde is None:
-                ddY_ddt_tilde = 0
-
-            Y1 += 0.5 * (ddY_ddt_tilde * dt ** 2 + (ddY_ddy_tilde * dy ** 2).sum(dim=1, keepdim=True))
 
         return Y1
 

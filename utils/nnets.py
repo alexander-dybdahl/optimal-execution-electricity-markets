@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+from torchdiffeq import odeint_adjoint as odeint
 import torch.nn.functional as F
 
 class FCnet_init(nn.Module):
@@ -8,8 +9,7 @@ class FCnet_init(nn.Module):
         super(FCnet_init, self).__init__()
         self.rescale_y0 = rescale_y0
         self.strong_grad_output = strong_grad_output
-        if self.strong_grad_output:
-            self.scale_output = nn.Parameter(torch.tensor(scale_output))
+        self.scale_output = nn.Parameter(torch.tensor(scale_output))
 
         if rescale_y0:
             self.y0=y0
@@ -452,3 +452,35 @@ class UncertaintyWeightedLoss(nn.Module):
             weighted = precision * loss + log_var  # equivalent to log(sigma)
             total_loss += weighted
         return total_loss
+    
+class NeuralODEFunc(nn.Module):
+    def __init__(self, dY_net):
+        super().__init__()
+        self.dY_net = dY_net
+    
+    def forward(self, t, Y):
+        batch_size = Y.shape[0]
+        t_expanded = t.expand(batch_size, 1)
+        inputs = torch.cat([t_expanded, Y], dim=1)
+        dY = self.dY_net(inputs)[:, 1:]  # Extracting the derivative w.r.t Y (excluding time derivative)
+        return dY
+
+class DeterministicNeuralODETrajectory(nn.Module):
+    def __init__(self, Y_init_net, dY_net, dynamics):
+        super().__init__()
+        self.Y_init_net = Y_init_net
+        self.neural_ode_func = NeuralODEFunc(dY_net)
+        self.dynamics = dynamics
+
+    def forward(self, y0, t_eval):
+        Y0 = self.Y_init_net(y0).squeeze(-1)
+        # Integrate using adaptive solver
+        Y_traj = odeint(
+            self.neural_ode_func,
+            Y0,
+            t_eval,
+            method='dopri5',  # Dopri5 (Runge-Kutta 4(5)) adaptive solver
+            rtol=1e-6,        # relative tolerance
+            atol=1e-8         # absolute tolerance
+        )
+        return Y_traj  # (time_steps, batch, dim)
