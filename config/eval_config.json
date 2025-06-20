@@ -1,7 +1,7 @@
 {
   "device": "cuda",
   "save_dir": "saved_evaluations/aid",
-  "model_dir": "saved_models/aid_lstmwithsubnets_naislstm_naisnet_GELU",
+  "model_dir": "saved_models/aid_lstmwithsubnets_naislstm_naisnet_GELU_legendary_0",
   "dynamics_path": "config/dynamics_configs/aid_config.json",
   "best": true,
   "verbose": true,

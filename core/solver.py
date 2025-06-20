@@ -55,10 +55,16 @@ class Solver:
         var_ylabels = {'q': '$q(t)$', 'y': '$y(t)$', 'Y': '$Y(t)$'}
         line_styles = {'learned': '-', 'analytic': '--'}
         style_labels = {'-': 'Learned', '--': 'Analytic'}
+        
         agent_handles = []
         for agent_name, color in self.colors.items():
             agent_handles.append(plt.Line2D([0], [0], color=color, linestyle='-', label=agent_name))
+            
         style_handles = [plt.Line2D([0], [0], color='k', linestyle=ls, label=style_labels[ls]) for ls in line_styles.values()]
+        # Use a square marker as a proxy for a patch in the legend for the std area
+        std_handle = plt.Line2D([], [], color='gray', marker='s', linestyle='None', markersize=10, label='Learned ±1 std')
+        style_handles.append(std_handle)
+
         for idx, var in enumerate(['q', 'y', 'Y']):
             ax = axs[idx]
             for agent_name, data in self.results.items():
@@ -71,15 +77,49 @@ class Solver:
                 if arr_learned is not None:
                     arr_learned = np.asarray(arr_learned)
                     arr_mean = arr_learned.mean(axis=1)
+                    arr_std = arr_learned.std(axis=1)
+
+                    # Squeeze last dim if it's 1
                     if arr_mean.ndim > 1 and arr_mean.shape[-1] == 1:
                         arr_mean = arr_mean.squeeze(-1)
-                    ax.plot(
-                        timesteps[:arr_mean.shape[0]],
-                        arr_mean,
-                        color=color,
-                        linestyle=line_styles['learned'],
-                        alpha=1.0
-                    )
+                        arr_std = arr_std.squeeze(-1)
+
+                    # Handle plotting based on dimension
+                    if arr_mean.ndim == 1:
+                        ax.plot(
+                            timesteps[:arr_mean.shape[0]],
+                            arr_mean,
+                            color=color,
+                            linestyle=line_styles['learned'],
+                            alpha=1.0
+                        )
+                        ax.fill_between(
+                            timesteps[:arr_mean.shape[0]],
+                            arr_mean - arr_std,
+                            arr_mean + arr_std,
+                            color=color,
+                            alpha=0.2,
+                            linewidth=0
+                        )
+                    else:  # arr_mean.ndim > 1
+                        for i in range(arr_mean.shape[-1]):
+                            # Plot each dimension separately
+                            ax.plot(
+                                timesteps[:arr_mean.shape[0]],
+                                arr_mean[:, i],
+                                color=color,
+                                linestyle=line_styles['learned'],
+                                alpha=1.0
+                            )
+                            ax.fill_between(
+                                timesteps[:arr_mean.shape[0]],
+                                arr_mean[:, i] - arr_std[:, i],
+                                arr_mean[:, i] + arr_std[:, i],
+                                color=color,
+                                alpha=0.2,
+                                linewidth=0
+                            )
+
                 # Plot analytical if available
                 key_analytical = f'{var}_analytical'
                 arr_analytical = results.get(key_analytical, None)
@@ -100,10 +140,10 @@ class Solver:
             ax.set_xlabel("Time")
             ax.set_ylabel(var_ylabels[var])
             ax.grid(True, linestyle='--', alpha=0.5)
-            # Add two legends: one for agent color, one for line style
+            # Add two legends: one for agent color, one for line style/area
             leg1 = ax.legend(handles=agent_handles, title="Agent (Color)", loc='upper right', frameon=True)
             ax.add_artist(leg1)
-            ax.legend(handles=style_handles, title="Line Style", loc='lower right', frameon=True)
+            ax.legend(handles=style_handles, title="Line Style / Area", loc='lower right', frameon=True)
         plt.tight_layout()
         if save_dir:
             plt.savefig(f"{save_dir}/imgs/trajectories_all.png", dpi=300, bbox_inches='tight')
