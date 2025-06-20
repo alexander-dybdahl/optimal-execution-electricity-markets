@@ -7,10 +7,10 @@ from dynamics.dynamics import Dynamics
 
 
 class SimpleDynamics(Dynamics):
-    def __init__(self, args, model_cfg):
-        super().__init__(args, model_cfg)
-        self.sigma_y = model_cfg["sigma"]
-        self.G = model_cfg["G"]
+    def __init__(self, dynamics_cfg, device="cpu"):
+        super().__init__(dynamics_cfg=dynamics_cfg, device=device)
+        self.sigma_y = dynamics_cfg["sigma"]
+        self.G = dynamics_cfg["G"]
 
     def generator(self, y, q):
         return q**2 + y**2

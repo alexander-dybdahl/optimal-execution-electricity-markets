@@ -297,6 +297,10 @@ class DeepAgent(nn.Module):
             t1 = t[n + 1, :, :]
             dt = t1 - t0
 
+            if self.second_order_taylor:
+                t1 = t1.requires_grad_(True)
+                y0 = y0.requires_grad_(True)
+
             # === Compute dY using the network ===
             if self.network_type == "dY":
                 dY = self.dY_net(t0, y0)
