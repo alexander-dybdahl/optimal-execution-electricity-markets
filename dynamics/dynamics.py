@@ -77,21 +77,21 @@ class Dynamics(ABC):
         if seed is not None:
             torch.manual_seed(seed)
 
-        dW = torch.randn(batch_size, self.N, self.dim_W, device=self.device) * (
+        dW = torch.randn(self.N, batch_size, self.dim_W, device=self.device) * (
             self.dt**0.5
-        )
+        )  # (N, batch_size, dim_W)
 
         W = torch.cat(
             [
-                torch.zeros(batch_size, 1, self.dim_W, device=self.device),
-                torch.cumsum(dW, dim=1),
+                torch.zeros(1, batch_size, self.dim_W, device=self.device),
+                torch.cumsum(dW, dim=0),
             ],
-            dim=1,
-        )  # (batch_size, N+1, dim_W)
+            dim=0,
+        )  # (N+1, batch_size, dim_W)
 
         t = (
             torch.linspace(0, self.T, self.N + 1, device=self.device)
-            .view(1, -1, 1)
-            .repeat(batch_size, 1, 1)
-        )
+            .view(-1, 1, 1)
+            .repeat(1, batch_size, 1)
+        )  # (N+1, batch_size, 1)
         return t, dW, W

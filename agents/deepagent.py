@@ -23,6 +23,16 @@ from utils.nnets import (
 )
 
 
+def load_deepagent(dynamics, train_cfg, device, model_dir, best=True):
+    model = DeepAgent(dynamics=dynamics, model_cfg=train_cfg, device=device)
+    model.to(device)
+    
+    model_path = os.path.join(model_dir, "model")
+    load_path = model_path + "_best.pth" if best else model_path + ".pth"
+    model.load_state_dict(torch.load(load_path, map_location=device))
+    return model
+
+
 class DeepAgent(nn.Module):
     def __init__(self, dynamics, model_cfg, device):
         super().__init__()
@@ -74,7 +84,7 @@ class DeepAgent(nn.Module):
         self.validation = {
             "q_loss": [],
             "Y_loss": []
-        }
+        } if self.dynamics.analytical_known else None
 
         # Loss Tracking
         self.Y0_loss = torch.tensor(0.0, device=self.device)
@@ -248,7 +258,7 @@ class DeepAgent(nn.Module):
         return large_diff_mask * linear_loss + (1 - large_diff_mask) * squared_loss
     
     def forward(self, t, dW):
-        t0 = t[:, 0, :]
+        t0 = t[0, :, :]
         y0 = self.dynamics.y0.repeat(self.batch_size, 1).to(self.device)
 
         if self.second_order_taylor:
@@ -265,7 +275,7 @@ class DeepAgent(nn.Module):
         # === Compute FBSNN loss ===
         Y_loss = 0.0
         for n in range(self.dynamics.N):
-            t1 = t[:, n + 1, :]
+            t1 = t[n + 1, :, :]
             dt = t1 - t0
 
             if self.second_order_taylor:
@@ -277,12 +287,12 @@ class DeepAgent(nn.Module):
             dY_dy = dY_outputs[:, 1:]
             
             q = self.dynamics.optimal_control(t0, y0, dY_dy)
-            y1 = self.dynamics.forward_dynamics(y0, q, dW[:, n, :], t0, dt)
+            y1 = self.dynamics.forward_dynamics(y0, q, dW[n, :, :], t0, dt)
             dy = y1 - y0
             Y1 = Y0 + dY_dt * dt + (dY_dy * dy).sum(dim=1, keepdim=True)
 
             Z0 = torch.bmm(self.dynamics.sigma(t0, y0).transpose(1, 2), dY_dy.unsqueeze(-1)).squeeze(-1)
-            Y1_tilde = Y0 - self.dynamics.generator(y0, q) * dt + (Z0 * (dW[:, n, :])).sum(dim=1, keepdim=True)
+            Y1_tilde = Y0 - self.dynamics.generator(y0, q) * dt + (Z0 * (dW[n, :, :])).sum(dim=1, keepdim=True)
 
             if self.second_order_taylor:
                 # Second-order Taylor approximation
@@ -803,9 +813,10 @@ class DeepAgent(nn.Module):
                     plt.tight_layout()
                     if save_dir:
                         plt.savefig(f"{save_dir}/imgs/loss_{epoch}.png", dpi=300, bbox_inches="tight")
-                        plt.close()
                     if plot:
                         plt.show()
+                    else:
+                        plt.close()
 
                     # === Plot validation losses ===
                     if self.dynamics.analytical_known:
@@ -823,9 +834,10 @@ class DeepAgent(nn.Module):
                         plt.tight_layout()
                         if save_dir:
                             plt.savefig(f"{save_dir}/imgs/val_loss_{epoch}.png", dpi=300, bbox_inches="tight")
-                            plt.close()
                         if plot:
                             plt.show()
+                        else:
+                            plt.close()
 
         if self.is_main:
             if self.is_distributed:
