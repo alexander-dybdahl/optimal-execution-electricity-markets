@@ -436,3 +436,19 @@ class LSTMWithSubnets(nn.Module):
         """Reset LSTM hidden and cell states. Call this between different sequences."""
         self.hidden_states = None
         self.cell_states = None
+
+class UncertaintyWeightedLoss(nn.Module):
+    def __init__(self, task_names):
+        super().__init__()
+        self.log_vars = nn.ParameterDict({
+            name: nn.Parameter(torch.tensor(0.0)) for name in task_names
+        })
+
+    def forward(self, losses_dict):
+        total_loss = 0.0
+        for name, loss in losses_dict.items():
+            log_var = self.log_vars[name]
+            precision = torch.exp(-log_var)
+            weighted = precision * loss + log_var  # equivalent to log(sigma)
+            total_loss += weighted
+        return total_loss

@@ -19,6 +19,7 @@ from utils.nnets import (
     Resnet,
     SeparateSubnets,
     Sine,
+    UncertaintyWeightedLoss,
 )
 
 
@@ -256,6 +257,8 @@ class DeepAgent(nn.Module):
 
         t_traj, y_traj, q_traj, Y_traj = [t0], [y0], [], [Y0]
         
+        losses_dict = {}
+
         # === Compute fbsnn loss ===
         Y_loss = 0.0
         for n in range(self.dynamics.N):
@@ -312,6 +315,7 @@ class DeepAgent(nn.Module):
 
             t0, y0, Y0 = t1, y1, Y1
 
+        losses_dict["Y_loss"] = self.Y_loss
         self.Y_loss = self.lambda_Y * Y_loss.detach()
         
         t_all = torch.cat(t_traj, dim=0).detach()
@@ -323,12 +327,14 @@ class DeepAgent(nn.Module):
         terminal_loss = 0.0
         if self.lambda_T > 0:
             terminal_loss = self.apply_thresholded_loss(Y0 - self.dynamics.terminal_cost(y0)).mean()
+            losses_dict["terminal_loss"] = self.lambda_T * terminal_loss
             self.terminal_loss = terminal_loss.detach()
 
         # === Terminal gradient loss ===
         terminal_gradient_loss = 0.0
         if self.lambda_TG > 0:
             terminal_gradient_loss = self.apply_thresholded_loss(dY_dy - self.dynamics.terminal_cost_grad(y0)).mean()
+            losses_dict["terminal_gradient_loss"] = self.lambda_TG * terminal_gradient_loss
             self.terminal_gradient_loss = terminal_gradient_loss.detach()
 
         # === Physics-based loss ===
@@ -367,6 +373,7 @@ class DeepAgent(nn.Module):
                 y_pinn = torch.cat([y_pinn, sobol_points], dim=0).requires_grad_(True)
 
             pinn_loss = self.hjb_residual(t_pinn, y_pinn)
+            losses_dict["pinn_loss"] = self.lambda_pinn * pinn_loss
             self.pinn_loss = pinn_loss.detach()
 
         # === q regularization loss ===
@@ -375,9 +382,10 @@ class DeepAgent(nn.Module):
             q_diffs = [q_traj[i+1] - q_traj[i] for i in range(len(q_traj) - 1)]
             dq_all = torch.cat(q_diffs, dim=0)
             reg_loss = self.apply_thresholded_loss(q_all).mean() + self.apply_thresholded_loss(dq_all).mean() 
+            losses_dict["reg_loss"] = self.lambda_reg * reg_loss
             self.reg_loss = reg_loss.detach()
 
-        # === cost objective ===
+        # === Cost objective ===
         cost_objective = 0.0
         if self.lambda_cost > 0:
             running_cost = 0.0
@@ -392,12 +400,14 @@ class DeepAgent(nn.Module):
 
             terminal_cost = self.dynamics.terminal_cost(y_all[-self.batch_size:])  # final time step
             cost_objective = (running_cost + terminal_cost).mean()
+            losses_dict["cost_loss"] = self.lambda_cost * cost_objective
             self.cost_loss = cost_objective.detach()
 
         # === Y0 fbsnn loss ===
         Y0_loss = 0.0
         if self.lambda_Y0 > 0:
             Y0_loss = self.apply_thresholded_loss(Y0_init - self.cost_loss).mean()
+            losses_dict["Y0_loss"] = self.lambda_Y0 * Y0_loss
             self.Y0_loss = Y0_loss.detach()
 
         # === Y and q validation loss ===
@@ -410,15 +420,9 @@ class DeepAgent(nn.Module):
             q_val_loss = self.apply_thresholded_loss(q_all - q_true).mean()
             self.val_q_loss = q_val_loss.detach()
 
-        total_loss = (
-            self.lambda_Y0 * Y0_loss
-            + self.lambda_Y * Y_loss
-            + self.lambda_T * terminal_loss
-            + self.lambda_TG * terminal_gradient_loss
-            + self.lambda_pinn * pinn_loss
-            + self.lambda_reg * reg_loss
-            + self.lambda_cost * cost_objective
-        )
+        # === Total loss computation ===
+        loss_fn = UncertaintyWeightedLoss(losses_dict.keys())
+        total_loss = loss_fn(losses_dict)
 
         # === Supervised loss ===
         if self.dynamics.analytical_known and self.supervised:
