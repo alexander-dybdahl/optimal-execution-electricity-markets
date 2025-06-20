@@ -43,7 +43,7 @@ def main():
         logger.log("Warning: CUDA is available but the config file does not set device to cuda.") 
     
     dynamics_cfg = load_dynamics_config(args.dynamics_path)
-    dynamics = AidDynamics(dynamics_cfg=dynamics_cfg, device=device)
+    dynamics = SimpleDynamics(dynamics_cfg=dynamics_cfg, device=device)
     
     # Load the model
     train_cfg_path = os.path.join(args.model_dir, "train_config.json")

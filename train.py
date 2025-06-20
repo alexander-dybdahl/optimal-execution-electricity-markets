@@ -122,7 +122,7 @@ def main():
         logger.log(f"Running on device: {device}, Parallel training disabled")
 
     dynamics_cfg = load_dynamics_config(args.dynamics_path)
-    dynamics = AidDynamics(dynamics_cfg=dynamics_cfg, device=device)
+    dynamics = SimpleDynamics(dynamics_cfg=dynamics_cfg, device=device)
     train_cfg = vars(args).copy()
     model = DeepAgent(dynamics=dynamics, model_cfg=train_cfg, device=device)
     model.to(device)
