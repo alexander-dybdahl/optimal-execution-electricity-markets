@@ -53,6 +53,7 @@ class DeepAgent(nn.Module):
         self.sobol_points = model_cfg["sobol_points"]
 
         # Network Architecture
+        self.network_type = model_cfg["network_type"]
         self.architecture = model_cfg["architecture"]
         self.Y_layers = model_cfg["Y_layers"]      # e.g., [64, 64, 64]
         self.adaptive_factor = model_cfg["adaptive_factor"]
@@ -125,17 +126,8 @@ class DeepAgent(nn.Module):
         else:
             raise ValueError(f"Unknown activation function: {model_cfg['activation']}]")
 
-        self.Y_init_net = FCnet_init(
-            layers=[self.dynamics.dim] + model_cfg["Y0_layers"] + [1],
-            activation=self.activation,
-            y0=self.dynamics.y0,
-            rescale_y0=model_cfg["rescale_y0"],
-            strong_grad_output=model_cfg["strong_grad_output"],
-            scale_output=model_cfg["scale_output"],
-        )
-
         if model_cfg["architecture"] == "default":
-            self.dY_net = FCnet(
+            internal_net = FCnet(
                 layers=[self.dynamics.dim + 1] + [64, 64, 64, 64] + [self.dynamics.dim + 1],
                 activation=self.activation,
                 T=self.dynamics.T,
@@ -143,7 +135,7 @@ class DeepAgent(nn.Module):
                 affine=model_cfg["affine"],
             )
         elif model_cfg["architecture"] == "fc":
-            self.dY_net = FCnet(
+            internal_net = FCnet(
                 layers=[self.dynamics.dim + 1] + model_cfg["Y_layers"] + [self.dynamics.dim + 1],
                 activation=self.activation,
                 T=self.dynamics.T,
@@ -151,7 +143,7 @@ class DeepAgent(nn.Module):
                 affine=model_cfg["affine"],
             )
         elif model_cfg["architecture"] == "naisnet":
-            self.dY_net = Resnet(
+            internal_net = Resnet(
                 layers=[self.dynamics.dim + 1] + model_cfg["Y_layers"] + [self.dynamics.dim + 1],
                 activation=self.activation,
                 stable=True,
@@ -160,7 +152,7 @@ class DeepAgent(nn.Module):
                 affine=model_cfg["affine"],
             )
         elif model_cfg["architecture"] == "resnet":
-            self.dY_net = Resnet(
+            internal_net = Resnet(
                 layers=[self.dynamics.dim + 1] + model_cfg["Y_layers"] + [self.dynamics.dim + 1],
                 activation=self.activation,
                 stable=False,
@@ -173,7 +165,7 @@ class DeepAgent(nn.Module):
             or model_cfg["architecture"] == "reslstm"
             or model_cfg["architecture"] == "naislstm"
         ):
-            self.dY_net = LSTMNet(
+            internal_net = LSTMNet(
                 layers=[self.dynamics.dim + 1] + model_cfg["Y_layers"] + [self.dynamics.dim + 1],
                 activation=self.activation,
                 type=model_cfg["architecture"],
@@ -184,7 +176,7 @@ class DeepAgent(nn.Module):
         elif model_cfg["architecture"] == "separatesubnets":
             # Get subnet configuration from args
             subnet_type = model_cfg["subnet_type"]
-            self.dY_net = SeparateSubnets(
+            internal_net = SeparateSubnets(
                 layers=[self.dynamics.dim + 1] + model_cfg["Y_layers"] + [self.dynamics.dim + 1],
                 activation=self.activation,
                 num_time_steps=self.dynamics.N,
@@ -198,7 +190,7 @@ class DeepAgent(nn.Module):
             lstm_layers = model_cfg["lstm_layers"]
             lstm_type = model_cfg["lstm_type"]
             subnet_type = model_cfg["subnet_type"]
-            self.dY_net = LSTMWithSubnets(
+            internal_net = LSTMWithSubnets(
                 layers=[self.dynamics.dim + 1] + model_cfg["Y_layers"] + [self.dynamics.dim + 1],
                 activation=self.activation,
                 num_time_steps=self.dynamics.N,
@@ -212,12 +204,37 @@ class DeepAgent(nn.Module):
         else:
             raise ValueError(f"Unknown architecture: {model_cfg['architecture']}")
 
+        # Initialize networks based on the type
+        if self.network_type == "dY":
+            self.dY_net = internal_net
+            self.Y_init_net = FCnet_init(
+                layers=[self.dynamics.dim] + model_cfg["Y0_layers"] + [1],
+                activation=self.activation,
+                y0=self.dynamics.y0,
+                rescale_y0=model_cfg["rescale_y0"],
+                strong_grad_output=model_cfg["strong_grad_output"],
+                scale_output=model_cfg["scale_output"],
+            )
+        elif self.network_type == "Y":
+            self.Y_net = internal_net
+
         self.lowest_loss = float("inf")
 
     def hjb_residual(self, t, y):
-        dY_outputs = self.dY_net(t, y)
-        dY_dt = dY_outputs[:, 0:1]  # temporal derivative
-        dY_dy = dY_outputs[:, 1:]   # spatial derivatives
+
+        if self.network_type == "dY":
+            dY = self.dY_net(t, y)
+            dY_dt = dY[:, 0:1]  # temporal derivative
+            dY_dy = dY[:, 1:]   # spatial derivatives
+        elif self.network_type == "Y":
+            Y = self.Y_net(t, y)
+            dY_dt, dY_dy = torch.autograd.grad(
+                outputs=Y,
+                inputs=(t, y),
+                grad_outputs=torch.ones_like(Y),
+                create_graph=True,
+                retain_graph=True
+            )
         
         # Compute Hessian using autograd only on dY_dy (single autograd call)
         dim = y.shape[1]
@@ -233,7 +250,7 @@ class DeepAgent(nn.Module):
         H = torch.stack(hessian_rows, dim=1)
 
         # Dynamics quantities
-        q = self.dynamics.optimal_control(t, y, dY_outputs)
+        q = self.dynamics.optimal_control(t, y, dY_dy)
         mu = self.dynamics.mu(t, y, q)
         sigma = self.dynamics.sigma(t, y)
         f = self.dynamics.generator(y, q)
@@ -261,11 +278,13 @@ class DeepAgent(nn.Module):
         t0 = t[0, :, :]
         y0 = self.dynamics.y0.repeat(self.batch_size, 1).to(self.device)
 
-        if self.second_order_taylor:
-            t0 = t0.requires_grad_(True)
-            y0 = y0.requires_grad_(True)
+        t0 = t0.requires_grad_(True)
+        y0 = y0.requires_grad_(True)
 
-        Y0 = self.Y_init_net(y0)
+        if self.network_type == "dY":
+            Y0 = self.Y_init_net(y0)
+        elif self.network_type == "Y":
+            Y0 = self.Y_net(t0, y0)
         Y0_init = Y0
 
         t_traj, y_traj, q_traj, Y_traj = [t0], [y0], [], [Y0]
@@ -278,44 +297,58 @@ class DeepAgent(nn.Module):
             t1 = t[n + 1, :, :]
             dt = t1 - t0
 
-            if self.second_order_taylor:
-                t0 = t0.requires_grad_(True)
-                y0 = y0.requires_grad_(True)
-            
-            dY_outputs = self.dY_net(t0, y0)
-            dY_dt = dY_outputs[:, 0:1]
-            dY_dy = dY_outputs[:, 1:]
+            # === Compute dY using the network ===
+            if self.network_type == "dY":
+                dY = self.dY_net(t0, y0)
+                dY_dt = dY[:, 0:1]
+                dY_dy = dY[:, 1:]
+            elif self.network_type == "Y":
+                Y = self.Y_net(t0, y0)
+                dY_dy = torch.autograd.grad(
+                    outputs=Y,
+                    inputs=y0,
+                    grad_outputs=torch.ones_like(Y),
+                    create_graph=True,
+                    retain_graph=True
+                )[0]
             
             q = self.dynamics.optimal_control(t0, y0, dY_dy)
             y1 = self.dynamics.forward_dynamics(y0, q, dW[n, :, :], t0, dt)
             dy = y1 - y0
-            Y1 = Y0 + dY_dt * dt + (dY_dy * dy).sum(dim=1, keepdim=True)
+
+            # === Compute Y1 using the network ===
+            if self.network_type == "dY":
+                # Predict next state using the dY network
+                Y1 = Y0 + dY_dt * dt + (dY_dy * dy).sum(dim=1, keepdim=True)
+
+                if self.second_order_taylor:
+                    # Second-order Taylor approximation
+                    ddY_ddt = torch.autograd.grad(
+                        outputs=dY_dt,
+                        inputs=t0,
+                        grad_outputs=torch.ones_like(dY_dt),
+                        create_graph=False,
+                        retain_graph=True,
+                        allow_unused=True,
+                    )[0]
+                    hvp = torch.autograd.grad(
+                        outputs=(dY_dy * dy).sum(),
+                        inputs=y0,
+                        create_graph=False,
+                        retain_graph=True
+                    )[0]
+
+                    # Handle cases where gradient with respect to t might be None due to separate subnet per time
+                    if ddY_ddt is None:
+                        ddY_ddt = 0
+
+                    Y1 += 0.5 * (ddY_ddt * dt ** 2 + (hvp * dy).sum(dim=1, keepdim=True))
+            elif self.network_type == "Y":
+                # Predict next state using the Y network
+                Y1 = self.Y_net(t1, y1)
 
             Z0 = torch.bmm(self.dynamics.sigma(t0, y0).transpose(1, 2), dY_dy.unsqueeze(-1)).squeeze(-1)
             Y1_tilde = Y0 - self.dynamics.generator(y0, q) * dt + (Z0 * (dW[n, :, :])).sum(dim=1, keepdim=True)
-
-            if self.second_order_taylor:
-                # Second-order Taylor approximation
-                ddY_ddt = torch.autograd.grad(
-                    outputs=dY_dt,
-                    inputs=t0,
-                    grad_outputs=torch.ones_like(dY_dt),
-                    create_graph=False,
-                    retain_graph=True,
-                    allow_unused=True,
-                )[0]
-                hvp = torch.autograd.grad(
-                    outputs=(dY_dy * dy).sum(),
-                    inputs=y0,
-                    create_graph=False,
-                    retain_graph=True
-                )[0]
-
-                # Handle cases where gradient with respect to t might be None due to separate subnet per time
-                if ddY_ddt is None:
-                    ddY_ddt = 0
-
-                Y1 += 0.5 * (ddY_ddt * dt ** 2 + (hvp * dy).sum(dim=1, keepdim=True))
 
             Y_loss += self.apply_thresholded_loss(Y1 - Y1_tilde).mean()
 
@@ -401,7 +434,8 @@ class DeepAgent(nn.Module):
             cost_objective = compute_cost_objective(
                 dynamics=self.dynamics,
                 q_traj=torch.stack(q_traj, dim=0),
-                y_traj=torch.stack(y_traj, dim=0)
+                y_traj=torch.stack(y_traj, dim=0),
+                terminal_cost=True
             ).mean()
             self.cost_loss = cost_objective.detach()
 
@@ -440,60 +474,94 @@ class DeepAgent(nn.Module):
         return total_loss
 
     def predict_Y_initial(self, y0):
-        self.Y_init_net.eval()
-        with torch.no_grad():
-            Y0 = self.Y_init_net(y0)
-        self.Y_init_net.train()
+        if self.network_type == "dY":
+            # Predict initial state using the Y_init network
+            self.Y_init_net.eval()
+            with torch.no_grad():
+                Y0 = self.Y_init_net(y0)
+            self.Y_init_net.train()
+        elif self.network_type == "Y":
+            # Predict initial state using the Y network
+            self.Y_net.eval()
+            batch_size = y0.shape[0]
+            t0 = torch.zeros(batch_size, 1, device=self.device)
+            Y0 = self.Y_net(t0, y0)
+            self.Y_net.train()
         return Y0
     
     def predict_Y_next(self, t0, y0, dt, dy, Y0):
-        self.dY_net.eval()
-        if self.second_order_taylor:
-            t0 = t0.requires_grad_(True)
-            y0 = y0.requires_grad_(True)
-            dY_outputs = self.dY_net(t0, y0)
-        else:
-            with torch.no_grad():
-                dY_outputs = self.dY_net(t0, y0)
-        self.dY_net.train()
+        if self.network_type == "dY":
+            # Predict next state using the dY network
+            self.dY_net.eval()
+            if self.second_order_taylor:
+                t0 = t0.requires_grad_(True)
+                y0 = y0.requires_grad_(True)
+                dY = self.dY_net(t0, y0)
+            else:
+                with torch.no_grad():
+                    dY = self.dY_net(t0, y0)
+            self.dY_net.train()
 
-        dY_dt = dY_outputs[:, 0:1]
-        dY_dy = dY_outputs[:, 1:]
-        
-        Y1 = Y0 + dY_dt * dt + (dY_dy * dy).sum(dim=1, keepdim=True)
+            dY_dt = dY[:, 0:1]
+            dY_dy = dY[:, 1:]
+            
+            Y1 = Y0 + dY_dt * dt + (dY_dy * dy).sum(dim=1, keepdim=True)
 
-        if self.second_order_taylor:
-            # Second-order Taylor approximation
-            ddY_ddt = torch.autograd.grad(
-                outputs=dY_dt,
-                inputs=t0,
-                grad_outputs=torch.ones_like(dY_dt),
-                create_graph=False,
-                retain_graph=True,
-                allow_unused=True,
-            )[0]
-            hvp = torch.autograd.grad(
-                outputs=(dY_dy * dy).sum(),
-                inputs=y0,
-                create_graph=False,
-                retain_graph=True
-            )[0]
+            if self.second_order_taylor:
+                # Second-order Taylor approximation
+                ddY_ddt = torch.autograd.grad(
+                    outputs=dY_dt,
+                    inputs=t0,
+                    grad_outputs=torch.ones_like(dY_dt),
+                    create_graph=False,
+                    retain_graph=True,
+                    allow_unused=True,
+                )[0]
+                hvp = torch.autograd.grad(
+                    outputs=(dY_dy * dy).sum(),
+                    inputs=y0,
+                    create_graph=False,
+                    retain_graph=True
+                )[0]
 
-            # Handle cases where gradient with respect to t might be None due to separate subnet per time
-            if ddY_ddt is None:
-                ddY_ddt = 0
+                # Handle cases where gradient with respect to t might be None due to separate subnet per time
+                if ddY_ddt is None:
+                    ddY_ddt = 0
 
-            Y1 += 0.5 * (ddY_ddt * dt ** 2 + (hvp * dy).sum(dim=1, keepdim=True))
+                Y1 += 0.5 * (ddY_ddt * dt ** 2 + (hvp * dy).sum(dim=1, keepdim=True))
+
+        elif self.network_type == "Y":
+            # Predict next state using the Y network
+            self.Y_net.eval()
+            Y1 = self.Y_net(t0 + dt, y0 + dy)
+            self.Y_net.train()
 
         return Y1
 
     def predict(self, t, y):
-        self.dY_net.eval()
-        with torch.no_grad():
-            dY_outputs = self.dY_net(t, y)
-        self.dY_net.train()
-        
-        dY_dy = dY_outputs[:, 1:]
+        if self.network_type == "dY":
+            # Predict optimal control using the dY network
+            self.dY_net.eval()
+            with torch.no_grad():
+                dY_outputs = self.dY_net(t, y)
+            self.dY_net.train()
+            
+            dY_dy = dY_outputs[:, 1:]
+        elif self.network_type == "Y":
+            # Predict optimal control using the Y network
+            self.Y_net.eval()
+            t = t.requires_grad_(True)
+            y = y.requires_grad_(True)
+            Y = self.Y_net(t, y)
+            self.Y_net.train()
+            
+            dY_dy = torch.autograd.grad(
+                outputs=Y,
+                inputs=y,
+                grad_outputs=torch.ones_like(Y),
+                create_graph=True,
+                retain_graph=True
+            )[0]
         return self.dynamics.optimal_control(t, y, dY_dy)
 
     def save_model(self, save_path):
