@@ -663,8 +663,8 @@ class DeepAgent(nn.Module):
                 current_lr = new_lr
 
             # Reduce losses across all processes if distributed
-            val_q_loss = self.val_q_loss
             val_Y_loss = self.val_Y_loss
+            val_q_loss = self.val_q_loss
             Y0_loss = self.Y0_loss
             Y_loss = self.Y_loss
             dY_loss = self.dY_loss
@@ -676,8 +676,8 @@ class DeepAgent(nn.Module):
             cost_loss = self.cost_loss
 
             if self.is_distributed:
-                dist.reduce(val_q_loss, op=dist.ReduceOp.SUM, dst=0)
                 dist.reduce(val_Y_loss, op=dist.ReduceOp.SUM, dst=0)
+                dist.reduce(val_q_loss, op=dist.ReduceOp.SUM, dst=0)
                 dist.reduce(loss, op=dist.ReduceOp.SUM, dst=0)
                 dist.reduce(Y0_loss, op=dist.ReduceOp.SUM, dst=0)
                 dist.reduce(Y_loss, op=dist.ReduceOp.SUM, dst=0)
@@ -689,8 +689,8 @@ class DeepAgent(nn.Module):
                 dist.reduce(reg_loss, op=dist.ReduceOp.SUM, dst=0)
                 dist.reduce(cost_loss, op=dist.ReduceOp.SUM, dst=0)
 
-                val_q_loss /= self.world_size
                 val_Y_loss /= self.world_size
+                val_q_loss /= self.world_size
                 loss /= self.world_size
                 Y0_loss /= self.world_size
                 Y_loss /= self.world_size
@@ -703,8 +703,8 @@ class DeepAgent(nn.Module):
                 cost_loss /= self.world_size
 
             if self.is_main:
-                self.validation["q_loss"].append(val_q_loss.item())
                 self.validation["Y_loss"].append(val_Y_loss.item())
+                self.validation["q_loss"].append(val_q_loss.item())
                 losses.append(loss.item())
                 losses_Y0.append(Y0_loss.item())
                 losses_Y.append(Y_loss.item())
@@ -751,8 +751,8 @@ class DeepAgent(nn.Module):
 
                     row_parts = [
                         f"{epoch:>{max_widths['epoch']}}",
-                        f"{np.mean(self.validation['q_loss'][-K:]):>{max_widths['val loss']}.2e}" if self.dynamics.analytical_known else "",
                         f"{np.mean(self.validation['Y_loss'][-K:]):>{max_widths['val loss']}.2e}" if self.dynamics.analytical_known else "",
+                        f"{np.mean(self.validation['q_loss'][-K:]):>{max_widths['val loss']}.2e}" if self.dynamics.analytical_known else "",
                         f"{np.mean(losses[-K:]):>10.2e}",
                     ]
                     for name, fn in active_losses:
