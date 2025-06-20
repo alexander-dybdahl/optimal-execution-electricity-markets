@@ -305,8 +305,7 @@ class DeepAgent(nn.Module):
                 if ddY_ddt is None:
                     ddY_ddt = 0
 
-                quadratic_term = (hvp * dy).sum(dim=1, keepdim=True)  # (delta_y)^T @ H @ delta_y
-                Y1 += 0.5 * (ddY_ddt * dt ** 2 + quadratic_term)
+                Y1 += 0.5 * (ddY_ddt * dt ** 2 + (hvp * dy).sum(dim=1, keepdim=True))
 
             Y_loss += self.apply_thresholded_loss(Y1 - Y1_tilde).mean()
 
@@ -321,10 +320,10 @@ class DeepAgent(nn.Module):
             losses_dict["lambda_Y"] = self.Y_loss
             self.Y_loss = Y_loss.detach()
 
-        t_all = torch.cat(t_traj, dim=0).detach()
-        y_all = torch.cat(y_traj, dim=0).detach()
-        q_all = torch.cat(q_traj, dim=0).detach()
-        Y_all = torch.cat(Y_traj, dim=0).detach()
+        t_all = torch.cat(t_traj, dim=0)
+        y_all = torch.cat(y_traj, dim=0)
+        q_all = torch.cat(q_traj, dim=0)
+        Y_all = torch.cat(Y_traj, dim=0)
 
         # === Terminal loss ===
         terminal_loss = 0.0
@@ -343,8 +342,6 @@ class DeepAgent(nn.Module):
         # === Physics-based loss ===
         pinn_loss = 0.0
         if self.loss_weights["lambda_pinn"] > 0:
-            t_pinn = torch.cat(t_traj, dim=0).requires_grad_(True)
-            y_pinn = torch.cat(y_traj, dim=0).requires_grad_(True)
 
             # Sobol points for additional PINN loss
             if self.sobol_points:
@@ -372,8 +369,8 @@ class DeepAgent(nn.Module):
                 y_max = torch.tensor(y_max_list, device=self.device)
                 sobol_points = y_min + (y_max - y_min) * sobol_points
                 t_sobol = torch.rand(self.batch_size * self.dynamics.N, 1, device=self.device) * T
-                t_pinn = torch.cat([t_pinn, t_sobol], dim=0).requires_grad_(True)
-                y_pinn = torch.cat([y_pinn, sobol_points], dim=0).requires_grad_(True)
+                t_pinn = torch.cat([t_all, t_sobol], dim=0).requires_grad_(True)
+                y_pinn = torch.cat([y_all, sobol_points], dim=0).requires_grad_(True)
 
             pinn_loss = self.hjb_residual(t_pinn, y_pinn)
             losses_dict["lambda_pinn"] = pinn_loss
@@ -384,7 +381,7 @@ class DeepAgent(nn.Module):
         if self.loss_weights["lambda_reg"] > 0:
             q_diffs = [q_traj[i+1] - q_traj[i] for i in range(len(q_traj) - 1)]
             dq_all = torch.cat(q_diffs, dim=0)
-            reg_loss = self.apply_thresholded_loss(q_all).mean() + self.apply_thresholded_loss(dq_all).mean()
+            reg_loss = self.apply_thresholded_loss(q_all).mean() #+ self.apply_thresholded_loss(dq_all).mean()
             losses_dict["lambda_reg"] = reg_loss
             self.reg_loss = reg_loss.detach()
 
@@ -393,10 +390,17 @@ class DeepAgent(nn.Module):
         if self.loss_weights["lambda_cost"] > 0:
             cost_objective = compute_cost_objective(
                 dynamics=self.dynamics,
-                q_traj=torch.stack(q_traj, dim=0).detach(),
-                y_traj=torch.stack(y_traj, dim=0).detach()
+                q_traj=torch.stack(q_traj, dim=0),
+                y_traj=torch.stack(y_traj, dim=0)
             ).mean()
+            cost_grads = torch.autograd.grad(
+                outputs=cost_objective,
+                inputs=[p for p in self.parameters() if p.requires_grad],
+                retain_graph=True,
+                allow_unused=True
+            )
             losses_dict["lambda_cost"] = cost_objective
+            self.cost_grads = cost_grads
             self.cost_loss = cost_objective.detach()
 
         # === Y0 fbsnn loss ===
@@ -458,7 +462,7 @@ class DeepAgent(nn.Module):
 
         if self.second_order_taylor:
             # Second-order Taylor approximation
-            ddY_ddt_tilde = torch.autograd.grad(
+            ddY_ddt = torch.autograd.grad(
                 outputs=dY_dt,
                 inputs=t0,
                 grad_outputs=torch.ones_like(dY_dt),
@@ -466,19 +470,18 @@ class DeepAgent(nn.Module):
                 retain_graph=True,
                 allow_unused=True,
             )[0]
-            ddY_ddy_tilde = torch.autograd.grad(
-                outputs=dY_dy,
+            hvp = torch.autograd.grad(
+                outputs=(dY_dy * dy).sum(),
                 inputs=y0,
-                grad_outputs=torch.ones_like(dY_dy),
                 create_graph=False,
-                retain_graph=True,
+                retain_graph=True
             )[0]
 
             # Handle cases where gradient with respect to t might be None due to separate subnet per time
-            if ddY_ddt_tilde is None:
-                ddY_ddt_tilde = 0
+            if ddY_ddt is None:
+                ddY_ddt = 0
 
-            Y1 += 0.5 * (ddY_ddt_tilde * dt ** 2 + (ddY_ddy_tilde * dy ** 2).sum(dim=1, keepdim=True))
+            Y1 += 0.5 * (ddY_ddt * dt ** 2 + (hvp * dy).sum(dim=1, keepdim=True))
 
         return Y1
 
@@ -645,7 +648,9 @@ class DeepAgent(nn.Module):
             optimizer.zero_grad()
             t, dW, _ = self.dynamics.generate_paths(self.batch_size)
             loss = self(t=t, dW=dW)
-            loss.backward()
+            loss.backward(retain_graph=True)
+
+            # Optimizer and scheduler step
             optimizer.step()
             scheduler.step(loss.item() if adaptive else epoch)
 
