@@ -56,7 +56,9 @@ def simulate_paths(dynamics, agent, n_sim=5, seed=42, y0_single=None):
         if agent_predicts_Y:
             Y_agent_traj.append(Y1_agent.detach().cpu().numpy())
 
-        t0, y0_agent, Y0_agent = t1, y1_agent, Y1_agent            
+        t0, y0_agent = t1, y1_agent
+        if agent_predicts_Y:
+            Y0_agent = Y1_agent
 
     q_agent_traj = np.stack(q_agent_traj)
     y_agent_traj = np.stack(y_agent_traj)

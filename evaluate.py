@@ -77,8 +77,8 @@ def main():
     )
     cost_objective_deepagent = compute_cost_objective(
         dynamics=dynamics,
-        q_traj=results["q_learned"], 
-        y_traj=results["y_learned"]
+        q_traj=torch.from_numpy(results["q_learned"]).to(device),
+        y_traj=torch.from_numpy(results["y_learned"]).to(device)
     )
     logger.log(f"Cost objective of DeepAgent: {cost_objective_deepagent.mean().item():.4f}")
     
@@ -90,8 +90,8 @@ def main():
     )
     cost_objective_timeweigthedagent = compute_cost_objective(
         dynamics=dynamics,
-        q_traj=results["q_learned"], 
-        y_traj=results["y_learned"]
+        q_traj=torch.from_numpy(results["q_learned"]).to(device),
+        y_traj=torch.from_numpy(results["y_learned"]).to(device)
     )
     logger.log(f"Cost objective of TimeWeightedAgent: {cost_objective_timeweigthedagent.mean().item():.4f}")
 
