@@ -393,14 +393,6 @@ class DeepAgent(nn.Module):
                 q_traj=torch.stack(q_traj, dim=0),
                 y_traj=torch.stack(y_traj, dim=0)
             ).mean()
-            cost_grads = torch.autograd.grad(
-                outputs=cost_objective,
-                inputs=[p for p in self.parameters() if p.requires_grad],
-                retain_graph=True,
-                allow_unused=True
-            )
-            losses_dict["lambda_cost"] = cost_objective
-            self.cost_grads = cost_grads
             self.cost_loss = cost_objective.detach()
 
         # === Y0 fbsnn loss ===
