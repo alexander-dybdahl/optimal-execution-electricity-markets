@@ -24,11 +24,11 @@ from utils.nnets import (
 
 
 class DeepAgent(nn.Module):
-    def __init__(self, dynamics, args):
+    def __init__(self, dynamics, model_cfg, device):
         super().__init__()
         # System & Execution Settings
         self.is_distributed = dist.is_initialized()
-        self.device = args.device_set
+        self.device = torch.device(device)
         self.world_size = dist.get_world_size() if self.is_distributed else 1
         self.is_main = not self.is_distributed or dist.get_rank() == 0
 
@@ -36,34 +36,34 @@ class DeepAgent(nn.Module):
         self.dynamics = dynamics
 
         # Data & Batch Settings
-        self.batch_size = args.batch_size_per_rank
-        self.supervised = args.supervised
+        self.batch_size = model_cfg["batch_size_per_rank"]
+        self.supervised = model_cfg["supervised"]
         if self.supervised and not self.dynamics.analytical_known:
             raise ValueError("Cannot proceed with supervised training when analytical value function is not know")
-        self.sobol_points = args.sobol_points
+        self.sobol_points = model_cfg["sobol_points"]
 
         # Network Architecture
-        self.architecture = args.architecture
-        self.Y_layers = args.Y_layers      # e.g., [64, 64, 64]
-        self.adaptive_factor = args.adaptive_factor
-        self.strong_grad_output = args.strong_grad_output  # whether to use strong output gradient
-        self.scale_output = args.scale_output  # how much to scale the output of the network
+        self.architecture = model_cfg["architecture"]
+        self.Y_layers = model_cfg["Y_layers"]      # e.g., [64, 64, 64]
+        self.adaptive_factor = model_cfg["adaptive_factor"]
+        self.strong_grad_output = model_cfg["strong_grad_output"]  # whether to use strong output gradient
+        self.scale_output = model_cfg["scale_output"]  # how much to scale the output of the network
 
         # Loss Weights
-        self.lambda_Y = args.lambda_Y      # value function loss
-        self.lambda_dY = args.lambda_dY    # spatial gradient loss
-        self.lambda_dYt = args.lambda_dYt  # temporal gradient loss
-        self.lambda_T = args.lambda_T      # terminal value loss
-        self.lambda_TG = args.lambda_TG    # terminal gradient loss
-        self.lambda_pinn = args.lambda_pinn  # physics residual loss
-        self.lambda_reg = args.lambda_reg  # regularization loss
-        self.lambda_Y0 = args.lambda_Y0    # initial value regularization loss
-        self.lambda_cost = args.lambda_cost  # cost loss
+        self.lambda_Y = model_cfg["lambda_Y"]       # value function loss
+        self.lambda_dY = model_cfg["lambda_dY"]     # spatial gradient loss
+        self.lambda_dYt = model_cfg["lambda_dYt"]   # temporal gradient loss
+        self.lambda_T = model_cfg["lambda_T"]       # terminal value loss
+        self.lambda_TG = model_cfg["lambda_TG"]     # terminal gradient loss
+        self.lambda_pinn = model_cfg["lambda_pinn"] # physics residual loss
+        self.lambda_reg = model_cfg["lambda_reg"]   # regularization loss
+        self.lambda_Y0 = model_cfg["lambda_Y0"]     # initial value regularization loss
+        self.lambda_cost = model_cfg["lambda_cost"] # cost loss
         
         # Loss threshold for linear approximation
-        self.loss_threshold = args.loss_threshold
-        self.use_linear_approx = args.use_linear_approx
-        self.second_order_taylor = args.second_order_taylor
+        self.loss_threshold = model_cfg["loss_threshold"]
+        self.use_linear_approx = model_cfg["use_linear_approx"]
+        self.second_order_taylor = model_cfg["second_order_taylor"]
 
         # Validation Losses
         self.val_q_loss = torch.tensor(0.0, device=self.device)
@@ -86,118 +86,118 @@ class DeepAgent(nn.Module):
 
         # Saving & Checkpointing
         self.epoch = 0
-        self.save = args.save              # e.g., "best", "every", "last"
-        self.save_n = args.save_n          # save every n epochs if "every"
-        self.plot_n = args.plot_n          # save every n epochs if "every"
-        self.n_simulations = args.n_simulations
+        self.save = model_cfg["save"]               # e.g., "best", "every", "last"
+        self.save_n = model_cfg["save_n"]           # save every n epochs if "every"
+        self.plot_n = model_cfg["plot_n"]           # save every n epochs if "every"
+        self.n_simulations = model_cfg["n_simulations"]
 
-        if args.activation == "Sine":
+        if model_cfg["activation"] == "Sine":
             self.activation = Sine()
-        elif args.activation == "ReLU":
+        elif model_cfg["activation"] == "ReLU":
             self.activation = nn.ReLU()
-        elif args.activation == "Tanh":
+        elif model_cfg["activation"] == "Tanh":
             self.activation = nn.Tanh()
-        elif args.activation == "LeakyReLU":
+        elif model_cfg["activation"] == "LeakyReLU":
             self.activation = nn.LeakyReLU()
-        elif args.activation == "ELU":
+        elif model_cfg["activation"] == "ELU":
             self.activation = nn.ELU()
-        elif args.activation == "Softplus":
+        elif model_cfg["activation"] == "Softplus":
             self.activation = nn.Softplus()
-        elif args.activation == "Softsign":
+        elif model_cfg["activation"] == "Softsign":
             self.activation = nn.Softsign()
-        elif args.activation == "GELU":
+        elif model_cfg["activation"] == "GELU":
             self.activation = nn.GELU()
-        elif args.activation == "Sigmoid":
+        elif model_cfg["activation"] == "Sigmoid":
             self.activation = nn.Sigmoid()
         else:
-            raise ValueError(f"Unknown activation function: {args.activation}")
+            raise ValueError(f"Unknown activation function: {model_cfg['activation']}]")
 
         self.Y_init_net = FCnet_init(
-            layers=[self.dynamics.dim] + args.Y0_layers + [1],
+            layers=[self.dynamics.dim] + model_cfg["Y0_layers"] + [1],
             activation=self.activation,
             y0=self.dynamics.y0,
-            rescale_y0=args.rescale_y0,
-            strong_grad_output=args.strong_grad_output,
-            scale_output=args.scale_output,
+            rescale_y0=model_cfg["rescale_y0"],
+            strong_grad_output=model_cfg["strong_grad_output"],
+            scale_output=model_cfg["scale_output"],
         )
 
-        if args.architecture == "default":
+        if model_cfg["architecture"] == "default":
             self.dY_net = FCnet(
                 layers=[self.dynamics.dim + 1] + [64, 64, 64, 64] + [self.dynamics.dim + 1],
                 activation=self.activation,
                 T=self.dynamics.T,
-                input_bn=args.input_bn,
-                affine=args.affine,
+                input_bn=model_cfg["input_bn"],
+                affine=model_cfg["affine"],
             )
-        elif args.architecture == "fc":
+        elif model_cfg["architecture"] == "fc":
             self.dY_net = FCnet(
-                layers=[self.dynamics.dim + 1] + args.Y_layers + [self.dynamics.dim + 1],
+                layers=[self.dynamics.dim + 1] + model_cfg["Y_layers"] + [self.dynamics.dim + 1],
                 activation=self.activation,
                 T=self.dynamics.T,
-                input_bn=args.input_bn,
-                affine=args.affine,
+                input_bn=model_cfg["input_bn"],
+                affine=model_cfg["affine"],
             )
-        elif args.architecture == "naisnet":
+        elif model_cfg["architecture"] == "naisnet":
             self.dY_net = Resnet(
-                layers=[self.dynamics.dim + 1] + args.Y_layers + [self.dynamics.dim + 1],
+                layers=[self.dynamics.dim + 1] + model_cfg["Y_layers"] + [self.dynamics.dim + 1],
                 activation=self.activation,
                 stable=True,
                 T=self.dynamics.T,
-                input_bn=args.input_bn,
-                affine=args.affine,
+                input_bn=model_cfg["input_bn"],
+                affine=model_cfg["affine"],
             )
-        elif args.architecture == "resnet":
+        elif model_cfg["architecture"] == "resnet":
             self.dY_net = Resnet(
-                layers=[self.dynamics.dim + 1] + args.Y_layers + [self.dynamics.dim + 1],
+                layers=[self.dynamics.dim + 1] + model_cfg["Y_layers"] + [self.dynamics.dim + 1],
                 activation=self.activation,
                 stable=False,
                 T=self.dynamics.T,
-                input_bn=args.input_bn,
-                affine=args.affine,
+                input_bn=model_cfg["input_bn"],
+                affine=model_cfg["affine"],
             )
         elif (
-            args.architecture == "lstm"
-            or args.architecture == "reslstm"
-            or args.architecture == "naislstm"
+            model_cfg["architecture"] == "lstm"
+            or model_cfg["architecture"] == "reslstm"
+            or model_cfg["architecture"] == "naislstm"
         ):
             self.dY_net = LSTMNet(
-                layers=[self.dynamics.dim + 1] + args.Y_layers + [self.dynamics.dim + 1],
+                layers=[self.dynamics.dim + 1] + model_cfg["Y_layers"] + [self.dynamics.dim + 1],
                 activation=self.activation,
-                type=args.architecture,
+                type=model_cfg["architecture"],
                 T=self.dynamics.T,
-                input_bn=args.input_bn,
-                affine=args.affine,
+                input_bn=model_cfg["input_bn"],
+                affine=model_cfg["affine"],
             )
-        elif args.architecture == "separatesubnets":
+        elif model_cfg["architecture"] == "separatesubnets":
             # Get subnet configuration from args
-            subnet_type = args.subnet_type
+            subnet_type = model_cfg["subnet_type"]
             self.dY_net = SeparateSubnets(
-                layers=[self.dynamics.dim + 1] + args.Y_layers + [self.dynamics.dim + 1],
+                layers=[self.dynamics.dim + 1] + model_cfg["Y_layers"] + [self.dynamics.dim + 1],
                 activation=self.activation,
                 num_time_steps=self.dynamics.N,
                 T=self.dynamics.T,
                 subnet_type=subnet_type,
-                input_bn=args.input_bn,
-                affine=args.affine,
+                input_bn=model_cfg["input_bn"],
+                affine=model_cfg["affine"],
             )
-        elif args.architecture == "lstmwithsubnets":
+        elif model_cfg["architecture"] == "lstmwithsubnets":
             # Get LSTM and subnet configuration from args
-            lstm_layers = args.lstm_layers
-            lstm_type = args.lstm_type
-            subnet_type = args.subnet_type
+            lstm_layers = model_cfg["lstm_layers"]
+            lstm_type = model_cfg["lstm_type"]
+            subnet_type = model_cfg["subnet_type"]
             self.dY_net = LSTMWithSubnets(
-                layers=[self.dynamics.dim + 1] + args.Y_layers + [self.dynamics.dim + 1],
+                layers=[self.dynamics.dim + 1] + model_cfg["Y_layers"] + [self.dynamics.dim + 1],
                 activation=self.activation,
                 num_time_steps=self.dynamics.N,
                 T=self.dynamics.T,
                 lstm_layers=lstm_layers,
                 subnet_type=subnet_type,
                 lstm_type=lstm_type,
-                input_bn=args.input_bn,
-                affine=args.affine,
+                input_bn=model_cfg["input_bn"],
+                affine=model_cfg["affine"],
             )
         else:
-            raise ValueError(f"Unknown architecture: {args.architecture}")
+            raise ValueError(f"Unknown architecture: {model_cfg['architecture']}")
 
         self.lowest_loss = float("inf")
 

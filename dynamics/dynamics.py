@@ -5,28 +5,28 @@ import torch.distributed as dist
 
 
 class Dynamics(ABC):
-    def __init__(self, args, model_cfg):
+    def __init__(self, dynamics_cfg, device="cpu"):
         # TODO: Check if need super init
         # super().__init__()
         # System & Execution Settings
         self.is_distributed = dist.is_initialized()
-        self.device = args.device_set
+        self.device = torch.device(device)
         self.world_size = dist.get_world_size() if self.is_distributed else 1
         self.is_main = not self.is_distributed or dist.get_rank() == 0
 
         # Time Discretization
         self.t0 = 0.0
-        self.T = model_cfg["T"]
-        self.N = model_cfg["N"]
-        self.dt = model_cfg["dt"]
+        self.T = dynamics_cfg["T"]
+        self.N = dynamics_cfg["N"]
+        self.dt = dynamics_cfg["dt"]
 
         # Problem Setup
-        self.dim = model_cfg["dim"]  # state space dimension
-        self.dim_W = model_cfg["dim_W"]  # Brownian motion dimension
+        self.dim = dynamics_cfg["dim"]  # state space dimension
+        self.dim_W = dynamics_cfg["dim_W"]  # Brownian motion dimension
         self.y0 = torch.tensor(
-            [model_cfg["y0"]], device=self.device, requires_grad=True
+            [dynamics_cfg["y0"]], device=self.device, requires_grad=True
         )
-        self.analytical_known = model_cfg["analytical_known"]
+        self.analytical_known = dynamics_cfg["analytical_known"]
 
     @abstractmethod
     def generator(self, y, q):

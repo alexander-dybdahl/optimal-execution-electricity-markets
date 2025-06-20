@@ -7,17 +7,17 @@ from dynamics.dynamics import Dynamics
 
 
 class AidDynamics(Dynamics):
-    def __init__(self, args, model_cfg):
-        super().__init__(args, model_cfg)
-        self.sigma_P = model_cfg["sigma_P"]
-        self.sigma_D = model_cfg["sigma_D"]
-        self.rho = model_cfg["rho"]
-        self.psi = model_cfg["psi"]         # bid-ask spread
-        self.gamma = model_cfg["gamma"]     # temp impact
-        self.nu = model_cfg["nu"]           # perm impact
-        self.eta = model_cfg["eta"]         # terminal penalty
-        self.mu_D = model_cfg["mu_D"]       # drift for D
-        self.mu_P = model_cfg["mu_P"]       # drift for D
+    def __init__(self, dynamics_cfg, device="cpu"):
+        super().__init__(dynamics_cfg=dynamics_cfg, device=device)
+        self.sigma_P = dynamics_cfg["sigma_P"]
+        self.sigma_D = dynamics_cfg["sigma_D"]
+        self.rho = dynamics_cfg["rho"]
+        self.psi = dynamics_cfg["psi"]         # bid-ask spread
+        self.gamma = dynamics_cfg["gamma"]     # temp impact
+        self.nu = dynamics_cfg["nu"]           # perm impact
+        self.eta = dynamics_cfg["eta"]         # terminal penalty
+        self.mu_D = dynamics_cfg["mu_D"]       # drift for D
+        self.mu_P = dynamics_cfg["mu_P"]       # drift for D
 
     def generator(self, y, q):
         P = y[:, 1:2]

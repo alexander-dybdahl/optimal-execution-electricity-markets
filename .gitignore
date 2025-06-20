@@ -1,8 +1,10 @@
 __pycache__/
 __init__.py
 *.csv
-saved/*
-!saved/keep/
+saved_models/*
+!saved_models/keep/
+saved_evaluations/*
+!saved_evaluations/keep/
 !*.gitkeep
 .cache/*
 .local/*
