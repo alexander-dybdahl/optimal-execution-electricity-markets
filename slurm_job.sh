@@ -28,5 +28,5 @@ torchrun \
   --rdzv_id=$SLURM_JOB_ID \
   --rdzv_backend=c10d \
   --rdzv_endpoint=$MASTER_ADDR:$MASTER_PORT \
-  run.py \
+  train.py \
   --parallel True

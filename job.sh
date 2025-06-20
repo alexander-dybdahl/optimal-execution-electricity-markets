@@ -21,7 +21,7 @@ torchrun \
   --rdzv_id=$(uuidgen) \
   --rdzv_backend=c10d \
   --rdzv_endpoint=$MASTER_ADDR:$MASTER_PORT \
-  run.py \
+  train.py \
   --parallel True
 
 # Note: If stopped, remember to kill the job with:
