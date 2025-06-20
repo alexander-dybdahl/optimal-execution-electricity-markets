@@ -6,7 +6,7 @@ from utils.logger import Logger
 import numpy as np
 import torch
 
-from agents.deepagent import DeepAgent
+from agents.deepagent import DeepAgent, load_deepagent
 from agents.timeweightedagent import TimeWeightedAgent
 from dynamics.aid_dynamics import AidDynamics
 from dynamics.hjb_dynamics import HJBDynamics
@@ -27,6 +27,7 @@ def main():
     parser.add_argument("--dynamics_path", type=str, default=eval_cfg["dynamics_path"], help="Path to the dynamics configuration file")
     parser.add_argument("--best", type=str2bool, nargs='?', const=True, default=eval_cfg["best"], help="Load the model using the best model found during training")
     parser.add_argument("--verbose", type=str2bool, nargs='?', const=True, default=eval_cfg["verbose"], help="Print training progress")
+    parser.add_argument("--plot", type=str2bool, nargs='?', const=True, default=eval_cfg["plot"], help="Plot after training")
     parser.add_argument("--n_simulations", type=int, default=eval_cfg["n_simulations"], help="Number of simulations to run")
     args = parser.parse_args()
 
@@ -47,12 +48,7 @@ def main():
     # Load the model
     train_cfg_path = os.path.join(args.model_dir, "train_config.json")
     train_cfg = load_config(train_cfg_path)
-    model = DeepAgent(dynamics=dynamics, model_cfg=train_cfg, device=device)
-    model.to(device)
-    
-    model_path = os.path.join(args.model_dir, "model")
-    load_path = model_path + "_best.pth" if args.best else model_path + ".pth"
-    model.load_state_dict(torch.load(load_path, map_location=device))
+    model = load_deepagent(dynamics, train_cfg, device, args.model_dir, args.best)
     logger.log("Model loaded successfully.")
 
     # import warnings
@@ -69,35 +65,12 @@ def main():
 
     # Evaluate
     seed = np.random.randint(0, 1000)
-    timesteps, results = simulate_paths(
-        dynamics=dynamics,
-        agent=model,
-        n_sim=args.n_simulations,
-        seed=seed
-    )
-    cost_objective_deepagent = compute_cost_objective(
-        dynamics=dynamics,
-        q_traj=torch.from_numpy(results["q_learned"]).to(device),
-        y_traj=torch.from_numpy(results["y_learned"]).to(device)
-    )
-    logger.log(f"Cost objective of DeepAgent: {cost_objective_deepagent.mean().item():.4f}")
-    
-    timesteps, results = simulate_paths(
-        dynamics=dynamics,
-        agent=TimeWeightedAgent(dynamics=dynamics),
-        n_sim=args.n_simulations,
-        seed=seed
-    )
-    cost_objective_timeweigthedagent = compute_cost_objective(
-        dynamics=dynamics,
-        q_traj=torch.from_numpy(results["q_learned"]).to(device),
-        y_traj=torch.from_numpy(results["y_learned"]).to(device)
-    )
-    logger.log(f"Cost objective of TimeWeightedAgent: {cost_objective_timeweigthedagent.mean().item():.4f}")
-
-    # plot_approx_vs_analytic(results=results, timesteps=timesteps, validation=validation, plot=args.plot, save_dir=save_dir)
-    # plot_approx_vs_analytic_expectation(results=results, timesteps=timesteps, plot=args.plot, save_dir=save_dir)
-    # plot_terminal_histogram(results=results, dynamics=dynamics, plot=args.plot, save_dir=save_dir)
+    solver = Solver(dynamics=dynamics, seed=seed, n_sim=args.n_simulations)
+    solver.evaluate_agent(agent=model, agent_name="deepagent")
+    solver.evaluate_agent(agent=TimeWeightedAgent(dynamics=dynamics), agent_name="timeweightedagent", analytical=False)
+    logger.log(solver.costs)
+    logger.log(f"Evaluation completed with seed {seed}.")
+    solver.plot_traj(plot=args.plot, save_dir=save_dir)
 
 if __name__ == "__main__":
     main()

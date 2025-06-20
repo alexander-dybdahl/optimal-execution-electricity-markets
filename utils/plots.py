@@ -16,8 +16,8 @@ def plot_approx_vs_analytic(results, timesteps, validation=None, plot=True, save
     true_Y = results["Y_analytical"]
     
     if validation is not None:
-        val_q_loss = validation.get("q_loss", None)
-        val_Y_loss = validation.get("Y_loss", None)
+        val_q_loss = validation["q_loss"]
+        val_Y_loss = validation["Y_loss"]
 
     fig, axs = plt.subplots(3, 2, figsize=(14, 10))
     colors = cm.get_cmap("tab10", approx_q.shape[1])
@@ -31,7 +31,7 @@ def plot_approx_vs_analytic(results, timesteps, validation=None, plot=True, save
     axs[0, 0].grid(True)
     axs[0, 0].legend(loc='upper left')
 
-    if val_q_loss is not None:
+    if validation is not None:
         for i in range(approx_q.shape[1]):
             diff = (approx_q[:, i] - true_q[:, i]) ** 2
             axs[0, 1].plot(timesteps[:-1], diff, color=colors(i), alpha=0.6, label=f"$|q_{i}(t) - q^*_{i}(t)|^2 ({val_q_loss[-1]:.2f})$" if i == 0 else None)
@@ -51,7 +51,7 @@ def plot_approx_vs_analytic(results, timesteps, validation=None, plot=True, save
     axs[1, 0].grid(True)
     axs[1, 0].legend(loc='upper left')
 
-    if val_Y_loss is not None:
+    if validation is not None:
         for i in range(Y_vals.shape[1]):
             diff_Y = (Y_vals[:, i, 0] - true_Y[:, i, 0]) ** 2
             axs[1, 1].plot(timesteps, diff_Y, color=colors(i), alpha=0.6, label=f"$|Y_{i}(t) - Y^*_{i}(t)|^2$ ({val_Y_loss[-1]:.2f})" if i == 0 else None)
@@ -87,9 +87,10 @@ def plot_approx_vs_analytic(results, timesteps, validation=None, plot=True, save
             plt.savefig(f"{save_dir}/imgs/approx_vs_analytic_{num}.png", dpi=300, bbox_inches='tight')
         else:
             plt.savefig(f"{save_dir}/imgs/approx_vs_analytic.png", dpi=300, bbox_inches='tight')
-        plt.close()
     if plot:
         plt.show()
+    else:
+        plt.close()
 
 def plot_approx_vs_analytic_expectation(results, timesteps, plot=True, save_dir=None, num=None):
     approx_q = results["q_learned"]
@@ -159,9 +160,10 @@ def plot_approx_vs_analytic_expectation(results, timesteps, plot=True, save_dir=
             plt.savefig(f"{save_dir}/imgs/approx_vs_analytic_expectation_{num}.png", dpi=300, bbox_inches='tight')
         else:
             plt.savefig(f"{save_dir}/imgs/approx_vs_analytic_expectation.png", dpi=300, bbox_inches='tight')
-        plt.close()
     if plot:
         plt.show()
+    else:
+        plt.close()
     
 def plot_terminal_histogram(results, dynamics, plot=True, save_dir=None, num=None):
     y_vals = results["y_learned"]
@@ -233,6 +235,7 @@ def plot_terminal_histogram(results, dynamics, plot=True, save_dir=None, num=Non
             plt.savefig(f"{save_dir}/imgs/terminal_histogram_{num}.png", dpi=300, bbox_inches='tight')
         else:
             plt.savefig(f"{save_dir}/imgs/terminal_histogram.png", dpi=300, bbox_inches='tight')
-        plt.close()
     if plot:
         plt.show()
+    else:
+        plt.close()

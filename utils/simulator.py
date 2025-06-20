@@ -2,10 +2,10 @@
 import numpy as np
 import torch
 
-def simulate_paths(dynamics, agent, n_sim=5, seed=42, y0_single=None):
+def simulate_paths(dynamics, agent, n_sim=5, seed=42, y0_single=None, analytical=True):
     t, dW, _ = dynamics.generate_paths(n_sim, seed=seed)
     
-    t0 = t[:, 0, :]
+    t0 = t[0 , :, :]
     y0 = (
         y0_single.repeat(n_sim, 1)
         if y0_single is not None
@@ -17,7 +17,7 @@ def simulate_paths(dynamics, agent, n_sim=5, seed=42, y0_single=None):
     if agent_predicts_Y:
         Y0_agent = agent.predict_Y_initial(y0_agent)
     
-    if dynamics.analytical_known:
+    if dynamics.analytical_known and analytical:
         y0_analytical = y0.clone()
         Y0_analytical = dynamics.value_function_analytic(t0, y0_analytical)
         
@@ -27,22 +27,22 @@ def simulate_paths(dynamics, agent, n_sim=5, seed=42, y0_single=None):
     if agent_predicts_Y:
         Y_agent_traj = [Y0_agent.detach().cpu().numpy()]
     
-    if dynamics.analytical_known:
+    if dynamics.analytical_known and analytical:
         q_analytical_traj = []
         y_analytical_traj = [y0_analytical.detach().cpu().numpy()]
         Y_analytical_traj = [Y0_analytical.detach().cpu().numpy()]
         
     for n in range(dynamics.N):
-        t1 = t[:, n + 1, :]
+        t1 = t[n + 1, :, :]
 
         q_agent = agent.predict(t0, y0_agent)
-        y1_agent = dynamics.forward_dynamics(y0_agent, q_agent, dW[:, n, :], t0, t1 - t0)
+        y1_agent = dynamics.forward_dynamics(y0_agent, q_agent, dW[n, :, :], t0, t1 - t0)
         if agent_predicts_Y:
             Y1_agent = agent.predict_Y_next(t0, y0_agent, t1 - t0, y1_agent - y0_agent, Y0_agent)
         
-        if dynamics.analytical_known:
+        if dynamics.analytical_known and analytical:
             q_analytical = dynamics.optimal_control_analytic(t0, y0_analytical)
-            y1_analytical = dynamics.forward_dynamics(y0_analytical, q_analytical, dW[:, n, :], t0, t1 - t0)
+            y1_analytical = dynamics.forward_dynamics(y0_analytical, q_analytical, dW[n, :, :], t0, t1 - t0)
             Y1_analytical = dynamics.value_function_analytic(t1, y1_analytical)
             
             Y_analytical_traj.append(Y1_analytical.detach().cpu().numpy())
@@ -67,7 +67,7 @@ def simulate_paths(dynamics, agent, n_sim=5, seed=42, y0_single=None):
     else:
         Y_agent_traj = None
 
-    if dynamics.analytical_known:
+    if dynamics.analytical_known and analytical:
         q_analytical_traj = np.stack(q_analytical_traj)
         y_analytical_traj = np.stack(y_analytical_traj)
         Y_analytical_traj = np.stack(Y_analytical_traj)
