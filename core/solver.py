@@ -43,7 +43,7 @@ class Solver:
             'results': results
         }
 
-        self.costs[agent_name] = cost_objective.mean().item()
+        self.costs[agent_name] = cost_objective.detach().cpu().numpy()
 
     def plot_traj(self, plot=True, save_dir=None):
         if not self.results:
@@ -186,6 +186,61 @@ class Solver:
         plt.tight_layout()
         if save_dir:
             plt.savefig(f"{save_dir}/imgs/trajectories_all.png", dpi=300, bbox_inches='tight')
+        if plot:
+            plt.show()
+        else:
+            plt.close()
+
+    def plot_cost_histograms(self, plot=True, save_dir=None):
+        if not self.costs:
+            print("No costs to plot.")
+            return
+
+        n_agents = len(self.costs)
+        if n_agents == 0:
+            return
+            
+        fig, axs = plt.subplots(n_agents, 1, figsize=(8, 6 * n_agents), squeeze=False)
+
+        for i, (agent_name, costs) in enumerate(self.costs.items()):
+            ax = axs[i, 0]
+            color = self.colors.get(agent_name, 'gray')
+
+            # Plot histogram
+            ax.hist(costs, bins='auto', color=color, alpha=0.7, label='Cost Distribution')
+
+            # Calculate stats
+            mean_cost = np.mean(costs)
+            std_cost = np.std(costs)
+            mean_std_ratio = mean_cost / std_cost if std_cost > 0 else 0.0
+
+            # Plot mean line
+            ax.axvline(mean_cost, color='red', linestyle='dotted', linewidth=2, label=f'Mean: {mean_cost:.4f}')
+
+            # Calculate and plot mode from histogram
+            hist, bin_edges = np.histogram(costs, bins='auto')
+            if len(hist) > 0:
+                max_hist_index = np.argmax(hist)
+                mode_cost = (bin_edges[max_hist_index] + bin_edges[max_hist_index+1]) / 2
+                ax.axvline(mode_cost, color='green', linestyle='dotted', linewidth=2, label=f'Mode: {mode_cost:.4f}')
+
+            ax.set_title(f'Cost Distribution for {agent_name}')
+            ax.set_xlabel("Cost Objective")
+            ax.set_ylabel("Frequency")
+            
+            # Create legend
+            handles, labels = ax.get_legend_handles_labels()
+            
+            # Add stats to legend
+            handles.append(Patch(color='none', label=f'Std Dev: {std_cost:.4f}'))
+            handles.append(Patch(color='none', label=f'Mean/Std: {mean_std_ratio:.4f}'))
+            
+            ax.legend(handles=handles)
+            ax.grid(True, linestyle='--', alpha=0.5)
+
+        plt.tight_layout()
+        if save_dir:
+            plt.savefig(f"{save_dir}/imgs/cost_histograms.png", dpi=300, bbox_inches='tight')
         if plot:
             plt.show()
         else:

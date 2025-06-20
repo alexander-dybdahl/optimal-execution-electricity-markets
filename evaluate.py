@@ -48,8 +48,6 @@ def main():
     # Load the model
     train_cfg_path = os.path.join(args.model_dir, "train_config.json")
     train_cfg = load_config(train_cfg_path)
-    model = load_deepagent(dynamics, train_cfg, device, args.model_dir, args.best)
-    logger.log("Model loaded successfully.")
 
     # import warnings
     # warnings.filterwarnings("ignore", message="Attempting to run cuBLAS, but there was no current CUDA context!")
@@ -66,11 +64,12 @@ def main():
     # Evaluate
     seed = np.random.randint(0, 1000)
     solver = Solver(dynamics=dynamics, seed=seed, n_sim=args.n_simulations)
-    solver.evaluate_agent(agent=model, agent_name="deepagent")
+    logger.log("Starting evaluation.")
+    solver.evaluate_agent(agent=load_deepagent(dynamics, train_cfg, device, args.model_dir, args.best), agent_name="deepagent")
     solver.evaluate_agent(agent=TimeWeightedAgent(dynamics=dynamics), agent_name="timeweightedagent", analytical=False)
-    logger.log(solver.costs)
     logger.log(f"Evaluation completed with seed {seed}.")
     solver.plot_traj(plot=args.plot, save_dir=save_dir)
+    solver.plot_cost_histograms(plot=args.plot, save_dir=save_dir)
 
 if __name__ == "__main__":
     main()

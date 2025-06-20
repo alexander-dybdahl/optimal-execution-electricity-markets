@@ -5,6 +5,6 @@
   "dynamics_path": "config/dynamics_configs/aid_config.json",
   "best": true,
   "verbose": true,
-  "plot": true,
+  "plot": false,
   "n_simulations": 10000
 }
