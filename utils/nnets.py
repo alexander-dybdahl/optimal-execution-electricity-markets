@@ -438,17 +438,28 @@ class LSTMWithSubnets(nn.Module):
         self.cell_states = None
 
 class UncertaintyWeightedLoss(nn.Module):
-    def __init__(self, task_names):
+    def __init__(self, task_weights):
+        """
+        task_weights: dict mapping task name -> importance weight (e.g., {"Y0_loss": 2.0, "reg_loss": 0.5})
+        """
         super().__init__()
+        self.task_weights = task_weights
+
+        # Learnable log variances for each task
         self.log_vars = nn.ParameterDict({
-            name: nn.Parameter(torch.tensor(0.0)) for name in task_names
+            name: nn.Parameter(torch.tensor(0.0)) for name in task_weights.keys()
         })
 
     def forward(self, losses_dict):
         total_loss = 0.0
         for name, loss in losses_dict.items():
             log_var = self.log_vars[name]
+            weight = self.task_weights.get(name, 1.0)
             precision = torch.exp(-log_var)
-            weighted = precision * loss + log_var  # equivalent to log(sigma)
+
+            # Weighted version of the uncertainty formulation:
+            # weight * (1/σ² * loss + log σ)
+            weighted = weight * (precision * loss + log_var)
             total_loss += weighted
+
         return total_loss

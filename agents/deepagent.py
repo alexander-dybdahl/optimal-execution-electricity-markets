@@ -50,15 +50,18 @@ class DeepAgent(nn.Module):
         self.scale_output = args.scale_output  # how much to scale the output of the network
 
         # Loss Weights
-        self.lambda_Y = args.lambda_Y      # value function loss
-        self.lambda_dY = args.lambda_dY    # spatial gradient loss
-        self.lambda_dYt = args.lambda_dYt  # temporal gradient loss
-        self.lambda_T = args.lambda_T      # terminal value loss
-        self.lambda_TG = args.lambda_TG    # terminal gradient loss
-        self.lambda_pinn = args.lambda_pinn  # physics residual loss
-        self.lambda_reg = args.lambda_reg  # regularization loss
-        self.lambda_Y0 = args.lambda_Y0    # initial value regularization loss
-        self.lambda_cost = args.lambda_cost  # cost loss
+        self.adaptive_loss = args.adaptive_loss
+        self.loss_weights = {
+            "lambda_Y0": args.lambda_Y0,
+            "lambda_Y": args.lambda_Y,
+            "lambda_dY": args.lambda_dY,
+            "lambda_dYt": args.lambda_dYt,
+            "lambda_T": args.lambda_T,
+            "lambda_TG": args.lambda_TG,
+            "lambda_pinn": args.lambda_pinn,
+            "lambda_reg": args.lambda_reg,
+            "lambda_cost": args.lambda_cost,
+        }
         
         # Loss threshold for linear approximation
         self.loss_threshold = args.loss_threshold
@@ -259,10 +262,11 @@ class DeepAgent(nn.Module):
         
         losses_dict = {}
 
-        # === Compute fbsnn loss ===
+        # === Compute FBSNN loss ===
         Y_loss = 0.0
         for n in range(self.dynamics.N):
             t1 = t[:, n + 1, :]
+            dt = t1 - t0
 
             if self.second_order_taylor:
                 t0 = t0.requires_grad_(True)
@@ -273,9 +277,13 @@ class DeepAgent(nn.Module):
             dY_dy = dY_outputs[:, 1:]
             
             q = self.dynamics.optimal_control(t0, y0, dY_dy)
-            y1 = self.dynamics.forward_dynamics(y0, q, dW[:, n, :], t0, t1 - t0)
-            Y1 = Y0 + dY_dt * (t1 - t0) + (dY_dy * (y1 - y0)).sum(dim=1, keepdim=True)
-            
+            y1 = self.dynamics.forward_dynamics(y0, q, dW[:, n, :], t0, dt)
+            dy = y1 - y0
+            Y1 = Y0 + dY_dt * dt + (dY_dy * dy).sum(dim=1, keepdim=True)
+
+            Z0 = torch.bmm(self.dynamics.sigma(t0, y0).transpose(1, 2), dY_dy.unsqueeze(-1)).squeeze(-1)
+            Y1_tilde = Y0 - self.dynamics.generator(y0, q) * dt + (Z0 * (dW[:, n, :])).sum(dim=1, keepdim=True)
+
             if self.second_order_taylor:
                 # Second-order Taylor approximation
                 ddY_ddt = torch.autograd.grad(
@@ -286,26 +294,20 @@ class DeepAgent(nn.Module):
                     retain_graph=True,
                     allow_unused=True,
                 )[0]
-                ddY_ddy = torch.autograd.grad(
-                    outputs=dY_dy,
+                hvp = torch.autograd.grad(
+                    outputs=(dY_dy * dy).sum(),
                     inputs=y0,
-                    grad_outputs=torch.ones_like(dY_dy),
                     create_graph=False,
-                    retain_graph=True,
+                    retain_graph=True
                 )[0]
 
                 # Handle cases where gradient with respect to t might be None due to separate subnet per time
                 if ddY_ddt is None:
                     ddY_ddt = 0
 
-                Y1 += 0.5 * (
-                    ddY_ddt * (t1 - t0) ** 2  +
-                    (ddY_ddy * (y1 - y0) ** 2).sum(dim=1, keepdim=True)
-                )
+                quadratic_term = (hvp * dy).sum(dim=1, keepdim=True)  # (delta_y)^T @ H @ delta_y
+                Y1 += 0.5 * (ddY_ddt * dt ** 2 + quadratic_term)
 
-            Z0 = torch.bmm(self.dynamics.sigma(t0, y0).transpose(1, 2), dY_dy.unsqueeze(-1)).squeeze(-1)
-            Y1_tilde = Y0 - self.dynamics.generator(y0, q) * (t1 - t0) + (Z0 * (dW[:, n, :])).sum(dim=1, keepdim=True)
-            
             Y_loss += self.apply_thresholded_loss(Y1 - Y1_tilde).mean()
 
             t_traj.append(t1)
@@ -315,9 +317,10 @@ class DeepAgent(nn.Module):
 
             t0, y0, Y0 = t1, y1, Y1
 
-        losses_dict["Y_loss"] = self.Y_loss
-        self.Y_loss = self.lambda_Y * Y_loss.detach()
-        
+        if self.loss_weights["lambda_Y"] > 0:
+            losses_dict["lambda_Y"] = self.Y_loss
+            self.Y_loss = Y_loss.detach()
+
         t_all = torch.cat(t_traj, dim=0).detach()
         y_all = torch.cat(y_traj, dim=0).detach()
         q_all = torch.cat(q_traj, dim=0).detach()
@@ -325,21 +328,21 @@ class DeepAgent(nn.Module):
 
         # === Terminal loss ===
         terminal_loss = 0.0
-        if self.lambda_T > 0:
+        if self.loss_weights["lambda_T"] > 0:
             terminal_loss = self.apply_thresholded_loss(Y0 - self.dynamics.terminal_cost(y0)).mean()
-            losses_dict["terminal_loss"] = self.lambda_T * terminal_loss
+            losses_dict["lambda_T"] = terminal_loss
             self.terminal_loss = terminal_loss.detach()
 
         # === Terminal gradient loss ===
         terminal_gradient_loss = 0.0
-        if self.lambda_TG > 0:
+        if self.loss_weights["lambda_TG"] > 0:
             terminal_gradient_loss = self.apply_thresholded_loss(dY_dy - self.dynamics.terminal_cost_grad(y0)).mean()
-            losses_dict["terminal_gradient_loss"] = self.lambda_TG * terminal_gradient_loss
+            losses_dict["lambda_TG"] = terminal_gradient_loss
             self.terminal_gradient_loss = terminal_gradient_loss.detach()
 
         # === Physics-based loss ===
         pinn_loss = 0.0
-        if self.lambda_pinn > 0:
+        if self.loss_weights["lambda_pinn"] > 0:
             t_pinn = torch.cat(t_traj, dim=0).requires_grad_(True)
             y_pinn = torch.cat(y_traj, dim=0).requires_grad_(True)
 
@@ -373,21 +376,21 @@ class DeepAgent(nn.Module):
                 y_pinn = torch.cat([y_pinn, sobol_points], dim=0).requires_grad_(True)
 
             pinn_loss = self.hjb_residual(t_pinn, y_pinn)
-            losses_dict["pinn_loss"] = self.lambda_pinn * pinn_loss
+            losses_dict["lambda_pinn"] = pinn_loss
             self.pinn_loss = pinn_loss.detach()
 
         # === q regularization loss ===
         reg_loss = 0.0
-        if self.lambda_reg > 0:
+        if self.loss_weights["lambda_reg"] > 0:
             q_diffs = [q_traj[i+1] - q_traj[i] for i in range(len(q_traj) - 1)]
             dq_all = torch.cat(q_diffs, dim=0)
-            reg_loss = self.apply_thresholded_loss(q_all).mean() + self.apply_thresholded_loss(dq_all).mean() 
-            losses_dict["reg_loss"] = self.lambda_reg * reg_loss
+            reg_loss = self.apply_thresholded_loss(q_all).mean() + self.apply_thresholded_loss(dq_all).mean()
+            losses_dict["lambda_reg"] = reg_loss
             self.reg_loss = reg_loss.detach()
 
         # === Cost objective ===
         cost_objective = 0.0
-        if self.lambda_cost > 0:
+        if self.loss_weights["lambda_cost"] > 0:
             running_cost = 0.0
             dt = self.dynamics.dt
             for n in range(self.dynamics.N):
@@ -400,14 +403,14 @@ class DeepAgent(nn.Module):
 
             terminal_cost = self.dynamics.terminal_cost(y_all[-self.batch_size:])  # final time step
             cost_objective = (running_cost + terminal_cost).mean()
-            losses_dict["cost_loss"] = self.lambda_cost * cost_objective
+            losses_dict["lambda_cost"] = cost_objective
             self.cost_loss = cost_objective.detach()
 
         # === Y0 fbsnn loss ===
         Y0_loss = 0.0
-        if self.lambda_Y0 > 0:
+        if self.loss_weights["lambda_Y0"] > 0:
             Y0_loss = self.apply_thresholded_loss(Y0_init - self.cost_loss).mean()
-            losses_dict["Y0_loss"] = self.lambda_Y0 * Y0_loss
+            losses_dict["lambda_Y0"] = Y0_loss
             self.Y0_loss = Y0_loss.detach()
 
         # === Y and q validation loss ===
@@ -421,8 +424,14 @@ class DeepAgent(nn.Module):
             self.val_q_loss = q_val_loss.detach()
 
         # === Total loss computation ===
-        loss_fn = UncertaintyWeightedLoss(losses_dict.keys())
-        total_loss = loss_fn(losses_dict)
+        if self.adaptive_loss:
+            loss_fn = UncertaintyWeightedLoss(self.loss_weights)
+            total_loss = loss_fn(losses_dict)
+        else:
+            total_loss = sum(
+                self.loss_weights[key] * value
+                for key, value in losses_dict.items()
+            ) 
 
         # === Supervised loss ===
         if self.dynamics.analytical_known and self.supervised:
@@ -542,15 +551,15 @@ class DeepAgent(nn.Module):
 
         # Define active loss components
         loss_components = [
-            ("Y0 loss", self.lambda_Y0, lambda: np.mean(losses_Y0[-K:])),
-            ("Y loss", self.lambda_Y, lambda: np.mean(losses_Y[-K:])),
-            ("dY loss", self.lambda_dY, lambda: np.mean(losses_dY[-K:])),
-            ("dYt loss", self.lambda_dYt, lambda: np.mean(losses_dYt[-K:])),
-            ("T. loss", self.lambda_T, lambda: np.mean(losses_terminal[-K:])),
-            ("T.G. loss", self.lambda_TG, lambda: np.mean(losses_terminal_gradient[-K:])),
-            ("pinn loss", self.lambda_pinn, lambda: np.mean(losses_pinn[-K:])),
-            ("reg loss", self.lambda_reg, lambda: np.mean(losses_reg[-K:])),
-            ("cost loss", self.lambda_cost, lambda: np.mean(losses_cost[-K:])),
+            ("Y0 loss", self.loss_weights["lambda_Y0"], lambda: np.mean(losses_Y0[-K:])),
+            ("Y loss", self.loss_weights["lambda_Y"], lambda: np.mean(losses_Y[-K:])),
+            ("dY loss", self.loss_weights["lambda_dY"], lambda: np.mean(losses_dY[-K:])),
+            ("dYt loss", self.loss_weights["lambda_dYt"], lambda: np.mean(losses_dYt[-K:])),
+            ("T. loss", self.loss_weights["lambda_T"], lambda: np.mean(losses_terminal[-K:])),
+            ("T.G. loss", self.loss_weights["lambda_TG"], lambda: np.mean(losses_terminal_gradient[-K:])),
+            ("pinn loss", self.loss_weights["lambda_pinn"], lambda: np.mean(losses_pinn[-K:])),
+            ("reg loss", self.loss_weights["lambda_reg"], lambda: np.mean(losses_reg[-K:])),
+            ("cost loss", self.loss_weights["lambda_cost"], lambda: np.mean(losses_cost[-K:])),
         ]
         active_losses = [
             (name, fn) for name, lambda_, fn in loss_components if lambda_ > 0
@@ -584,15 +593,15 @@ class DeepAgent(nn.Module):
             logger.log(f"| Learning Rate             | {lr:<25} |")
             logger.log(f"| Adaptive LR               | {'True' if adaptive else 'False':<25} |")
             logger.log(f"| Adaptive Factor           | {self.adaptive_factor:<25} |")
-            logger.log(f"| lambda_Y0 (Y0 loss)       | {self.lambda_Y0:<25} |")
-            logger.log(f"| lambda_Y (Y loss)         | {self.lambda_Y:<25} |")
-            logger.log(f"| lambda_dY (Spatial loss)  | {self.lambda_dY:<25} |")
-            logger.log(f"| lambda_dYt (Temporal loss)| {self.lambda_dYt:<25} |")
-            logger.log(f"| lambda_T (Terminal loss)  | {self.lambda_T:<25} |")
-            logger.log(f"| lambda_TG (Gradient loss) | {self.lambda_TG:<25} |")
-            logger.log(f"| lambda_pinn (PINN loss)   | {self.lambda_pinn:<25} |")
-            logger.log(f"| lambda_reg (Reg loss)     | {self.lambda_reg:<25} |")
-            logger.log(f"| lambda_cost (Cost loss)   | {self.lambda_cost:<25} |")
+            logger.log(f"| lambda_Y0 (Y0 loss)       | {self.loss_weights['lambda_Y0']:<25} |")
+            logger.log(f"| lambda_Y (Y loss)         | {self.loss_weights['lambda_Y']:<25} |")
+            logger.log(f"| lambda_dY (Spatial loss)  | {self.loss_weights['lambda_dY']:<25} |")
+            logger.log(f"| lambda_dYt (Temporal loss)| {self.loss_weights['lambda_dYt']:<25} |")
+            logger.log(f"| lambda_T (Terminal loss)  | {self.loss_weights['lambda_T']:<25} |")
+            logger.log(f"| lambda_TG (Gradient loss) | {self.loss_weights['lambda_TG']:<25} |")
+            logger.log(f"| lambda_pinn (PINN loss)   | {self.loss_weights['lambda_pinn']:<25} |")
+            logger.log(f"| lambda_reg (Reg loss)     | {self.loss_weights['lambda_reg']:<25} |")
+            logger.log(f"| lambda_cost (Cost loss)   | {self.loss_weights['lambda_cost']:<25} |")
             logger.log(f"| Batch Size per Epoch      | {self.batch_size * self.world_size:<25} |")
             logger.log(f"| Batch Size per Rank       | {self.batch_size:<25} |")
             logger.log(f"| Architecture              | {self.architecture.upper():<25} |")
@@ -777,15 +786,15 @@ class DeepAgent(nn.Module):
                     # === Plot training losses ===
                     plt.figure(figsize=(12, 8))
                     plt.plot(losses, label="Total Loss")
-                    if self.lambda_Y0 > 0: plt.plot(losses_Y0, label="Y0 Loss")
-                    if self.lambda_Y > 0: plt.plot(losses_Y, label="Y Loss")
-                    if self.lambda_dY > 0: plt.plot(losses_dY, label="dY Loss")
-                    if self.lambda_dYt > 0: plt.plot(losses_dYt, label="dYt Loss")
-                    if self.lambda_T > 0: plt.plot(losses_terminal, label="Terminal Loss")
-                    if self.lambda_TG > 0: plt.plot(losses_terminal_gradient, label="Terminal Gradient Loss")
-                    if self.lambda_pinn > 0: plt.plot(losses_pinn, label="PINN Loss")
-                    if self.lambda_reg > 0: plt.plot(losses_reg, label="Regularization Loss")
-                    if self.lambda_cost > 0: plt.plot(losses_cost, label="Cost Loss")
+                    if self.loss_weights["lambda_Y0"] > 0: plt.plot(losses_Y0, label="Y0 Loss")
+                    if self.loss_weights["lambda_Y"] > 0: plt.plot(losses_Y, label="Y Loss")
+                    if self.loss_weights["lambda_dY"] > 0: plt.plot(losses_dY, label="dY Loss")
+                    if self.loss_weights["lambda_dYt"] > 0: plt.plot(losses_dYt, label="dYt Loss")
+                    if self.loss_weights["lambda_T"] > 0: plt.plot(losses_terminal, label="Terminal Loss")
+                    if self.loss_weights["lambda_TG"] > 0: plt.plot(losses_terminal_gradient, label="Terminal Gradient Loss")
+                    if self.loss_weights["lambda_pinn"] > 0: plt.plot(losses_pinn, label="PINN Loss")
+                    if self.loss_weights["lambda_reg"] > 0: plt.plot(losses_reg, label="Regularization Loss")
+                    if self.loss_weights["lambda_cost"] > 0: plt.plot(losses_cost, label="Cost Loss")
 
                     for decay_epoch in lr_decay_epochs:
                         plt.axvline(x=decay_epoch, color='red', linestyle='--', alpha=0.6,
