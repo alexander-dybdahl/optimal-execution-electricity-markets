@@ -648,7 +648,7 @@ class DeepAgent(nn.Module):
             optimizer.zero_grad()
             t, dW, _ = self.dynamics.generate_paths(self.batch_size)
             loss = self(t=t, dW=dW)
-            loss.backward(retain_graph=True)
+            loss.backward()
 
             # Optimizer and scheduler step
             optimizer.step()
