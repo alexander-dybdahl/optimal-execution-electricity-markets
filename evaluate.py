@@ -7,13 +7,14 @@ import numpy as np
 import torch
 
 from agents.deepagent import DeepAgent
+from agents.timeweightedagent import TimeWeightedAgent
 from dynamics.aid_dynamics import AidDynamics
 from dynamics.hjb_dynamics import HJBDynamics
 from dynamics.simple_dynamics import SimpleDynamics
 from core.solver import Solver
 from utils.load_config import load_config, load_dynamics_config
 from utils.plots import plot_approx_vs_analytic, plot_approx_vs_analytic_expectation, plot_terminal_histogram 
-from utils.simulator import simulate_paths
+from utils.simulator import simulate_paths, compute_cost_objective
 from utils.tools import str2bool
 
 
@@ -67,9 +68,33 @@ def main():
         json.dump(dynamics_cfg, f, indent=4)
 
     # Evaluate
-    validation = model.validation
     seed = np.random.randint(0, 1000)
-    timesteps, results = simulate_paths(dynamics=dynamics, agent=model, n_sim=args.n_simulations, seed=seed)
+    timesteps, results = simulate_paths(
+        dynamics=dynamics,
+        agent=model,
+        n_sim=args.n_simulations,
+        seed=seed
+    )
+    cost_objective_deepagent = compute_cost_objective(
+        dynamics=dynamics,
+        q_traj=results["q_learned"], 
+        y_traj=results["y_learned"]
+    )
+    logger.log(f"Cost objective of DeepAgent: {cost_objective_deepagent.mean().item():.4f}")
+    
+    timesteps, results = simulate_paths(
+        dynamics=dynamics,
+        agent=TimeWeightedAgent(dynamics=dynamics),
+        n_sim=args.n_simulations,
+        seed=seed
+    )
+    cost_objective_timeweigthedagent = compute_cost_objective(
+        dynamics=dynamics,
+        q_traj=results["q_learned"], 
+        y_traj=results["y_learned"]
+    )
+    logger.log(f"Cost objective of TimeWeightedAgent: {cost_objective_timeweigthedagent.mean().item():.4f}")
+
     # plot_approx_vs_analytic(results=results, timesteps=timesteps, validation=validation, plot=args.plot, save_dir=save_dir)
     # plot_approx_vs_analytic_expectation(results=results, timesteps=timesteps, plot=args.plot, save_dir=save_dir)
     # plot_terminal_histogram(results=results, dynamics=dynamics, plot=args.plot, save_dir=save_dir)

@@ -10,7 +10,7 @@ from torch.quasirandom import SobolEngine
 
 from utils.logger import Logger
 from utils.plots import plot_approx_vs_analytic, plot_approx_vs_analytic_expectation, plot_terminal_histogram
-from utils.simulator import simulate_paths
+from utils.simulator import simulate_paths, compute_cost_objective
 from utils.nnets import (
     FCnet,
     FCnet_init,
@@ -391,18 +391,11 @@ class DeepAgent(nn.Module):
         # === Cost objective ===
         cost_objective = 0.0
         if self.loss_weights["lambda_cost"] > 0:
-            running_cost = 0.0
-            dt = self.dynamics.dt
-            for n in range(self.dynamics.N):
-                start = n * self.batch_size
-                end = (n + 1) * self.batch_size
-                y_n = y_all[start:end]
-                q_n = q_all[start:end]
-                f_n = self.dynamics.generator(y_n, q_n)
-                running_cost += f_n * dt
-
-            terminal_cost = self.dynamics.terminal_cost(y_all[-self.batch_size:])  # final time step
-            cost_objective = (running_cost + terminal_cost).mean()
+            cost_objective = compute_cost_objective(
+                dynamics=self.dynamics,
+                q_traj=torch.stack(q_traj, dim=0).detach(),
+                y_traj=torch.stack(y_traj, dim=0).detach()
+            ).mean()
             losses_dict["lambda_cost"] = cost_objective
             self.cost_loss = cost_objective.detach()
 

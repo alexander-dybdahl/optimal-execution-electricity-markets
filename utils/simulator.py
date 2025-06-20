@@ -82,3 +82,17 @@ def simulate_paths(dynamics, agent, n_sim=5, seed=42, y0_single=None):
         "y_analytical": y_analytical_traj,
         "Y_analytical": Y_analytical_traj,
     }
+
+
+def compute_cost_objective(dynamics, q_traj, y_traj):
+    dt = dynamics.dt
+    running_cost = 0.0
+    for n in range(dynamics.N):
+        y_n = y_traj[n]      # (batch_size, state_dim)
+        q_n = q_traj[n]      # (batch_size, control_dim)
+        f_n = dynamics.generator(y_n, q_n)  # (batch_size, 1) or (batch_size,)
+        running_cost += f_n * dt                  # accumulate per batch
+
+    terminal_cost = dynamics.terminal_cost(y_traj[-1])  # (batch_size, 1) or (batch_size,)
+    cost_objective = running_cost + terminal_cost
+    return cost_objective
