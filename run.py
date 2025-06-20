@@ -14,8 +14,9 @@ from dynamics.hjb_dynamics import HJBDynamics
 from dynamics.simple_dynamics import SimpleDynamics
 from core.solver import Solver
 from utils.load_config import load_model_config, load_run_config
-from utils.plots import plot_approx_vs_analytic, plot_approx_vs_analytic_expectation, plot_terminal_histogram 
+from utils.plots import plot_approx_vs_analytic, plot_approx_vs_analytic_expectation, plot_terminal_histogram
 from utils.tools import str2bool
+from utils.simulator import simulate_paths
 
 
 def main():
@@ -168,7 +169,7 @@ def main():
         solver = Solver(dynamics=dynamics, args=args)
         call_model = model.module if isinstance(model, DDP) else model
         validation = call_model.validation
-        timesteps, results = solver.simulate_paths(agent=call_model, n_sim=args.n_simulations, seed=np.random.randint(0, 1000))
+        timesteps, results = simulate_paths(agent=call_model, n_sim=args.n_simulations, seed=np.random.randint(0, 1000))
         plot_approx_vs_analytic(results=results, timesteps=timesteps, validation=validation, plot=args.plot, save_dir=save_dir)
         plot_approx_vs_analytic_expectation(results=results, timesteps=timesteps, plot=args.plot, save_dir=save_dir)
         plot_terminal_histogram(results=results, dynamics=dynamics, plot=args.plot, save_dir=save_dir)
