@@ -1,6 +1,7 @@
 import numpy as np
 import torch
 import matplotlib.pyplot as plt
+from matplotlib.patches import Patch
 
 from utils.simulator import simulate_paths, compute_cost_objective
 
@@ -61,9 +62,10 @@ class Solver:
             agent_handles.append(plt.Line2D([0], [0], color=color, linestyle='-', label=agent_name))
             
         style_handles = [plt.Line2D([0], [0], color='k', linestyle=ls, label=style_labels[ls]) for ls in line_styles.values()]
-        # Use a square marker as a proxy for a patch in the legend for the std area
-        std_handle = plt.Line2D([], [], color='gray', marker='s', linestyle='None', markersize=10, label='Learned ±1 std')
-        style_handles.append(std_handle)
+        # Use a patch for the legend for the std area
+        std_learned_handle = Patch(facecolor='gray', alpha=0.2, label='Learned ±1 std')
+        std_analytic_handle = Patch(facecolor='gray', alpha=0.2, hatch='//', label='Analytic ±1 std')
+        style_handles.extend([std_learned_handle, std_analytic_handle])
 
         for idx, var in enumerate(['q', 'y', 'Y']):
             ax = axs[idx]
@@ -126,16 +128,53 @@ class Solver:
                 if arr_analytical is not None:
                     arr_analytical = np.asarray(arr_analytical)
                     arr_mean = arr_analytical.mean(axis=1)
+                    arr_std = arr_analytical.std(axis=1)
+
+                    # Squeeze last dim if it's 1
                     if arr_mean.ndim > 1 and arr_mean.shape[-1] == 1:
                         arr_mean = arr_mean.squeeze(-1)
-                    ax.plot(
-                        timesteps[:arr_mean.shape[0]],
-                        arr_mean,
-                        color=color,
-                        linestyle=line_styles['analytic'],
-                        linewidth=2,
-                        alpha=0.7
-                    )
+                        arr_std = arr_std.squeeze(-1)
+
+                    # Handle plotting based on dimension
+                    if arr_mean.ndim == 1:
+                        ax.plot(
+                            timesteps[:arr_mean.shape[0]],
+                            arr_mean,
+                            color=color,
+                            linestyle=line_styles['analytic'],
+                            linewidth=2,
+                            alpha=0.7
+                        )
+                        ax.fill_between(
+                            timesteps[:arr_mean.shape[0]],
+                            arr_mean - arr_std,
+                            arr_mean + arr_std,
+                            color=color,
+                            alpha=0.2,
+                            linewidth=0,
+                            hatch='//'
+                        )
+                    else:  # arr_mean.ndim > 1
+                        for i in range(arr_mean.shape[-1]):
+                            # Plot each dimension separately
+                            ax.plot(
+                                timesteps[:arr_mean.shape[0]],
+                                arr_mean[:, i],
+                                color=color,
+                                linestyle=line_styles['analytic'],
+                                linewidth=2,
+                                alpha=0.7
+                            )
+                            ax.fill_between(
+                                timesteps[:arr_mean.shape[0]],
+                                arr_mean[:, i] - arr_std[:, i],
+                                arr_mean[:, i] + arr_std[:, i],
+                                color=color,
+                                alpha=0.2,
+                                linewidth=0,
+                                hatch='//'
+                            )
+
             ax.set_title(var_titles[var])
             ax.set_xlabel("Time")
             ax.set_ylabel(var_ylabels[var])
