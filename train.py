@@ -157,7 +157,7 @@ def main():
                 start_epoch = 1
                 logger.log(f"Loaded model checkpoint (model state only)")
         except Exception as e:
-            logger.log(f"No valid model found in {save_dir}, starting from scratch. Error: {e}")
+            logger.log(f"No valid model found in {save_dir}, starting from scratch.")
     else:
         logger.log("Not loading any model, starting from scratch.")
 
