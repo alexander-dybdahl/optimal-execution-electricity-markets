@@ -334,7 +334,13 @@ class DeepAgent(nn.Module):
                         grad_outputs=torch.ones_like(dY_dt),
                         create_graph=False,
                         retain_graph=True,
-                        allow_unused=True,
+                    )[0]
+                    cross_term = torch.autograd.grad(
+                        outputs=dY_dt,
+                        inputs=y0,
+                        grad_outputs=torch.ones_like(dY_dt),
+                        create_graph=False,
+                        retain_graph=True,
                     )[0]
                     hvp = torch.autograd.grad(
                         outputs=(dY_dy * dy).sum(),
@@ -347,7 +353,10 @@ class DeepAgent(nn.Module):
                     if ddY_ddt is None:
                         ddY_ddt = 0
 
-                    Y1 += 0.5 * (ddY_ddt * dt ** 2 + (hvp * dy).sum(dim=1, keepdim=True))
+                    Y1 += 0.5 * (ddY_ddt * dt ** 2 
+                                 + 2 * (cross_term * dy).sum(dim=1, keepdim=True) * dt 
+                                 + (hvp * dy).sum(dim=1, keepdim=True)
+                                 )
             elif self.network_type == "Y":
                 # Predict next state using the Y network
                 Y1 = self.Y_net(t1, y1)
@@ -390,6 +399,8 @@ class DeepAgent(nn.Module):
         # === Physics-based loss ===
         pinn_loss = 0.0
         if self.loss_weights["lambda_pinn"] > 0:
+            t_pinn = torch.cat(t_traj, dim=0)
+            y_pinn = torch.cat(y_traj, dim=0)
 
             # Sobol points for additional PINN loss
             if self.sobol_points:
@@ -417,8 +428,8 @@ class DeepAgent(nn.Module):
                 y_max = torch.tensor(y_max_list, device=self.device)
                 sobol_points = y_min + (y_max - y_min) * sobol_points
                 t_sobol = torch.rand(self.batch_size * self.dynamics.N, 1, device=self.device) * T
-                t_pinn = torch.cat([t_all, t_sobol], dim=0).requires_grad_(True)
-                y_pinn = torch.cat([y_all, sobol_points], dim=0).requires_grad_(True)
+                t_pinn = torch.cat([t_pinn, t_sobol], dim=0).requires_grad_(True)
+                y_pinn = torch.cat([y_pinn, sobol_points], dim=0).requires_grad_(True)
 
             pinn_loss = self.hjb_residual(t_pinn, y_pinn)
             losses_dict["lambda_pinn"] = pinn_loss
@@ -521,7 +532,13 @@ class DeepAgent(nn.Module):
                     grad_outputs=torch.ones_like(dY_dt),
                     create_graph=False,
                     retain_graph=True,
-                    allow_unused=True,
+                )[0]
+                cross_term = torch.autograd.grad(
+                    outputs=dY_dt,
+                    inputs=y0,
+                    grad_outputs=torch.ones_like(dY_dt),
+                    create_graph=False,
+                    retain_graph=True,
                 )[0]
                 hvp = torch.autograd.grad(
                     outputs=(dY_dy * dy).sum(),
@@ -534,7 +551,10 @@ class DeepAgent(nn.Module):
                 if ddY_ddt is None:
                     ddY_ddt = 0
 
-                Y1 += 0.5 * (ddY_ddt * dt ** 2 + (hvp * dy).sum(dim=1, keepdim=True))
+                Y1 += 0.5 * (ddY_ddt * dt ** 2
+                             + 2 * (cross_term * dy).sum(dim=1, keepdim=True) * dt
+                             + (hvp * dy).sum(dim=1, keepdim=True)
+                             )
 
         elif self.network_type == "Y":
             # Predict next state using the Y network
