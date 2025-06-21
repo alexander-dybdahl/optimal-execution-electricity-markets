@@ -275,11 +275,12 @@ class DeepAgent(nn.Module):
         return large_diff_mask * linear_loss + (1 - large_diff_mask) * squared_loss
     
     def forward(self, t, dW):
-        t0 = t[0, :, :]
+        t0 = t[0]
         y0 = self.dynamics.y0.repeat(self.batch_size, 1).to(self.device)
 
-        t0 = t0.requires_grad_(True)
-        y0 = y0.requires_grad_(True)
+        if self.second_order_taylor:
+            t0 = t0.requires_grad_(True)
+            y0 = y0.requires_grad_(True)
 
         if self.network_type == "dY":
             Y0 = self.Y_init_net(y0)
@@ -294,7 +295,7 @@ class DeepAgent(nn.Module):
         # === Compute FBSNN loss ===
         Y_loss = 0.0
         for n in range(self.dynamics.N):
-            t1 = t[n + 1, :, :]
+            t1 = t[n + 1]
             dt = t1 - t0
 
             if self.second_order_taylor:

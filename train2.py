@@ -20,7 +20,7 @@ from utils.tools import str2bool
 
 
 def main():
-    train_cfg = load_train_config(path="config/train_config.json")
+    train_cfg = load_train_config(path="config/train_config2.json")
     parser = ArgumentParser()
     parser.add_argument("--device", type=str, default=train_cfg["device"], help="Device to use for training (cpu or cuda)")
     parser.add_argument("--parallel", type=str2bool, nargs='?', const=True, default=train_cfg["parallel"], help="Use data parallelism")
