@@ -7,7 +7,7 @@ import numpy as np
 import torch
 
 from agents.analyticalagent import AnalyticalAgent
-from agents.deepagent import load_deepagent
+from agents.deepagent import DeepAgent
 from agents.immediateagent import ImmediateAgent
 from agents.timeweightedagent import TimeWeightedAgent
 from dynamics.aid_dynamics import AidDynamics
@@ -66,7 +66,7 @@ def main():
     solver = Solver(dynamics=dynamics, seed=seed, n_sim=args.n_simulations)
     logger.log("Starting evaluation.")
     solver.evaluate_agent(agent=AnalyticalAgent(dynamics=dynamics), agent_name="AnalyticalAgent")
-    solver.evaluate_agent(agent=load_deepagent(dynamics=dynamics, train_cfg=train_cfg, device=device, model_dir=args.model_dir, best=args.best), agent_name="DeepAgent")
+    solver.evaluate_agent(agent=DeepAgent.load_from_checkpoint(dynamics=dynamics, model_cfg=train_cfg, device=device, model_dir=args.model_dir, best=args.best), agent_name="DeepAgent")
     solver.evaluate_agent(agent=TimeWeightedAgent(dynamics=dynamics), agent_name="TimeWeightedAgent")
     # solver.evaluate_agent(agent=ImmediateAgent(dynamics=dynamics), agent_name="ImmediateAgent")
     logger.log(f"Evaluation completed with seed {seed}.")
