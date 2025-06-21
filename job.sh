@@ -9,7 +9,7 @@ source $(poetry env info --path)/bin/activate
 
 # Set rendezvous config
 export NNODES=1
-export NPROC_PER_NODE=4
+export NPROC_PER_NODE=2
 export MASTER_ADDR=$(hostname)
 export MASTER_PORT=29500
 export OMP_NUM_THREADS=4
@@ -22,7 +22,8 @@ torchrun \
   --rdzv_backend=c10d \
   --rdzv_endpoint=$MASTER_ADDR:$MASTER_PORT \
   train.py \
-  --parallel True
+  --parallel True \
+  --batch_size 2048
 
 # Note: If stopped, remember to kill the job with:
 # pkill -u $USER -f python

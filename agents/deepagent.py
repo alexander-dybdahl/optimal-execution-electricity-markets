@@ -23,17 +23,70 @@ from utils.nnets import (
 )
 
 
-def load_deepagent(dynamics, train_cfg, device, model_dir, best=True):
-    model = DeepAgent(dynamics=dynamics, model_cfg=train_cfg, device=device)
-    model.to(device)
-    
-    model_path = os.path.join(model_dir, "model")
-    load_path = model_path + "_best.pth" if best else model_path + ".pth"
-    model.load_state_dict(torch.load(load_path, map_location=device))
-    return model
-
-
 class DeepAgent(nn.Module):
+    @classmethod
+    def load_from_checkpoint(cls, dynamics, model_cfg, device, model_dir, best=True):
+        """
+        Class method to create a DeepAgent instance and load checkpoint weights.
+        
+        Args:
+            dynamics: Dynamics object for the model
+            model_cfg: Configuration dictionary for the model
+            device: Device to load the model on
+            model_dir: Directory containing the model checkpoint
+            best: Whether to load the best model or latest model
+            
+        Returns:
+            model: A loaded DeepAgent instance
+        """
+        # Create a new instance
+        model = cls(dynamics, model_cfg, device)
+        
+        # Load the checkpoint
+        model.load_checkpoint(model_dir, best)
+        
+        return model
+        
+    def load_checkpoint(self, model_dir, best=True):
+        """
+        Load a checkpoint into the current model instance.
+        
+        Args:
+            model_dir: Directory containing the model checkpoint
+            best: Whether to load the best model or latest model
+            
+        Returns:
+            optimizer_state: Optimizer state dict if available, else None
+            scheduler_state: Scheduler state dict if available, else None
+            start_epoch: The epoch to resume from if available, else 0
+        """
+        model_path = os.path.join(model_dir, "model")
+        load_path = model_path + "_best.pth" if best else model_path + ".pth"
+        
+        # Load checkpoint
+        checkpoint = torch.load(load_path, map_location=self.device, weights_only=False)
+        
+        # Load model state
+        self.load_state_dict(checkpoint['model_state_dict'])
+        
+        # Get training states
+        optimizer_state = checkpoint.get('optimizer_state_dict')
+        scheduler_state = checkpoint.get('scheduler_state_dict')
+        start_epoch = checkpoint['epoch'] + 1  # Start from next epoch
+        
+        # Restore lowest loss
+        self.lowest_loss = checkpoint['lowest_loss']
+        
+        # Restore validation history if applicable
+        if 'validation' in checkpoint and hasattr(self, 'validation'):
+            self.validation = checkpoint['validation']
+        
+        # Store training history as temporary attribute
+        if 'history' in checkpoint:
+            self._training_history = checkpoint['history']
+        
+        return optimizer_state, scheduler_state, start_epoch
+        
     def __init__(self, dynamics, model_cfg, device):
         super().__init__()
         # System & Execution Settings
@@ -496,11 +549,38 @@ class DeepAgent(nn.Module):
         dY_dy = dY_outputs[:, 1:]
         return self.dynamics.optimal_control(t, y, dY_dy)
 
-    def save_model(self, save_path):
-        state_dict = self.state_dict()
+    def save_model(self, save_path, optimizer=None, scheduler=None, epoch=None, history=None):
+        """
+        Save model state, and optionally optimizer and scheduler state for training resumption.
+        
+        Args:
+            save_path: Path to save the model
+            optimizer: Optional optimizer to save state
+            scheduler: Optional scheduler to save state
+            epoch: Current epoch number
+            history: Optional dictionary containing training history/losses
+        """
+        checkpoint = {
+            'model_state_dict': self.state_dict(),
+            'epoch': epoch if epoch is not None else self.epoch,
+            'lowest_loss': self.lowest_loss
+        }
+        
+        if optimizer is not None:
+            checkpoint['optimizer_state_dict'] = optimizer.state_dict()
+        
+        if scheduler is not None:
+            checkpoint['scheduler_state_dict'] = scheduler.state_dict()
+            
+        if hasattr(self, 'validation') and self.validation is not None:
+            checkpoint['validation'] = self.validation
+            
+        # Save history if provided
+        if history is not None:
+            checkpoint['history'] = history
 
         try:
-            torch.save(state_dict, save_path + ".pth")
+            torch.save(checkpoint, save_path + ".pth")
         except Exception as e:
             return f"Error saving model: {e}"
 
@@ -516,8 +596,26 @@ class DeepAgent(nn.Module):
         adaptive=True,
         save_dir=None,
         logger=None,
+        start_epoch=1,
+        optimizer_state=None,
+        scheduler_state=None,
     ):
-
+        """
+        Train the model, with option to resume from a checkpoint.
+        
+        Args:
+            epochs: Total number of epochs to train
+            K: Print interval
+            lr: Learning rate (used only if optimizer_state is None)
+            verbose: Whether to print progress
+            plot: Whether to show plots
+            adaptive: Whether to use adaptive learning rate
+            save_dir: Directory to save models and plots
+            logger: Logger object
+            start_epoch: Epoch to start from (for resuming training)
+            optimizer_state: Optimizer state dict to resume from
+            scheduler_state: Scheduler state dict to resume from
+        """
         # Prepare save directory and logging
         save_path = os.path.join(save_dir, "model")
         logger = logger if logger is not None else Logger(save_dir, is_main=self.is_main, verbose=verbose, filename="training.log")
@@ -534,18 +632,38 @@ class DeepAgent(nn.Module):
             "status": 20,
         }
 
-        (
-            losses,
-            losses_Y0,
-            losses_Y,
-            losses_dY,
-            losses_dYt,
-            losses_terminal,
-            losses_terminal_gradient,
-            losses_pinn,
-            losses_reg,
-            losses_cost,
-        ) = [], [], [], [], [], [], [], [], [], []
+        # Initialize training history arrays - will be restored from checkpoint if provided
+        if hasattr(self, '_training_history') and self._training_history is not None:
+            # Restore from previously loaded history
+            losses = self._training_history.get('losses', [])
+            losses_Y0 = self._training_history.get('losses_Y0', [])
+            losses_Y = self._training_history.get('losses_Y', [])
+            losses_dY = self._training_history.get('losses_dY', [])
+            losses_dYt = self._training_history.get('losses_dYt', [])
+            losses_terminal = self._training_history.get('losses_terminal', [])
+            losses_terminal_gradient = self._training_history.get('losses_terminal_gradient', [])
+            losses_pinn = self._training_history.get('losses_pinn', [])
+            losses_reg = self._training_history.get('losses_reg', [])
+            losses_cost = self._training_history.get('losses_cost', [])
+            lr_decay_epochs = self._training_history.get('lr_decay_epochs', [])
+            
+            # Clear the reference to avoid keeping it twice in memory
+            del self._training_history
+        else:
+            # Start with empty lists
+            (
+                losses,
+                losses_Y0,
+                losses_Y,
+                losses_dY,
+                losses_dYt,
+                losses_terminal,
+                losses_terminal_gradient,
+                losses_pinn,
+                losses_reg,
+                losses_cost,
+            ) = [], [], [], [], [], [], [], [], [], []
+            lr_decay_epochs = []
 
         # Define active loss components
         loss_components = [
@@ -634,7 +752,20 @@ class DeepAgent(nn.Module):
             logger.log("-" * width)
 
         self.train()
+        
+        # Initialize optimizer
         optimizer = torch.optim.Adam(self.parameters(), lr=lr)
+        
+        # Load optimizer state if provided
+        if optimizer_state is not None:
+            optimizer.load_state_dict(optimizer_state)
+            # Make sure we're using the correct device for optimizer state
+            for state in optimizer.state.values():
+                for k, v in state.items():
+                    if isinstance(v, torch.Tensor):
+                        state[k] = v.to(self.device)
+        
+        # Initialize scheduler
         scheduler = (
             torch.optim.lr_scheduler.ReduceLROnPlateau(
                 optimizer, mode="min", factor=self.adaptive_factor, patience=200
@@ -642,10 +773,22 @@ class DeepAgent(nn.Module):
             if adaptive
             else torch.optim.lr_scheduler.StepLR(optimizer, step_size=5000, gamma=0.5)
         )
+        
+        # Load scheduler state if provided
+        if scheduler_state is not None:
+            scheduler.load_state_dict(scheduler_state)
+        
         current_lr = optimizer.param_groups[0]["lr"]
         lr_decay_epochs = []
+        
+        # Log if resuming training
+        if start_epoch > 1 and self.is_main:
+            logger.log(f"\nResuming training from epoch {start_epoch}/{epochs}")
+            logger.log(f"Current learning rate: {current_lr:.6e}")
+            logger.log(f"Lowest loss so far: {self.lowest_loss:.6e}")
+            logger.log("-" * width)
 
-        for epoch in range(1, epochs + 1):
+        for epoch in range(start_epoch, epochs + 1):
             self.epoch = epoch
             optimizer.zero_grad()
             t, dW, _ = self.dynamics.generate_paths(self.batch_size)
@@ -723,11 +866,39 @@ class DeepAgent(nn.Module):
                     if "every" in self.save and (
                         epoch % self.save_n == 0 or epoch == epochs - 1
                     ):
-                        status = self.save_model(save_path)
+                        # Create history dictionary with all losses
+                        history = {
+                            'losses': losses,
+                            'losses_Y0': losses_Y0,
+                            'losses_Y': losses_Y,
+                            'losses_dY': losses_dY,
+                            'losses_dYt': losses_dYt,
+                            'losses_terminal': losses_terminal,
+                            'losses_terminal_gradient': losses_terminal_gradient,
+                            'losses_pinn': losses_pinn,
+                            'losses_reg': losses_reg,
+                            'losses_cost': losses_cost,
+                            'lr_decay_epochs': lr_decay_epochs
+                        }
+                        status = self.save_model(save_path, optimizer, scheduler, epoch, history)
 
                     if "best" in self.save and np.mean(losses[-K:]) < self.lowest_loss:
                         self.lowest_loss = np.mean(losses[-K:])
-                        status = self.save_model(save_path + "_best") + " (best)"
+                        # Create history dictionary with all losses
+                        history = {
+                            'losses': losses,
+                            'losses_Y0': losses_Y0,
+                            'losses_Y': losses_Y,
+                            'losses_dY': losses_dY,
+                            'losses_dYt': losses_dYt,
+                            'losses_terminal': losses_terminal,
+                            'losses_terminal_gradient': losses_terminal_gradient,
+                            'losses_pinn': losses_pinn,
+                            'losses_reg': losses_reg,
+                            'losses_cost': losses_cost,
+                            'lr_decay_epochs': lr_decay_epochs
+                        }
+                        status = self.save_model(save_path + "_best", optimizer, scheduler, epoch, history) + " (best)"
 
                     # Calculate average time per K epochs and ETA
                     avg_time_per_K = (time.time() - init_time) / (epoch + 1e-8)  # avoid div-by-zero

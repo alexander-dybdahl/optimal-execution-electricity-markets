@@ -43,6 +43,7 @@ def main():
     parser.add_argument("--adaptive", type=str2bool, nargs='?', const=True, default=train_cfg["adaptive"], help="Use adaptive learning rate")
     parser.add_argument("--adaptive_factor", type=float, default=train_cfg["adaptive_factor"], help="Adaptive factor")
     parser.add_argument("--lr", type=float, default=train_cfg["lr"], help="Learning rate for the optimizer")
+    parser.add_argument("--resume", type=str2bool, nargs='?', const=True, default=train_cfg["resume"], help="Resume training with optimizer/scheduler state")
     parser.add_argument("--adaptive_loss", type=str2bool, nargs='?', const=True, default=train_cfg["adaptive_loss"], help="Use adaptive loss function")
     parser.add_argument("--lambda_Y0", type=float, default=train_cfg["lambda_Y0"], help="Weight for the Y0 term in the loss function")
     parser.add_argument("--lambda_Y", type=float, default=train_cfg["lambda_Y"], help="Weight for the Y term in the loss function")
@@ -123,17 +124,39 @@ def main():
     dynamics_cfg = load_dynamics_config(args.dynamics_path)
     dynamics = AidDynamics(dynamics_cfg=dynamics_cfg, device=device)
     train_cfg = vars(args).copy()
+    
+    # Initialize variables for training
+    start_epoch = 1
+    optimizer_state = None
+    scheduler_state = None
+    
+    # Create a new model
     model = DeepAgent(dynamics=dynamics, model_cfg=train_cfg, device=device)
     model.to(device)
-
-    # Determine whether to load a model
+    
+    # Check if we should load an existing model
     if args.load_if_exists:
-        load_path = save_path + "_best.pth" if args.best else save_path + ".pth"
+        logger.log(f"Attempting to load model from {save_dir}")
         try:
-            model.load_state_dict(torch.load(load_path, map_location=device))
-            logger.log("Model loaded successfully.")
-        except FileNotFoundError:
-            logger.log(f"No model found in {load_path}, starting from scratch.")
+            # Use the instance method to load the checkpoint
+            if args.resume:
+                # If resuming, get optimizer and scheduler state too
+                optimizer_state, scheduler_state, start_epoch = model.load_checkpoint(
+                    model_dir=save_dir,
+                    best=args.best
+                )
+                logger.log(f"Loaded model checkpoint from epoch {start_epoch-1} with training state")
+            else:
+                # Otherwise just load the model state
+                optimizer_state, _, _ = model.load_checkpoint(
+                    model_dir=save_dir,
+                    best=args.best
+                )
+                # Reset start_epoch to 1 since we're not resuming training
+                start_epoch = 1
+                logger.log(f"Loaded model checkpoint (model state only)")
+        except Exception as e:
+            logger.log(f"No valid model found in {save_dir}, starting from scratch. Error: {e}")
     else:
         logger.log("Not loading any model, starting from scratch.")
 
@@ -159,7 +182,19 @@ def main():
                 logger.log("Warning: Parallel training is enabled but not running in a distributed environment. DDP will not be applied.")
         
         call_model = model.module if isinstance(model, DDP) else model
-        call_model.train_model(epochs=args.epochs, K=args.K, lr=args.lr, verbose=args.verbose, plot=args.plot_loss, adaptive=args.adaptive, save_dir=save_dir, logger=logger)
+        call_model.train_model(
+            epochs=args.epochs, 
+            K=args.K, 
+            lr=args.lr, 
+            verbose=args.verbose, 
+            plot=args.plot_loss, 
+            adaptive=args.adaptive, 
+            save_dir=save_dir, 
+            logger=logger,
+            start_epoch=start_epoch,
+            optimizer_state=optimizer_state,
+            scheduler_state=scheduler_state
+        )
 
     # Evaluate and plot only on main
     if is_main:
