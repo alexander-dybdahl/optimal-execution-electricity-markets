@@ -442,6 +442,7 @@ class DeepAgent(nn.Module):
                 y_traj=torch.stack(y_traj, dim=0),
                 terminal_cost=True
             ).mean()
+            losses_dict["lambda_cost"] = cost_objective
             self.cost_loss = cost_objective.detach()
 
         # === Y0 fbsnn loss ===
