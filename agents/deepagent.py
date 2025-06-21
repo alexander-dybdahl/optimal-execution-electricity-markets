@@ -211,7 +211,7 @@ class DeepAgent(nn.Module):
 
         self.to(torch.device(device))
 
-        @classmethod
+    @classmethod
     def load_from_checkpoint(cls, dynamics, model_cfg, device, model_dir, best=True):
         """
         Class method to create a DeepAgent instance and load checkpoint weights.
