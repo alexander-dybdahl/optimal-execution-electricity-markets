@@ -713,20 +713,8 @@ class DeepAgent(nn.Module):
         # Prepare save directory and logging
         save_path = os.path.join(save_dir, "model")
         logger = logger if logger is not None else Logger(save_dir, is_main=self.is_main, verbose=verbose, filename="training.log")
-        
-        # Dynamic width calculation based on loss components
-        max_widths = {
-            "epoch": 8,
-            "val loss": 10 if self.dynamics.analytical_known else 0,
-            "loss": 8,
-            "lr": 10,
-            "mem": 12,
-            "time": 8,
-            "eta": 10,
-            "status": 20,
-        }
 
-        # Initialize training history arrays - will be restored from checkpoint if provided
+        # === Initialize training history arrays - will be restored from checkpoint if provided ===
         if hasattr(self, '_training_history') and self._training_history is not None:
             # Restore from previously loaded history
             losses = self._training_history.get('losses', [])
@@ -759,7 +747,7 @@ class DeepAgent(nn.Module):
             ) = [], [], [], [], [], [], [], [], [], []
             lr_decay_epochs = []
 
-        # Define active loss components
+        # === Define active loss components ===
         loss_components = [
             ("Y0 loss", self.loss_weights["lambda_Y0"], lambda: np.mean(losses_Y0[-K:])),
             ("Y loss", self.loss_weights["lambda_Y"], lambda: np.mean(losses_Y[-K:])),
@@ -775,23 +763,41 @@ class DeepAgent(nn.Module):
             (name, fn) for name, lambda_, fn in loss_components if lambda_ > 0
         ]
 
-        # Calculate max widths
+        # === Width of the training log ===
+        num_cols = 1  # for epoch
+        if self.dynamics.analytical_known:
+            num_cols += 2  # Y val, q val
+        num_cols += 1  # total loss
+        num_cols += len(active_losses)
+        num_cols += 5  # lr, mem, time, eta, status
+        
+        max_widths = {
+            "epoch": 8,
+            "val loss": 10 if self.dynamics.analytical_known else 0,
+            "loss": 8,
+            "lr": 10,
+            "mem": 12,
+            "time": 8,
+            "eta": 10,
+            "status": 20,
+        }
         for name, _ in active_losses:
             max_widths[name] = max(10, len(name) + 2)
         width = (
             max_widths["epoch"]
-            + 2 * max_widths["val loss"]
+            + (2 * max_widths["val loss"] if self.dynamics.analytical_known else 0)
+            + max_widths["loss"]
             + sum(max_widths[name] for name, _ in active_losses)
             + max_widths["lr"]
             + max_widths["mem"]
             + max_widths["time"]
             + max_widths["eta"]
             + max_widths["status"]
-            + 3 * (7 + len(active_losses))
+            + 3 * (num_cols - 1)
         )
 
         if self.is_main:
-            ### Log training configuration
+            # === Log training configuration ===
             logger.log(
                 f"Training started at {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())}"
             )
@@ -826,7 +832,7 @@ class DeepAgent(nn.Module):
             init_time = time.time()
             start_time = time.time()
 
-            # Print header
+            # === Print header for training progress ===
             header_parts = [
                 f"{'Epoch':>{max_widths['epoch']}}",
                 f"{'Y val':>{max_widths['val loss']}}" if self.dynamics.analytical_known else "",
@@ -847,10 +853,10 @@ class DeepAgent(nn.Module):
 
         self.train()
         
-        # Initialize optimizer
+        # === Initialize optimizer ===
         optimizer = torch.optim.Adam(self.parameters(), lr=lr)
         
-        # Load optimizer state if provided
+        # === Load optimizer state if provided ===
         if optimizer_state is not None:
             optimizer.load_state_dict(optimizer_state)
             # Make sure we're using the correct device for optimizer state
@@ -859,7 +865,7 @@ class DeepAgent(nn.Module):
                     if isinstance(v, torch.Tensor):
                         state[k] = v.to(self.device)
         
-        # Initialize scheduler
+        # === Initialize scheduler ===
         scheduler = (
             torch.optim.lr_scheduler.ReduceLROnPlateau(
                 optimizer, mode="min", factor=self.adaptive_factor, patience=200
@@ -868,20 +874,21 @@ class DeepAgent(nn.Module):
             else torch.optim.lr_scheduler.StepLR(optimizer, step_size=5000, gamma=0.5)
         )
         
-        # Load scheduler state if provided
+        # === Load scheduler state if provided ===
         if scheduler_state is not None:
             scheduler.load_state_dict(scheduler_state)
         
         current_lr = optimizer.param_groups[0]["lr"]
         lr_decay_epochs = []
         
-        # Log if resuming training
+        # === Log if resuming training ===
         if start_epoch > 1 and self.is_main:
             logger.log(f"\nResuming training from epoch {start_epoch}/{epochs}")
             logger.log(f"Current learning rate: {current_lr:.6e}")
             logger.log(f"Lowest loss so far: {self.lowest_loss:.6e}")
             logger.log("-" * width)
 
+        # === Training loop ===
         for epoch in range(start_epoch, epochs + 1):
             self.epoch = epoch
             optimizer.zero_grad()
@@ -889,17 +896,17 @@ class DeepAgent(nn.Module):
             loss = self(t=t, dW=dW)
             loss.backward()
 
-            # Optimizer and scheduler step
+            # === Optimizer and scheduler step ===
             optimizer.step()
             scheduler.step(loss.item() if adaptive else epoch)
 
-            # Check if the LR was reduced
+            # === Check if the LR was reduced ===
             new_lr = optimizer.param_groups[0]["lr"]
             if new_lr < current_lr:
                 lr_decay_epochs.append(epoch)
                 current_lr = new_lr
 
-            # Reduce losses across all processes if distributed
+            # === Reduce losses across all processes if distributed ===
             val_Y_loss = self.val_Y_loss
             val_q_loss = self.val_q_loss
             Y0_loss = self.Y0_loss
@@ -939,6 +946,7 @@ class DeepAgent(nn.Module):
                 reg_loss /= self.world_size
                 cost_loss /= self.world_size
 
+            # === Log losses and print plots ===
             if self.is_main:
                 self.validation["Y_loss"].append(val_Y_loss.item())
                 self.validation["q_loss"].append(val_q_loss.item())
@@ -956,7 +964,7 @@ class DeepAgent(nn.Module):
                 if epoch % K == 0 or epoch == 1:
                     status = ""
 
-                    # Save model if conditions are met
+                    # === Save model if conditions are met ===
                     if "every" in self.save and (
                         epoch % self.save_n == 0 or epoch == epochs - 1
                     ):
@@ -976,6 +984,7 @@ class DeepAgent(nn.Module):
                         }
                         status = self.save_model(save_path, optimizer, scheduler, epoch, history)
 
+                    # === Save best model if conditions are met ===
                     if "best" in self.save and np.mean(losses[-K:]) < self.lowest_loss:
                         self.lowest_loss = np.mean(losses[-K:])
                         # Create history dictionary with all losses
@@ -994,7 +1003,7 @@ class DeepAgent(nn.Module):
                         }
                         status = self.save_model(save_path + "_best", optimizer, scheduler, epoch, history) + " (best)"
 
-                    # Calculate average time per K epochs and ETA
+                    # === Calculate average time per K epochs and ETA ===
                     avg_time_per_K = (time.time() - init_time) / (epoch + 1e-8)  # avoid div-by-zero
                     
                     if epoch == 1:
@@ -1009,7 +1018,7 @@ class DeepAgent(nn.Module):
                             else f"{eta_seconds}s"
                         )
 
-                    # Log the current epoch's results
+                    # === Log training progress ===
                     elapsed = time.time() - start_time
                     mem_mb = torch.cuda.memory_allocated() / 1e6
                     current_lr = optimizer.param_groups[0]["lr"]
@@ -1032,6 +1041,7 @@ class DeepAgent(nn.Module):
                     logger.log(" | ".join(row_parts))
                     start_time = time.time()
 
+                # === Plot approximation vs analytical ===
                 if epoch % self.plot_n == 0:
                     timesteps, results = simulate_paths(dynamics=self.dynamics, agent=self, n_sim=self.n_simulations, seed=42)
                     
@@ -1047,8 +1057,8 @@ class DeepAgent(nn.Module):
                     # plot_approx_vs_analytic_expectation(results, timesteps, plot=False, save_dir=save_dir, num=epoch)
                     plot_terminal_histogram(results=results, dynamics=self.dynamics, plot=False, save_dir=save_dir, num=epoch)
 
+                # === Plot training losses ===
                 if epoch % 1000 == 0 and epoch > 0:
-                    # === Plot training losses ===
                     plt.figure(figsize=(12, 8))
                     plt.plot(losses, label="Total Loss")
                     if self.loss_weights["lambda_Y0"] > 0: plt.plot(losses_Y0, label="Y0 Loss")
