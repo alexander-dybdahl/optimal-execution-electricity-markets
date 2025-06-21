@@ -209,7 +209,7 @@ class DeepAgent(nn.Module):
         elif self.network_type == "Y":
             self.Y_net = internal_net
 
-        self.to.(torch.device(device))
+        self.to(torch.device(device))
 
         @classmethod
     def load_from_checkpoint(cls, dynamics, model_cfg, device, model_dir, best=True):
