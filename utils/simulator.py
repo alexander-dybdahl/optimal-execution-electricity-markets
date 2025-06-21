@@ -13,10 +13,13 @@ def simulate_paths(dynamics, agent, n_sim=5, seed=42, y0_single=None, analytical
     )
     y0_agent = y0.clone()
     
-    agent_predicts_Y = hasattr(agent, "predict_Y_initial") and hasattr(agent, "predict_Y_next")
-    if agent_predicts_Y:
+    agent_predicts_Y_method1 = hasattr(agent, "predict_Y")
+    agent_predicts_Y_method2 = hasattr(agent, "predict_Y_initial") and hasattr(agent, "predict_Y_next")
+    if agent_predicts_Y_method1:
+        Y0_agent = agent.predict_Y(t0, y0_agent)
+    elif agent_predicts_Y_method2:
         Y0_agent = agent.predict_Y_initial(y0_agent)
-    
+
     if dynamics.analytical_known and analytical:
         y0_analytical = y0.clone()
         Y0_analytical = dynamics.value_function_analytic(t0, y0_analytical)
@@ -24,7 +27,7 @@ def simulate_paths(dynamics, agent, n_sim=5, seed=42, y0_single=None, analytical
     # Storage for trajectories
     q_agent_traj = []
     y_agent_traj = [y0_agent.detach().cpu().numpy()]
-    if agent_predicts_Y:
+    if agent_predicts_Y_method1 or agent_predicts_Y_method2:
         Y_agent_traj = [Y0_agent.detach().cpu().numpy()]
     
     if dynamics.analytical_known and analytical:
@@ -37,7 +40,9 @@ def simulate_paths(dynamics, agent, n_sim=5, seed=42, y0_single=None, analytical
 
         q_agent = agent.predict(t0, y0_agent)
         y1_agent = dynamics.forward_dynamics(y0_agent, q_agent, dW[n, :, :], t0, t1 - t0)
-        if agent_predicts_Y:
+        if agent_predicts_Y_method1:
+            Y1_agent = agent.predict_Y(t1, y1_agent)
+        elif agent_predicts_Y_method2:
             Y1_agent = agent.predict_Y_next(t0, y0_agent, t1 - t0, y1_agent - y0_agent, Y0_agent)
         
         if dynamics.analytical_known and analytical:
@@ -53,16 +58,16 @@ def simulate_paths(dynamics, agent, n_sim=5, seed=42, y0_single=None, analytical
         
         y_agent_traj.append(y1_agent.detach().cpu().numpy())
         q_agent_traj.append(q_agent.detach().cpu().numpy())
-        if agent_predicts_Y:
+        if agent_predicts_Y_method2 or agent_predicts_Y_method1:
             Y_agent_traj.append(Y1_agent.detach().cpu().numpy())
 
         t0, y0_agent = t1, y1_agent
-        if agent_predicts_Y:
+        if agent_predicts_Y_method2:
             Y0_agent = Y1_agent
 
     q_agent_traj = np.stack(q_agent_traj)
     y_agent_traj = np.stack(y_agent_traj)
-    if agent_predicts_Y:
+    if agent_predicts_Y_method2 or agent_predicts_Y_method1:
         Y_agent_traj = np.stack(Y_agent_traj)
     else:
         Y_agent_traj = None

@@ -18,7 +18,7 @@ class Solver:
         self._color_cycle = plt.rcParams['axes.prop_cycle'].by_key()['color']
         self._color_idx = 0
 
-    def evaluate_agent(self, agent, agent_name, analytical=False):
+    def evaluate_agent(self, agent, agent_name):
         # Assign a color if not already assigned
         if agent_name not in self.colors:
             self.colors[agent_name] = self._color_cycle[self._color_idx % len(self._color_cycle)]
@@ -30,7 +30,7 @@ class Solver:
             agent=agent,
             n_sim=self.n_sim,
             seed=self.seed,
-            analytical=analytical
+            analytical=False
         )
         # Compute cost objective
         cost_objective = compute_cost_objective(
@@ -50,22 +50,17 @@ class Solver:
             print("No results to plot.")
             return
         
-        # Plot q, y, Y as subplots in a single figure, with learned/analytic as different line styles
+        # Plot q, y, Y as subplots in a single figure
         fig, axs = plt.subplots(1, 3, figsize=(18, 6))
         var_titles = {'q': 'Control $q(t)$', 'y': 'State $y(t)$', 'Y': 'Cost-to-Go $Y(t)$'}
         var_ylabels = {'q': '$q(t)$', 'y': '$y(t)$', 'Y': '$Y(t)$'}
-        line_styles = {'learned': '-', 'analytic': '--'}
-        style_labels = {'-': 'Learned', '--': 'Analytic'}
+        line_styles = {'learned': '-'}
         
         agent_handles = []
         for agent_name, color in self.colors.items():
             agent_handles.append(plt.Line2D([0], [0], color=color, linestyle='-', label=agent_name))
             
-        style_handles = [plt.Line2D([0], [0], color='k', linestyle=ls, label=style_labels[ls]) for ls in line_styles.values()]
-        # Use a patch for the legend for the std area
-        std_learned_handle = Patch(facecolor='gray', alpha=0.2, label='Learned ±1 std')
-        std_analytic_handle = Patch(facecolor='gray', alpha=0.2, hatch='//', label='Analytic ±1 std')
-        style_handles.extend([std_learned_handle, std_analytic_handle])
+        style_handles = [Patch(facecolor='gray', alpha=0.2, label='Agent ±1 std')]
 
         for idx, var in enumerate(['q', 'y', 'Y']):
             ax = axs[idx]
@@ -122,67 +117,14 @@ class Solver:
                                 linewidth=0
                             )
 
-                # Plot analytical if available
-                key_analytical = f'{var}_analytical'
-                arr_analytical = results.get(key_analytical, None)
-                if arr_analytical is not None:
-                    arr_analytical = np.asarray(arr_analytical)
-                    arr_mean = arr_analytical.mean(axis=1)
-                    arr_std = arr_analytical.std(axis=1)
-
-                    # Squeeze last dim if it's 1
-                    if arr_mean.ndim > 1 and arr_mean.shape[-1] == 1:
-                        arr_mean = arr_mean.squeeze(-1)
-                        arr_std = arr_std.squeeze(-1)
-
-                    # Handle plotting based on dimension
-                    if arr_mean.ndim == 1:
-                        ax.plot(
-                            timesteps[:arr_mean.shape[0]],
-                            arr_mean,
-                            color=color,
-                            linestyle=line_styles['analytic'],
-                            linewidth=2,
-                            alpha=0.7
-                        )
-                        ax.fill_between(
-                            timesteps[:arr_mean.shape[0]],
-                            arr_mean - arr_std,
-                            arr_mean + arr_std,
-                            color=color,
-                            alpha=0.2,
-                            linewidth=0,
-                            hatch='//'
-                        )
-                    else:  # arr_mean.ndim > 1
-                        for i in range(arr_mean.shape[-1]):
-                            # Plot each dimension separately
-                            ax.plot(
-                                timesteps[:arr_mean.shape[0]],
-                                arr_mean[:, i],
-                                color=color,
-                                linestyle=line_styles['analytic'],
-                                linewidth=2,
-                                alpha=0.7
-                            )
-                            ax.fill_between(
-                                timesteps[:arr_mean.shape[0]],
-                                arr_mean[:, i] - arr_std[:, i],
-                                arr_mean[:, i] + arr_std[:, i],
-                                color=color,
-                                alpha=0.2,
-                                linewidth=0,
-                                hatch='//'
-                            )
-
             ax.set_title(var_titles[var])
             ax.set_xlabel("Time")
             ax.set_ylabel(var_ylabels[var])
             ax.grid(True, linestyle='--', alpha=0.5)
             # Add two legends: one for agent color, one for line style/area
-            leg1 = ax.legend(handles=agent_handles, title="Agent (Color)", loc='upper right', frameon=True)
+            leg1 = ax.legend(handles=agent_handles, title="Agent (mean)", loc='upper right', frameon=True)
             ax.add_artist(leg1)
-            ax.legend(handles=style_handles, title="Line Style / Area", loc='lower right', frameon=True)
+            ax.legend(handles=style_handles, title="Area", loc='lower right', frameon=True)
         plt.tight_layout()
         if save_dir:
             plt.savefig(f"{save_dir}/imgs/trajectories_all.png", dpi=300, bbox_inches='tight')

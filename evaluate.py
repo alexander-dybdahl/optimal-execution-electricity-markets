@@ -15,8 +15,6 @@ from dynamics.hjb_dynamics import HJBDynamics
 from dynamics.simple_dynamics import SimpleDynamics
 from core.solver import Solver
 from utils.load_config import load_config, load_dynamics_config
-from utils.plots import plot_approx_vs_analytic, plot_approx_vs_analytic_expectation, plot_terminal_histogram 
-from utils.simulator import simulate_paths, compute_cost_objective
 from utils.tools import str2bool
 
 
@@ -67,10 +65,10 @@ def main():
     seed = np.random.randint(0, 1000)
     solver = Solver(dynamics=dynamics, seed=seed, n_sim=args.n_simulations)
     logger.log("Starting evaluation.")
-    solver.evaluate_agent(agent=load_deepagent(dynamics=dynamics, train_cfg=train_cfg, device=device, model_dir=args.model_dir, best=args.best), agent_name="DeepAgent", analytical=False)
-    solver.evaluate_agent(agent=AnalyticalAgent(dynamics=dynamics), agent_name="AnalyticalAgent", analytical=False)
-    solver.evaluate_agent(agent=ImmediateAgent(dynamics=dynamics), agent_name="ImmediateAgent", analytical=False)
-    solver.evaluate_agent(agent=TimeWeightedAgent(dynamics=dynamics), agent_name="TimeweightedAgent", analytical=False)
+    solver.evaluate_agent(agent=AnalyticalAgent(dynamics=dynamics), agent_name="AnalyticalAgent")
+    solver.evaluate_agent(agent=load_deepagent(dynamics=dynamics, train_cfg=train_cfg, device=device, model_dir=args.model_dir, best=args.best), agent_name="DeepAgent")
+    solver.evaluate_agent(agent=TimeWeightedAgent(dynamics=dynamics), agent_name="TimeWeightedAgent")
+    # solver.evaluate_agent(agent=ImmediateAgent(dynamics=dynamics), agent_name="ImmediateAgent")
     logger.log(f"Evaluation completed with seed {seed}.")
     solver.plot_traj(plot=args.plot, save_dir=save_dir)
     solver.plot_cost_histograms(plot=args.plot, save_dir=save_dir)
