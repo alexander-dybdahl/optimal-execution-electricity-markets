@@ -274,6 +274,43 @@ class DeepAgent(nn.Module):
         
         return optimizer_state, scheduler_state, start_epoch
 
+    def save_model(self, save_path, optimizer=None, scheduler=None, epoch=None, history=None):
+        """
+        Save model state, and optionally optimizer and scheduler state for training resumption.
+        
+        Args:
+            save_path: Path to save the model
+            optimizer: Optional optimizer to save state
+            scheduler: Optional scheduler to save state
+            epoch: Current epoch number
+            history: Optional dictionary containing training history/losses
+        """
+        checkpoint = {
+            'model_state_dict': self.state_dict(),
+            'epoch': epoch if epoch is not None else self.epoch,
+            'lowest_loss': self.lowest_loss
+        }
+        
+        if optimizer is not None:
+            checkpoint['optimizer_state_dict'] = optimizer.state_dict()
+        
+        if scheduler is not None:
+            checkpoint['scheduler_state_dict'] = scheduler.state_dict()
+            
+        if hasattr(self, 'validation') and self.validation is not None:
+            checkpoint['validation'] = self.validation
+            
+        # Save history if provided
+        if history is not None:
+            checkpoint['history'] = history
+
+        try:
+            torch.save(checkpoint, save_path + ".pth")
+        except Exception as e:
+            return f"Error saving model: {e}"
+
+        return "Model saved"
+
     def hjb_residual(self, t, y):
 
         if self.network_type == "dY":
@@ -643,43 +680,6 @@ class DeepAgent(nn.Module):
                 retain_graph=True
             )[0]
         return self.dynamics.optimal_control(t, y, dY_dy)
-
-    def save_model(self, save_path, optimizer=None, scheduler=None, epoch=None, history=None):
-        """
-        Save model state, and optionally optimizer and scheduler state for training resumption.
-        
-        Args:
-            save_path: Path to save the model
-            optimizer: Optional optimizer to save state
-            scheduler: Optional scheduler to save state
-            epoch: Current epoch number
-            history: Optional dictionary containing training history/losses
-        """
-        checkpoint = {
-            'model_state_dict': self.state_dict(),
-            'epoch': epoch if epoch is not None else self.epoch,
-            'lowest_loss': self.lowest_loss
-        }
-        
-        if optimizer is not None:
-            checkpoint['optimizer_state_dict'] = optimizer.state_dict()
-        
-        if scheduler is not None:
-            checkpoint['scheduler_state_dict'] = scheduler.state_dict()
-            
-        if hasattr(self, 'validation') and self.validation is not None:
-            checkpoint['validation'] = self.validation
-            
-        # Save history if provided
-        if history is not None:
-            checkpoint['history'] = history
-
-        try:
-            torch.save(checkpoint, save_path + ".pth")
-        except Exception as e:
-            return f"Error saving model: {e}"
-
-        return "Model saved"
 
     def train_model(
         self,
