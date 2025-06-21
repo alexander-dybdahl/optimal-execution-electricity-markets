@@ -40,7 +40,7 @@ class DeepAgent(nn.Module):
             model: A loaded DeepAgent instance
         """
         # Create a new instance
-        model = cls(dynamics, model_cfg, device)
+        model = cls(dynamics, model_cfg, device).to(torch.device(device))
         
         # Load the checkpoint
         model.load_checkpoint(model_dir, best)
