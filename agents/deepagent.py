@@ -23,70 +23,7 @@ from utils.nnets import (
 )
 
 
-class DeepAgent(nn.Module):
-    @classmethod
-    def load_from_checkpoint(cls, dynamics, model_cfg, device, model_dir, best=True):
-        """
-        Class method to create a DeepAgent instance and load checkpoint weights.
-        
-        Args:
-            dynamics: Dynamics object for the model
-            model_cfg: Configuration dictionary for the model
-            device: Device to load the model on
-            model_dir: Directory containing the model checkpoint
-            best: Whether to load the best model or latest model
-            
-        Returns:
-            model: A loaded DeepAgent instance
-        """
-        # Create a new instance
-        model = cls(dynamics, model_cfg, device).to(torch.device(device))
-        
-        # Load the checkpoint
-        model.load_checkpoint(model_dir, best)
-        
-        return model
-        
-    def load_checkpoint(self, model_dir, best=True):
-        """
-        Load a checkpoint into the current model instance.
-        
-        Args:
-            model_dir: Directory containing the model checkpoint
-            best: Whether to load the best model or latest model
-            
-        Returns:
-            optimizer_state: Optimizer state dict if available, else None
-            scheduler_state: Scheduler state dict if available, else None
-            start_epoch: The epoch to resume from if available, else 0
-        """
-        model_path = os.path.join(model_dir, "model")
-        load_path = model_path + "_best.pth" if best else model_path + ".pth"
-        
-        # Load checkpoint
-        checkpoint = torch.load(load_path, map_location=self.device, weights_only=False)
-        
-        # Load model state
-        self.load_state_dict(checkpoint['model_state_dict'])
-        
-        # Get training states
-        optimizer_state = checkpoint.get('optimizer_state_dict')
-        scheduler_state = checkpoint.get('scheduler_state_dict')
-        start_epoch = checkpoint['epoch'] + 1  # Start from next epoch
-        
-        # Restore lowest loss
-        self.lowest_loss = checkpoint['lowest_loss']
-        
-        # Restore validation history if applicable
-        if 'validation' in checkpoint and hasattr(self, 'validation'):
-            self.validation = checkpoint['validation']
-        
-        # Store training history as temporary attribute
-        if 'history' in checkpoint:
-            self._training_history = checkpoint['history']
-        
-        return optimizer_state, scheduler_state, start_epoch
-        
+class DeepAgent(nn.Module):       
     def __init__(self, dynamics, model_cfg, device):
         super().__init__()
         # System & Execution Settings
@@ -95,7 +32,7 @@ class DeepAgent(nn.Module):
         self.world_size = dist.get_world_size() if self.is_distributed else 1
         self.is_main = not self.is_distributed or dist.get_rank() == 0
 
-        # Underlying dynamics
+        # Underlying Dynamics
         self.dynamics = dynamics
 
         # Data & Batch Settings
@@ -113,7 +50,8 @@ class DeepAgent(nn.Module):
         self.strong_grad_output = model_cfg["strong_grad_output"]  # whether to use strong output gradient
         self.scale_output = model_cfg["scale_output"]  # how much to scale the output of the network
 
-        # Loss Weights
+        # Loss and Loss Weights
+        self.lowest_loss = float("inf")
         self.adaptive_loss = model_cfg["adaptive_loss"]
         self.loss_weights = {
             "lambda_Y0": model_cfg["lambda_Y0"],
@@ -271,7 +209,70 @@ class DeepAgent(nn.Module):
         elif self.network_type == "Y":
             self.Y_net = internal_net
 
-        self.lowest_loss = float("inf")
+        self.to.(torch.device(device))
+
+        @classmethod
+    def load_from_checkpoint(cls, dynamics, model_cfg, device, model_dir, best=True):
+        """
+        Class method to create a DeepAgent instance and load checkpoint weights.
+        
+        Args:
+            dynamics: Dynamics object for the model
+            model_cfg: Configuration dictionary for the model
+            device: Device to load the model on
+            model_dir: Directory containing the model checkpoint
+            best: Whether to load the best model or latest model
+            
+        Returns:
+            model: A loaded DeepAgent instance
+        """
+        # Create a new instance
+        model = cls(dynamics, model_cfg, device)
+        
+        # Load the checkpoint
+        model.load_checkpoint(model_dir, best)
+        
+        return model
+        
+    def load_checkpoint(self, model_dir, best=True):
+        """
+        Load a checkpoint into the current model instance.
+        
+        Args:
+            model_dir: Directory containing the model checkpoint
+            best: Whether to load the best model or latest model
+            
+        Returns:
+            optimizer_state: Optimizer state dict if available, else None
+            scheduler_state: Scheduler state dict if available, else None
+            start_epoch: The epoch to resume from if available, else 0
+        """
+        model_path = os.path.join(model_dir, "model")
+        load_path = model_path + "_best.pth" if best else model_path + ".pth"
+        
+        # Load checkpoint
+        checkpoint = torch.load(load_path, map_location=self.device, weights_only=False)
+        
+        # Load model state
+        self.load_state_dict(checkpoint['model_state_dict'])
+        
+        # Get training states
+        optimizer_state = checkpoint.get('optimizer_state_dict')
+        scheduler_state = checkpoint.get('scheduler_state_dict')
+        start_epoch = checkpoint['epoch'] + 1  # Start from next epoch
+        
+        # Restore lowest loss
+        self.lowest_loss = checkpoint['lowest_loss']
+        
+        # Restore validation history if applicable
+        if 'validation' in checkpoint and hasattr(self, 'validation'):
+            self.validation = checkpoint['validation']
+        
+        # Store training history as temporary attribute
+        if 'history' in checkpoint:
+            self._training_history = checkpoint['history']
+        
+        return optimizer_state, scheduler_state, start_epoch
 
     def hjb_residual(self, t, y):
 
