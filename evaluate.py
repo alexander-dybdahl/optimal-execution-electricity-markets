@@ -6,7 +6,9 @@ from utils.logger import Logger
 import numpy as np
 import torch
 
-from agents.deepagent import DeepAgent, load_deepagent
+from agents.analyticalagent import AnalyticalAgent
+from agents.deepagent import load_deepagent
+from agents.immediateagent import ImmediateAgent
 from agents.timeweightedagent import TimeWeightedAgent
 from dynamics.aid_dynamics import AidDynamics
 from dynamics.hjb_dynamics import HJBDynamics
@@ -65,8 +67,10 @@ def main():
     seed = np.random.randint(0, 1000)
     solver = Solver(dynamics=dynamics, seed=seed, n_sim=args.n_simulations)
     logger.log("Starting evaluation.")
-    solver.evaluate_agent(agent=load_deepagent(dynamics, train_cfg, device, args.model_dir, args.best), agent_name="deepagent")
-    solver.evaluate_agent(agent=TimeWeightedAgent(dynamics=dynamics), agent_name="timeweightedagent", analytical=False)
+    solver.evaluate_agent(agent=load_deepagent(dynamics=dynamics, train_cfg=train_cfg, device=device, model_dir=args.model_dir, best=args.best), agent_name="DeepAgent", analytical=False)
+    solver.evaluate_agent(agent=AnalyticalAgent(dynamics=dynamics), agent_name="AnalyticalAgent", analytical=False)
+    solver.evaluate_agent(agent=ImmediateAgent(dynamics=dynamics), agent_name="ImmediateAgent", analytical=False)
+    solver.evaluate_agent(agent=TimeWeightedAgent(dynamics=dynamics), agent_name="TimeweightedAgent", analytical=False)
     logger.log(f"Evaluation completed with seed {seed}.")
     solver.plot_traj(plot=args.plot, save_dir=save_dir)
     solver.plot_cost_histograms(plot=args.plot, save_dir=save_dir)

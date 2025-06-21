@@ -18,7 +18,7 @@ class Solver:
         self._color_cycle = plt.rcParams['axes.prop_cycle'].by_key()['color']
         self._color_idx = 0
 
-    def evaluate_agent(self, agent, agent_name, analytical=True):
+    def evaluate_agent(self, agent, agent_name, analytical=False):
         # Assign a color if not already assigned
         if agent_name not in self.colors:
             self.colors[agent_name] = self._color_cycle[self._color_idx % len(self._color_cycle)]
