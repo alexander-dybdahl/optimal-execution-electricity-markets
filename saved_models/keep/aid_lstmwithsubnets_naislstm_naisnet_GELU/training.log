@@ -1,0 +1,54 @@
+Running on device: cuda, Parallel training disabled
+Attempting to load model from saved_models/aid_lstmwithsubnets_naislstm_naisnet_GELU
+Loaded model checkpoint from epoch 30200 with training state
+Training started at 2025-06-22 09:57:36
+Logging training to saved_models/aid_lstmwithsubnets_naislstm_naisnet_GELU/training.log
+
++---------------------------+---------------------------+
+| Training Configuration    |                           |
++---------------------------+---------------------------+
+| Epochs                    | 100000                    |
+| Learning Rate             | 0.01                      |
+| Adaptive LR               | True                      |
+| Adaptive Factor           | 0.95                      |
+| lambda_Y0 (Y0 loss)       | 1                         |
+| lambda_Y (Y loss)         | 1                         |
+| lambda_dY (Spatial loss)  | 0                         |
+| lambda_dYt (Temporal loss)| 0                         |
+| lambda_T (Terminal loss)  | 0.001                     |
+| lambda_TG (Gradient loss) | 0                         |
+| lambda_pinn (PINN loss)   | 0                         |
+| lambda_reg (Reg loss)     | 0                         |
+| lambda_cost (Cost loss)   | 1                         |
+| Batch Size per Epoch      | 1024                      |
+| Batch Size per Rank       | 1024                      |
+| Architecture              | LSTMWITHSUBNETS           |
+| Depth                     | 2                         |
+| Width                     | 128                       |
+| Activation                | GELU                      |
+| T                         | 1.0                       |
+| N                         | 144                       |
+| Supervised                | False                     |
++---------------------------+---------------------------+
+
+   Epoch |      Y val |      q val | Total loss |    Y0 loss |     Y loss |    T. loss |   cost loss |         LR |  Memory [MB] | Time [s] |        ETA | Status              
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Resuming training from epoch 30201/100000
+Current learning rate: 7.608600e-06
+Lowest loss so far: 1.436335e+04
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+   30250 |   1.34e+05 |   2.92e+02 |   1.62e+04 |   6.12e+03 |   1.68e+04 |   6.21e+04 |   -6.47e+03 |   7.61e-06 |       131.86 |    75.95 |     2m 55s | Model saved         
+   30300 |   1.40e+05 |   1.64e+02 |   1.59e+04 |   5.33e+03 |   1.70e+04 |   5.74e+04 |   -6.47e+03 |   7.61e-06 |       131.86 |    74.14 |     5m 45s | Model saved         
+   30350 |   1.40e+05 |   1.35e+02 |   1.83e+04 |   7.60e+03 |   1.71e+04 |   5.51e+04 |   -6.49e+03 |   7.61e-06 |       131.86 |    82.46 |     8m 53s | Model saved         
+   30400 |   1.38e+05 |   1.27e+02 |   1.75e+04 |   6.77e+03 |   1.72e+04 |   5.46e+04 |   -6.48e+03 |   7.61e-06 |       131.86 |    73.81 |    11m 41s | Model saved         
+   30450 |   1.36e+05 |   1.22e+02 |   1.79e+04 |   7.17e+03 |   1.71e+04 |   5.42e+04 |   -6.49e+03 |   7.23e-06 |       131.86 |    82.14 |    14m 47s | Model saved         
+   30500 |   1.35e+05 |   1.20e+02 |   1.70e+04 |   6.30e+03 |   1.71e+04 |   5.40e+04 |   -6.48e+03 |   7.23e-06 |       131.86 |    74.66 |    17m 35s | Model saved         
+   30550 |   1.34e+05 |   1.17e+02 |   1.73e+04 |   6.65e+03 |   1.71e+04 |   5.39e+04 |   -6.49e+03 |   7.23e-06 |       131.86 |    81.55 |    20m 38s | Model saved         
+   30600 |   1.33e+05 |   1.17e+02 |   1.65e+04 |   5.82e+03 |   1.71e+04 |   5.37e+04 |   -6.48e+03 |   7.23e-06 |       131.86 |    74.63 |    23m 24s | Model saved         
+   30650 |   1.32e+05 |   1.15e+02 |   1.69e+04 |   6.16e+03 |   1.71e+04 |   5.36e+04 |   -6.49e+03 |   6.87e-06 |       131.86 |    82.27 |    26m 27s | Model saved         
+   30700 |   1.31e+05 |   1.14e+02 |   1.61e+04 |   5.39e+03 |   1.71e+04 |   5.35e+04 |   -6.48e+03 |   6.87e-06 |       131.86 |    74.38 |    29m 11s | Model saved         
+   30750 |   1.30e+05 |   1.13e+02 |   1.64e+04 |   5.71e+03 |   1.71e+04 |   5.35e+04 |   -6.49e+03 |   6.87e-06 |       131.86 |    81.85 |    32m 11s | Model saved         
+   30800 |   1.30e+05 |   1.13e+02 |   1.57e+04 |   5.00e+03 |   1.72e+04 |   5.34e+04 |   -6.49e+03 |   6.87e-06 |       131.86 |    74.45 |    34m 54s | Model saved         
+   30850 |   1.29e+05 |   1.11e+02 |   1.61e+04 |   5.31e+03 |   1.72e+04 |   5.34e+04 |   -6.49e+03 |   6.52e-06 |       131.86 |    82.30 |    37m 54s | Model saved         
+   30900 |   1.29e+05 |   1.11e+02 |   1.54e+04 |   4.65e+03 |   1.72e+04 |   5.33e+04 |   -6.49e+03 |   6.52e-06 |       131.86 |    79.33 |    40m 46s | Model saved         
