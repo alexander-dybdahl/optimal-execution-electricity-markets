@@ -45,6 +45,8 @@ def main():
     parser.add_argument("--adaptive_factor", type=float, default=train_cfg["adaptive_factor"], help="Adaptive factor")
     parser.add_argument("--lr", type=float, default=train_cfg["lr"], help="Learning rate for the optimizer")
     parser.add_argument("--adaptive_loss", type=str2bool, nargs='?', const=True, default=train_cfg["adaptive_loss"], help="Use adaptive loss function")
+    parser.add_argument("--adaptive_loss_type", type=str, default=train_cfg["adaptive_loss_type"], help="Type of adaptive loss function to use")
+    parser.add_argument("--gradnorm_alpha", type=str2bool, nargs='?', const=True, default=train_cfg["gradnorm_alpha"], help="Alpha for gradnorm adaptive loss")
     parser.add_argument("--lambda_Y0", type=float, default=train_cfg["lambda_Y0"], help="Weight for the Y0 term in the loss function")
     parser.add_argument("--lambda_Y", type=float, default=train_cfg["lambda_Y"], help="Weight for the Y term in the loss function")
     parser.add_argument("--lambda_dY", type=float, default=train_cfg["lambda_dY"], help="Weight for the dY term in the loss function")

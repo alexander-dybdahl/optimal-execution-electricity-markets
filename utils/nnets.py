@@ -473,20 +473,22 @@ class GradNorm(nn.Module):
     GradNorm dynamically adjusts task weights based on the relative magnitudes of gradients
     from different tasks, helping prevent one task from dominating the learning process.
     """
-    def __init__(self, task_weights, alpha=1.5):
+    def __init__(self, task_weights, alpha=1.5, device='cuda' if torch.cuda.is_available() else 'cpu'):
         """
         Args:
             task_weights: Dictionary mapping task name -> initial weight (e.g., {"lambda_Y0": 1.0, "lambda_cost": 0.5})
             alpha: Strength of gradient normalization. Higher values increase the dominance of 
                   tasks with larger relative losses (paper used values from 0.5 to 1.5)
+            device: Device to place tensors on (e.g., 'cpu', 'cuda:0')
         """
         super().__init__()
         self.alpha = alpha
         self.num_tasks = len(task_weights)
+        self.device = torch.device(device)
         
         # Convert task weights to a tensor for easier manipulation
         loss_keys = list(task_weights.keys())
-        loss_weights = torch.tensor([float(task_weights[k]) for k in loss_keys])
+        loss_weights = torch.tensor([float(task_weights[k]) for k in loss_keys], dtype=torch.float32, device=device)
         
         # Store the order of loss keys for consistent access
         self.loss_names = loss_keys
@@ -510,11 +512,13 @@ class GradNorm(nn.Module):
         self.initial_sum = self.loss_weights.sum().item()
         
         # Store for initial losses (will be set on first forward pass)
-        self.register_buffer('initial_losses', torch.zeros(len(active_indices)))
-        self.register_buffer('initted', torch.tensor(False))
+        self.register_buffer('initial_losses', torch.zeros(len(active_indices), dtype=torch.float32, device=device))
+        self.register_buffer('initted', torch.tensor(False, device=device))
         
         # For tracking training progress
         self.iteration = 0
+
+        self.to(torch.device(device))
         
     def forward(self, losses_dict, shared_parameters):
         """
@@ -537,7 +541,7 @@ class GradNorm(nn.Module):
         # Update initial losses on first iteration
         if not self.initted:
             self.initial_losses.copy_(losses.detach())
-            self.initted = torch.tensor(True)
+            self.initted.fill_(True)
         
         # Get relative inverse training rates 
         # L(t)/L(0) for each task
@@ -577,9 +581,9 @@ class GradNorm(nn.Module):
         # GradNorm loss is the L1 distance between the gradient norms and their targets
         grad_norm_loss = torch.abs(grad_norms - target_grad_norms.detach()).sum()
         
-        # The weighted task loss for standard backpropagation
-        with torch.no_grad():
-            weighted_task_loss = (self.loss_weights.detach() * losses).sum()
+        # The weighted task loss for standard backpropagation - keep gradient flow
+        # We use the detached weights but keep the gradients flowing through the losses
+        weighted_task_loss = (self.loss_weights.detach() * losses).sum()
         
         self.iteration += 1
         
@@ -607,7 +611,7 @@ class GradNorm(nn.Module):
         Tasks that aren't being actively weighted will have zeros.
         """
         # Create a full weights tensor initialized with zeros
-        full_weights = torch.zeros(self.num_tasks)
+        full_weights = torch.zeros(self.num_tasks, device=self.device)
         
         # Fill in the active weights
         for i, idx in enumerate(self.active_indices):

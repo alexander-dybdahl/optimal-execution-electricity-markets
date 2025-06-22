@@ -918,8 +918,8 @@ class DeepAgent(nn.Module):
             else:  # Y network
                 shared_params = next(reversed([p for p in self.Y_net.parameters() if p.requires_grad]))
                 
-            # Initialize GradNorm with active loss weights (non-zero weights)
-            gradnorm = GradNorm(self.loss_weights, alpha=self.gradnorm_alpha)
+            # Initialize GradNorm with active loss weights (non-zero weights) and device
+            gradnorm = GradNorm(self.loss_weights, alpha=self.gradnorm_alpha, device=self.device)
             
             # Add GradNorm parameters to optimizer with a smaller learning rate
             optimizer = torch.optim.Adam([
@@ -936,6 +936,7 @@ class DeepAgent(nn.Module):
                             state[k] = v.to(self.device)
                             
             # Store shared parameters for easy access in training loop
+            # They should already be on the correct device since they come from the model
             self.shared_params = shared_params
 
         # === Training loop ===
@@ -944,57 +945,35 @@ class DeepAgent(nn.Module):
             optimizer.zero_grad()
             t, dW, _ = self.dynamics.generate_paths(self.batch_size)
             
-            if self.adaptive_loss and self.adaptive_loss_type == "gradnorm":
-                # First forward pass to compute task-specific losses
-                _ = self(t=t, dW=dW)
+            # First forward pass to compute the loss
+            loss = self(t=t, dW=dW)
                 
+            if self.adaptive_loss and self.adaptive_loss_type == "gradnorm":
                 # Get stored losses from forward pass
                 losses_dict = self.current_losses_dict.copy()
                 
-                # GradNorm requires two separate optimization steps:
-                # 1. Update task weights using GradNorm loss
-                # 2. Update model parameters using weighted task losses
-                
-                # First step: compute GradNorm loss to update task weights
+                # First step: compute GradNorm loss and get weighted task loss
                 grad_norm_loss, weighted_task_loss = gradnorm(losses_dict, self.shared_params)
                 
                 # Clear previous gradients
                 optimizer.zero_grad()
                 
-                # Backward pass to compute gradients for task weight updates
-                grad_norm_loss.backward(retain_graph=True)
-                
-                # Apply weight normalization before optimizer step
-                gradnorm.update_weights()
-                
-                # Update only the GradNorm parameters (task weights)
-                # We need to filter which parameters to update
-                for param_group in optimizer.param_groups:
-                    for param in param_group['params']:
-                        if param in gradnorm.parameters():
-                            if param.grad is not None:
-                                # Handle distributed training
-                                if self.is_distributed:
-                                    dist.all_reduce(param.grad.data, op=dist.ReduceOp.SUM)
-                                    param.grad.data /= self.world_size
-                                param.data.add_(param.grad.data, alpha=-param_group['lr'])
-                
-                # Clear gradients for the second optimization step
-                optimizer.zero_grad()
-                
-                # Second step: backward pass for model parameters using weighted_task_loss
+                # For GradNorm, we use the weighted_task_loss for backward
+                # This ensures gradients flow through both the model parameters and loss weights
                 weighted_task_loss.backward()
                 
-                # Get updated loss weights from GradNorm
+                # After backward, update the GradNorm weights manually using update_weights
+                gradnorm.update_weights()
+                
+                # Store the updated loss weights from GradNorm
                 updated_weights = gradnorm.get_loss_weights()
                 
                 # Replace loss weights with the ones from GradNorm
                 for name, weight in updated_weights.items():
                     self.loss_weights[name] = weight
-                
             else:
                 # Standard backward pass
-                loss = self(t=t, dW=dW)
+                optimizer.zero_grad()
                 loss.backward()
 
             # === Optimizer and scheduler step ===
