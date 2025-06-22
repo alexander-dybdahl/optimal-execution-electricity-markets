@@ -22,6 +22,8 @@
   "adaptive_factor": 0.95,
   "lr": 1e-2,
   "adaptive_loss": true,
+  "adaptive_loss_type": "gradnorm",
+  "gradnorm_alpha": 1.5,
   "lambda_Y0": 1,
   "lambda_Y": 1,
   "lambda_dY": 0,

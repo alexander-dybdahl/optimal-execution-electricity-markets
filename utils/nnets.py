@@ -463,3 +463,157 @@ class UncertaintyWeightedLoss(nn.Module):
             total_loss += weighted
 
         return total_loss
+
+
+class GradNorm(nn.Module):
+    """
+    Implementation of GradNorm algorithm (https://arxiv.org/abs/1711.02257) for adaptively 
+    balancing multiple losses during training.
+
+    GradNorm dynamically adjusts task weights based on the relative magnitudes of gradients
+    from different tasks, helping prevent one task from dominating the learning process.
+    """
+    def __init__(self, task_weights, alpha=1.5):
+        """
+        Args:
+            task_weights: Dictionary mapping task name -> initial weight (e.g., {"lambda_Y0": 1.0, "lambda_cost": 0.5})
+            alpha: Strength of gradient normalization. Higher values increase the dominance of 
+                  tasks with larger relative losses (paper used values from 0.5 to 1.5)
+        """
+        super().__init__()
+        self.alpha = alpha
+        self.num_tasks = len(task_weights)
+        
+        # Convert task weights to a tensor for easier manipulation
+        loss_keys = list(task_weights.keys())
+        loss_weights = torch.tensor([float(task_weights[k]) for k in loss_keys])
+        
+        # Store the order of loss keys for consistent access
+        self.loss_names = loss_keys
+        
+        # Keep only tasks with non-zero weights
+        active_indices = []
+        active_names = []
+        for i, name in enumerate(self.loss_names):
+            if task_weights[name] > 0:
+                active_indices.append(i)
+                active_names.append(name)
+                
+        self.active_indices = active_indices
+        self.active_names = active_names
+        self.num_active_tasks = len(active_indices)
+        
+        # Initialize learnable weights - we only learn weights for active tasks
+        self.loss_weights = nn.Parameter(loss_weights[active_indices].clone())
+        
+        # Save initial weights sum for renormalization
+        self.initial_sum = self.loss_weights.sum().item()
+        
+        # Store for initial losses (will be set on first forward pass)
+        self.register_buffer('initial_losses', torch.zeros(len(active_indices)))
+        self.register_buffer('initted', torch.tensor(False))
+        
+        # For tracking training progress
+        self.iteration = 0
+        
+    def forward(self, losses_dict, shared_parameters):
+        """
+        Calculate the GradNorm loss for weight updates.
+        
+        Args:
+            losses_dict: Dictionary of unweighted task losses
+            shared_parameters: Parameters to compute grad norms from (typically backbone network's last layer)
+        
+        Returns:
+            Tuple of (grad_norm_loss, weighted_task_loss)
+        """
+        # Extract active losses for training
+        active_losses = []
+        for name in self.active_names:
+            active_losses.append(losses_dict[name])
+        
+        losses = torch.stack(active_losses)
+        
+        # Update initial losses on first iteration
+        if not self.initted:
+            self.initial_losses.copy_(losses.detach())
+            self.initted = torch.tensor(True)
+        
+        # Get relative inverse training rates 
+        # L(t)/L(0) for each task
+        loss_ratios = losses.detach() / (self.initial_losses + 1e-12)
+        
+        # Compute the average L2 norm of the gradient of the loss 
+        # for each task with respect to the shared parameters
+        grad_norms = []
+        for i, loss in enumerate(losses):
+            # Compute weighted loss
+            weighted_loss = self.loss_weights[i] * loss
+            
+            # Get gradients
+            grads = torch.autograd.grad(
+                weighted_loss,
+                shared_parameters,
+                retain_graph=True,
+                create_graph=True
+            )[0]
+            
+            # Compute L2 norm of gradients
+            grad_norm = torch.norm(grads, p=2)
+            grad_norms.append(grad_norm)
+        
+        grad_norms = torch.stack(grad_norms)
+        
+        # Average L2 norm across all tasks
+        mean_norm = grad_norms.mean()
+        
+        # Calculate relative inverse training rate
+        total = loss_ratios.sum() + 1e-12
+        inverse_rate = loss_ratios / (total / len(loss_ratios))
+        
+        # Calculate target for each grad norm
+        target_grad_norms = mean_norm * (inverse_rate ** self.alpha)
+        
+        # GradNorm loss is the L1 distance between the gradient norms and their targets
+        grad_norm_loss = torch.abs(grad_norms - target_grad_norms.detach()).sum()
+        
+        # The weighted task loss for standard backpropagation
+        with torch.no_grad():
+            weighted_task_loss = (self.loss_weights.detach() * losses).sum()
+        
+        self.iteration += 1
+        
+        return grad_norm_loss, weighted_task_loss
+    
+    def update_weights(self):
+        """
+        Renormalizes the weights after their gradients have been computed.
+        Call this before optimizer.step() to ensure weights maintain proper scaling.
+        """
+        # Renormalize weights to sum to the original sum
+        with torch.no_grad():
+            # Make sure we have positive weights after gradient update
+            # (negative weights could cause issues with loss balancing)
+            # Softplus ensures all weights are positive
+            self.loss_weights.data = F.softplus(self.loss_weights.data)
+            
+            # Renormalize to maintain original sum
+            normalize_coeff = self.initial_sum / (self.loss_weights.sum() + 1e-12)
+            self.loss_weights.mul_(normalize_coeff)
+    
+    def get_loss_weights(self):
+        """
+        Returns the current loss weights dictionary with all tasks.
+        Tasks that aren't being actively weighted will have zeros.
+        """
+        # Create a full weights tensor initialized with zeros
+        full_weights = torch.zeros(self.num_tasks)
+        
+        # Fill in the active weights
+        for i, idx in enumerate(self.active_indices):
+            full_weights[idx] = self.loss_weights[i].item()
+        
+        # Convert to dictionary
+        weights_dict = {name: full_weights[i].item() for i, name in enumerate(self.loss_names)}
+        return weights_dict
+

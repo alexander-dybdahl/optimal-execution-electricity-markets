@@ -20,10 +20,11 @@ from utils.nnets import (
     SeparateSubnets,
     Sine,
     UncertaintyWeightedLoss,
+    GradNorm,
 )
 
 
-class DeepAgent(nn.Module):       
+class DeepAgent(nn.Module):
     def __init__(self, dynamics, model_cfg, device):
         super().__init__()
         # System & Execution Settings
@@ -53,6 +54,8 @@ class DeepAgent(nn.Module):
         # Loss and Loss Weights
         self.lowest_loss = float("inf")
         self.adaptive_loss = model_cfg["adaptive_loss"]
+        self.adaptive_loss_type = model_cfg["adaptive_loss_type"]
+        self.gradnorm_alpha = model_cfg["gradnorm_alpha"]
         self.loss_weights = {
             "lambda_Y0": model_cfg["lambda_Y0"],
             "lambda_Y": model_cfg["lambda_Y"],
@@ -88,6 +91,9 @@ class DeepAgent(nn.Module):
         self.pinn_loss = torch.tensor(0.0, device=self.device)
         self.reg_loss = torch.tensor(0.0, device=self.device)
         self.cost_loss = torch.tensor(0.0, device=self.device)
+        
+        # Storage for GradNorm
+        self.current_losses_dict = {}
 
         # Saving & Checkpointing
         self.epoch = 0
@@ -565,9 +571,22 @@ class DeepAgent(nn.Module):
             self.val_q_loss = q_val_loss.detach()
 
         # === Total loss computation ===
+        # Store the losses_dict for all methods (needed for GradNorm)
+        self.current_losses_dict = losses_dict.copy()
+        
         if self.adaptive_loss:
-            loss_fn = UncertaintyWeightedLoss(self.loss_weights)
-            total_loss = loss_fn(losses_dict)
+            if self.adaptive_loss_type == "uncertainty":
+                loss_fn = UncertaintyWeightedLoss(self.loss_weights)
+                total_loss = loss_fn(losses_dict)
+            elif self.adaptive_loss_type == "gradnorm":
+                # GradNorm will be initialized in train_model
+                # We just compute weighted sum here for the forward pass
+                total_loss = sum(
+                    self.loss_weights[key] * value
+                    for key, value in losses_dict.items()
+                )
+            else:
+                raise ValueError(f"Unknown adaptive loss type: {self.adaptive_loss_type}")
         else:
             total_loss = sum(
                 self.loss_weights[key] * value
@@ -889,13 +908,94 @@ class DeepAgent(nn.Module):
             logger.log(f"Lowest loss so far: {self.lowest_loss:.6e}")
             logger.log("-" * width)
 
+        # === Initialize GradNorm if needed ===
+        gradnorm = None
+        if self.adaptive_loss and self.adaptive_loss_type == "gradnorm":
+            # Identify the shared parameters for gradient computation
+            # For most networks, this is the last layer of the backbone
+            if self.network_type == "dY":
+                shared_params = next(reversed([p for p in self.dY_net.parameters() if p.requires_grad]))
+            else:  # Y network
+                shared_params = next(reversed([p for p in self.Y_net.parameters() if p.requires_grad]))
+                
+            # Initialize GradNorm with active loss weights (non-zero weights)
+            gradnorm = GradNorm(self.loss_weights, alpha=self.gradnorm_alpha)
+            
+            # Add GradNorm parameters to optimizer with a smaller learning rate
+            optimizer = torch.optim.Adam([
+                {"params": self.parameters()},
+                {"params": gradnorm.parameters(), "lr": lr * 0.1}  # Use lower LR for task weights
+            ], lr=lr)
+            
+            if optimizer_state is not None:
+                optimizer.load_state_dict(optimizer_state)
+                # Make sure we're using the correct device
+                for state in optimizer.state.values():
+                    for k, v in state.items():
+                        if isinstance(v, torch.Tensor):
+                            state[k] = v.to(self.device)
+                            
+            # Store shared parameters for easy access in training loop
+            self.shared_params = shared_params
+
         # === Training loop ===
         for epoch in range(start_epoch, epochs + 1):
             self.epoch = epoch
             optimizer.zero_grad()
             t, dW, _ = self.dynamics.generate_paths(self.batch_size)
-            loss = self(t=t, dW=dW)
-            loss.backward()
+            
+            if self.adaptive_loss and self.adaptive_loss_type == "gradnorm":
+                # First forward pass to compute task-specific losses
+                _ = self(t=t, dW=dW)
+                
+                # Get stored losses from forward pass
+                losses_dict = self.current_losses_dict.copy()
+                
+                # GradNorm requires two separate optimization steps:
+                # 1. Update task weights using GradNorm loss
+                # 2. Update model parameters using weighted task losses
+                
+                # First step: compute GradNorm loss to update task weights
+                grad_norm_loss, weighted_task_loss = gradnorm(losses_dict, self.shared_params)
+                
+                # Clear previous gradients
+                optimizer.zero_grad()
+                
+                # Backward pass to compute gradients for task weight updates
+                grad_norm_loss.backward(retain_graph=True)
+                
+                # Apply weight normalization before optimizer step
+                gradnorm.update_weights()
+                
+                # Update only the GradNorm parameters (task weights)
+                # We need to filter which parameters to update
+                for param_group in optimizer.param_groups:
+                    for param in param_group['params']:
+                        if param in gradnorm.parameters():
+                            if param.grad is not None:
+                                # Handle distributed training
+                                if self.is_distributed:
+                                    dist.all_reduce(param.grad.data, op=dist.ReduceOp.SUM)
+                                    param.grad.data /= self.world_size
+                                param.data.add_(param.grad.data, alpha=-param_group['lr'])
+                
+                # Clear gradients for the second optimization step
+                optimizer.zero_grad()
+                
+                # Second step: backward pass for model parameters using weighted_task_loss
+                weighted_task_loss.backward()
+                
+                # Get updated loss weights from GradNorm
+                updated_weights = gradnorm.get_loss_weights()
+                
+                # Replace loss weights with the ones from GradNorm
+                for name, weight in updated_weights.items():
+                    self.loss_weights[name] = weight
+                
+            else:
+                # Standard backward pass
+                loss = self(t=t, dW=dW)
+                loss.backward()
 
             # === Optimizer and scheduler step ===
             optimizer.step()
@@ -1041,6 +1141,41 @@ class DeepAgent(nn.Module):
                     ]
                     logger.log(" | ".join(row_parts))
                     start_time = time.time()
+
+                # === Log active loss components ===
+                msg = f"Epoch {epoch:>{max_widths['epoch']}} | "
+                
+                # Log task weights and uncertainties for adaptive loss
+                if epoch % K == 0 and self.is_main and self.adaptive_loss:
+                    if logger:
+                        logger.log("\nCurrent loss weights and uncertainties:")
+                        if self.adaptive_loss_type == "uncertainty":
+                            logger.log("-" * 60)
+                            logger.log(f"|{'Loss Component':<20}|{'Weight':<12}|{'log_var':<12}|{'Precision':<12}|")
+                            logger.log("-" * 60)
+                            # Access the log_vars in the loss function
+                            for name, weight in self.loss_weights.items():
+                                if hasattr(loss_fn, 'log_vars') and name in loss_fn.log_vars:
+                                    log_var = loss_fn.log_vars[name].item()
+                                    precision = torch.exp(-loss_fn.log_vars[name]).item()
+                                    logger.log(f"|{name:<20}|{weight:<12.4f}|{log_var:<12.4f}|{precision:<12.4f}|")
+                            logger.log("-" * 60)
+                        elif self.adaptive_loss_type == "gradnorm":
+                            logger.log("-" * 40)
+                            logger.log(f"|{'Loss Component':<20}|{'GradNorm Weight':<16}|")
+                            logger.log("-" * 40)
+                            for name, weight in self.loss_weights.items():
+                                logger.log(f"|{name:<20}|{weight:<16.4f}|")
+                            logger.log("-" * 40)
+
+                # === Print loss components ===
+                if epoch % K == 0 and self.is_main:
+                    print(msg, end="")
+                    if self.adaptive_loss_type == "uncertainty":
+                        print(f" | log_var: {loss_fn.log_vars['lambda_Y0']:.4f} {loss_fn.log_vars['lambda_Y']:.4f} {loss_fn.log_vars['lambda_dY']:.4f} {loss_fn.log_vars['lambda_dYt']:.4f} {loss_fn.log_vars['lambda_T']:.4f} {loss_fn.log_vars['lambda_TG']:.4f} {loss_fn.log_vars['lambda_pinn']:.4f} {loss_fn.log_vars['lambda_reg']:.4f} {loss_fn.log_vars['lambda_cost']:.4f} ", end="")
+                    elif self.adaptive_loss_type == "gradnorm":
+                        print(f" | GradNorm weights: {self.loss_weights['lambda_Y0']:.4f} {self.loss_weights['lambda_Y']:.4f} {self.loss_weights['lambda_dY']:.4f} {self.loss_weights['lambda_dYt']:.4f} {self.loss_weights['lambda_T']:.4f} {self.loss_weights['lambda_TG']:.4f} {self.loss_weights['lambda_pinn']:.4f} {self.loss_weights['lambda_reg']:.4f} {self.loss_weights['lambda_cost']:.4f}", end="")
+                    print()
 
                 # === Plot approximation vs analytical ===
                 if epoch % self.plot_n == 0:
