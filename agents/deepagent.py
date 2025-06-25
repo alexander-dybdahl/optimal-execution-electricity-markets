@@ -949,8 +949,9 @@ class DeepAgent(nn.Module):
 
             # === Log losses and print plots ===
             if self.is_main:
-                self.validation["Y_loss"].append(val_Y_loss.item())
-                self.validation["q_loss"].append(val_q_loss.item())
+                if self.dynamics.analytical_known:
+                    self.validation["Y_loss"].append(val_Y_loss.item())
+                    self.validation["q_loss"].append(val_q_loss.item())
                 losses.append(loss.item())
                 losses_Y0.append(Y0_loss.item())
                 losses_Y.append(Y_loss.item())

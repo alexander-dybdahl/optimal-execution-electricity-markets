@@ -9,17 +9,19 @@ from dynamics.dynamics import Dynamics
 class FullDynamics(Dynamics):
     def __init__(self, dynamics_cfg, device="cpu"):
         super().__init__(dynamics_cfg=dynamics_cfg, device=device)
-        self.alpha_P = dynamics_cfg["alpha_P"]
-        self.beta_P = dynamics_cfg["beta_P"]
-        self.alpha_D = dynamics_cfg["alpha_D"]
-        self.beta_D = dynamics_cfg["beta_D"]
-        self.rho = dynamics_cfg["rho"]
+        self.sigma_P = dynamics_cfg["sigma_P"] # volatility for price
+        self.alpha_P = dynamics_cfg["alpha_P"] # time dependent volatility for price
+        self.beta_P = dynamics_cfg["beta_P"]   # constant volatility for price
+        self.sigma_D = dynamics_cfg["sigma_D"] # volatility for demand
+        self.alpha_D = dynamics_cfg["alpha_D"] # time dependent volatility for demand
+        self.beta_D = dynamics_cfg["beta_D"]   # constant volatility for demand
+        self.rho = dynamics_cfg["rho"]         # correlation between price and demand noise
         self.psi = dynamics_cfg["psi"]         # bid-ask spread
         self.gamma = dynamics_cfg["gamma"]     # temp impact
         self.nu = dynamics_cfg["nu"]           # perm impact
         self.eta = dynamics_cfg["eta"]         # terminal penalty
         self.mu_D = dynamics_cfg["mu_D"]       # drift for D
-        self.mu_P = dynamics_cfg["mu_P"]       # drift for D
+        self.mu_P = dynamics_cfg["mu_P"]       # drift for P
 
     def generator(self, y, q):
         P = y[:, 1:2]
@@ -48,18 +50,18 @@ class FullDynamics(Dynamics):
         batch = y.shape[0]
         t_scaled = t / self.T  # normalize time to [0,1]
 
-        sigma_P_t = torch.sqrt(self.alpha_P * t_scaled**2 + self.beta_P)
-        sigma_D_t = torch.sqrt(self.alpha_D * t_scaled**2 + self.beta_D)
+        sigma_P_t = torch.sqrt(self.alpha_P * t_scaled**2 + self.beta_P).squeeze(-1)
+        sigma_D_t = torch.sqrt(self.alpha_D * t_scaled**2 + self.beta_D).squeeze(-1)
 
         Sigma = torch.zeros(batch, 3, 2, device=self.device)
 
-        Sigma[:, 1, 0] = sigma_P_t
-        Sigma[:, 2, 0] = self.rho * sigma_D_t
-        Sigma[:, 2, 1] = torch.sqrt(1 - self.rho**2) * sigma_D_t
+        Sigma[:, 1, 0] = sigma_P_t                     # dP_t
+        Sigma[:, 2, 0] = self.rho * sigma_D_t          # dD_t w/ correlated Brownian
+        Sigma[:, 2, 1] = torch.sqrt(torch.tensor(1 - self.rho**2, device=self.device)) * sigma_D_t  # orthogonal noise for D
 
         return Sigma
 
-    def optimal_control(self, t, y, dY_dy, smooth=True, eps=1):
+    def optimal_control(self, t, y, dY_dy, smooth=True, eps=1.0):
         dY_dX = dY_dy[:, 0:1]
         dY_dP = dY_dy[:, 1:2]
         P = y[:, 1:2]
@@ -105,15 +107,14 @@ class FullDynamics(Dynamics):
         return (self.eta * (self.mu_D * tau + D - X) - P) / ((self.eta + self.nu) * tau + 2 * self.gamma)
 
     def value_function_analytic(self, t_tensor, y_tensor):
-        t = t_tensor.item() if isinstance(t_tensor, torch.Tensor) else t_tensor
-        y = y_tensor.detach().numpy() if isinstance(y_tensor, torch.Tensor) else y_tensor
+        t = t_tensor.detach().cpu().numpy() if isinstance(t_tensor, torch.Tensor) else t_tensor
+        y = y_tensor.detach().cpu().numpy() if isinstance(y_tensor, torch.Tensor) else y_tensor
 
         X = y[:, 0:1]
         P = y[:, 1:2]
         D = y[:, 2:3]
 
         T = self.T
-        tau = T - t
         eta = self.eta
         nu = self.nu
         gamma = self.gamma
@@ -131,20 +132,23 @@ class FullDynamics(Dynamics):
         def B(s): return -0.5 * s / ((eta + nu) * s + 2 * gamma)
         def F(s): return eta * s / ((eta + nu) * s + 2 * gamma)
 
-        # Numerical integral for K
-        def integrand(s):
-            return B(s) * sigma_P2(s) + A(s) * sigma_D2(s) + rho * F(s) * sigma_P(s) * sigma_D(s)
+        V = np.zeros((y.shape[0], 1))
+        for i in range(y.shape[0]):
+            tau_i = T - t[i]  # scalar
+            X_i, P_i, D_i = X[i], P[i], D[i]
 
-        K, _ = quad(integrand, 0, tau)
+            def integrand(s):
+                return B(s) * sigma_P2(s) + A(s) * sigma_D2(s) + rho * F(s) * sigma_P(s) * sigma_D(s)
 
-        # Final value function
-        denom = (eta + nu) * tau + 2 * gamma
-        A_tau = A(tau)
-        B_tau = B(tau)
-        F_tau = F(tau)
-        G = 2 * mu * tau * A_tau
-        H = -2 * eta * mu * tau * B_tau
+            K_i, _ = quad(integrand, 0, tau_i)
 
-        z = D - X
-        V = A_tau * z**2 + B_tau * P**2 + F_tau * z * P + G * z + H * P + K
-        return V
+            A_tau = A(tau_i)
+            B_tau = B(tau_i)
+            F_tau = F(tau_i)
+            G = 2 * mu * tau_i * A_tau
+            H = -2 * eta * mu * tau_i * B_tau
+
+            z = D_i - X_i
+            V[i] = A_tau * z**2 + B_tau * P_i**2 + F_tau * z * P_i + G * z + H * P_i + K_i
+
+        return torch.tensor(V, dtype=torch.float32, device=t_tensor.device if isinstance(t_tensor, torch.Tensor) else "cpu")
