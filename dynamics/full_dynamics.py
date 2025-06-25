@@ -1,8 +1,7 @@
 import torch
-import matplotlib.pyplot as plt
 import numpy as np
 import torch.nn as nn
-import matplotlib.cm as cm
+from scipy.integrate import quad
 
 from dynamics.dynamics import Dynamics
 
