@@ -105,39 +105,47 @@ class FullDynamics(Dynamics):
         tau = self.T - t
         return (self.eta * (self.mu_D * tau + D - X) - P) / ((self.eta + self.nu) * tau + 2 * self.gamma)
 
-    def value_function_analytic(self, t, y):
+    def value_function_analytic(self, t_tensor, y_tensor):
+        t = t_tensor.item() if isinstance(t_tensor, torch.Tensor) else t_tensor
+        y = y_tensor.detach().numpy() if isinstance(y_tensor, torch.Tensor) else y_tensor
+
         X = y[:, 0:1]
         P = y[:, 1:2]
         D = y[:, 2:3]
 
         T = self.T
+        tau = T - t
         eta = self.eta
         nu = self.nu
         gamma = self.gamma
         mu = self.mu_D
-        sigma_p = self.sigma_P
-        sigma_d = self.sigma_D
         rho = self.rho
 
-        tau = T - t
+        # Time-dependent sigmas
+        def sigma_P2(s): return self.alpha_P * s**2 + self.beta_P
+        def sigma_D2(s): return self.alpha_D * s**2 + self.beta_D
+        def sigma_P(s): return np.sqrt(sigma_P2(s))
+        def sigma_D(s): return np.sqrt(sigma_D2(s))
+
+        # Coefficients
+        def A(s): return eta * (0.5 * nu * s + gamma) / ((eta + nu) * s + 2 * gamma)
+        def B(s): return -0.5 * s / ((eta + nu) * s + 2 * gamma)
+        def F(s): return eta * s / ((eta + nu) * s + 2 * gamma)
+
+        # Numerical integral for K
+        def integrand(s):
+            return B(s) * sigma_P2(s) + A(s) * sigma_D2(s) + rho * F(s) * sigma_P(s) * sigma_D(s)
+
+        K, _ = quad(integrand, 0, tau)
+
+        # Final value function
         denom = (eta + nu) * tau + 2 * gamma
-
-        # Coefficient functions
-        A = eta * (0.5 * nu * tau + gamma) / denom
-        B = -0.5 * tau / denom
-        F = eta * tau / denom
-        G = 2 * mu * tau * A
-        H = -2 * eta * mu * tau * B
-
-        # Constant K(t)
-        log_term = gamma * (sigma_p**2 + sigma_d**2 * eta**2 - 2 * rho * sigma_p * sigma_d * eta) / (eta + nu)**2
-        log_expr = 1 + ((eta + nu) * tau) / (2 * gamma)
-        K1 = log_term * torch.log(log_expr)
-
-        K2 = (sigma_d**2 * eta * nu + 2 * rho * sigma_p * sigma_d * eta - sigma_p**2) / (2 * (eta + nu)) * tau
-        K3 = eta * mu**2 * tau**2 * (0.5 * nu * tau + gamma) / denom
-        K = K1 + K2 + K3
+        A_tau = A(tau)
+        B_tau = B(tau)
+        F_tau = F(tau)
+        G = 2 * mu * tau * A_tau
+        H = -2 * eta * mu * tau * B_tau
 
         z = D - X
-        V = A * z**2 + B * P**2 + F * z * P + G * z + H * P + K
+        V = A_tau * z**2 + B_tau * P**2 + F_tau * z * P + G * z + H * P + K
         return V
