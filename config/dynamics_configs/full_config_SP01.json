@@ -6,6 +6,7 @@
   "y0": [400.0, 80.0, 0.0],
   "mu_P": 0.0,
   "mu_D": 0.0,
+  "time_dep_vol": false,
   "sigma_P": 2.879,
   "alpha_P": 20.871,
   "beta_P": 3.069,

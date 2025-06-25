@@ -9,6 +9,7 @@ from dynamics.dynamics import Dynamics
 class FullDynamics(Dynamics):
     def __init__(self, dynamics_cfg, device="cpu"):
         super().__init__(dynamics_cfg=dynamics_cfg, device=device)
+        self.time_dep_vol = dynamics_cfg["time_dep_vol"]  # boolean for time-dependent volatility
         self.sigma_P = dynamics_cfg["sigma_P"] # volatility for price
         self.alpha_P = dynamics_cfg["alpha_P"] # time dependent volatility for price
         self.beta_P = dynamics_cfg["beta_P"]   # constant volatility for price
@@ -45,8 +46,14 @@ class FullDynamics(Dynamics):
         dD = self.mu_D * torch.ones_like(D)
 
         return torch.cat([dX, dP, dD], dim=1)
-
+    
     def sigma(self, t, y):
+        if self.time_dep_vol:
+            return self.sigma_time_dep(t, y)
+        else:
+            return self.sigma_const(t, y)
+
+    def sigma_time_dep(self, t, y):
         batch = y.shape[0]
         t_scaled = t / self.T  # normalize time to [0,1]
 
@@ -59,6 +66,15 @@ class FullDynamics(Dynamics):
         Sigma[:, 2, 0] = self.rho * sigma_D_t          # dD_t w/ correlated Brownian
         Sigma[:, 2, 1] = torch.sqrt(torch.tensor(1 - self.rho**2, device=self.device)) * sigma_D_t  # orthogonal noise for D
 
+        return Sigma
+
+    def sigma_const(self, t, y):
+        batch = y.shape[0]
+
+        Sigma = torch.zeros(batch, 3, 2, device=self.device)
+        Sigma[:, 1, 0] = self.sigma_P                          # dP = ... dW1
+        Sigma[:, 2, 0] = self.rho * self.sigma_D               # dD = ... dW1
+        Sigma[:, 2, 1] = (1 - self.rho**2)**0.5 * self.sigma_D # dD = ... dW2
         return Sigma
 
     def optimal_control(self, t, y, dY_dy, smooth=True, eps=1.0):
@@ -106,7 +122,13 @@ class FullDynamics(Dynamics):
         tau = self.T - t
         return (self.eta * (self.mu_D * tau + D - X) - P) / ((self.eta + self.nu) * tau + 2 * self.gamma)
 
-    def value_function_analytic(self, t_tensor, y_tensor):
+    def value_function_analytic(self, t, y):
+        if self.time_dep_vol:
+            return self.value_function_analytic_time_dep(t, y)
+        else:
+            return self.value_function_analytic_const(t, y)
+
+    def value_function_analytic_time_dep(self, t_tensor, y_tensor):
         t = t_tensor.detach().cpu().numpy() if isinstance(t_tensor, torch.Tensor) else t_tensor
         y = y_tensor.detach().cpu().numpy() if isinstance(y_tensor, torch.Tensor) else y_tensor
 
@@ -152,3 +174,40 @@ class FullDynamics(Dynamics):
             V[i] = A_tau * z**2 + B_tau * P_i**2 + F_tau * z * P_i + G * z + H * P_i + K_i
 
         return torch.tensor(V, dtype=torch.float32, device=t_tensor.device if isinstance(t_tensor, torch.Tensor) else "cpu")
+
+    def value_function_analytic_const(self, t, y):
+        X = y[:, 0:1]
+        P = y[:, 1:2]
+        D = y[:, 2:3]
+
+        T = self.T
+        eta = self.eta
+        nu = self.nu
+        gamma = self.gamma
+        mu = self.mu_D
+        sigma_p = self.sigma_P
+        sigma_d = self.sigma_D
+        rho = self.rho
+
+        tau = T - t
+        denom = (eta + nu) * tau + 2 * gamma
+
+        # Coefficient functions
+        A = eta * (0.5 * nu * tau + gamma) / denom
+        B = -0.5 * tau / denom
+        F = eta * tau / denom
+        G = 2 * mu * tau * A
+        H = -2 * eta * mu * tau * B
+
+        # Constant K(t)
+        log_term = gamma * (sigma_p**2 + sigma_d**2 * eta**2 - 2 * rho * sigma_p * sigma_d * eta) / (eta + nu)**2
+        log_expr = 1 + ((eta + nu) * tau) / (2 * gamma)
+        K1 = log_term * torch.log(log_expr)
+
+        K2 = (sigma_d**2 * eta * nu + 2 * rho * sigma_p * sigma_d * eta - sigma_p**2) / (2 * (eta + nu)) * tau
+        K3 = eta * mu**2 * tau**2 * (0.5 * nu * tau + gamma) / denom
+        K = K1 + K2 + K3
+
+        z = D - X
+        V = A * z**2 + B * P**2 + F * z * P + G * z + H * P + K
+        return V
