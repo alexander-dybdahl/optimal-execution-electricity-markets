@@ -11,7 +11,7 @@ from agents.deepagent import DeepAgent
 from agents.immediateagent import ImmediateAgent
 from agents.timeweightedagent import TimeWeightedAgent
 from dynamics.aid_dynamics import AidDynamics
-from dynamics.hjb_dynamics import HJBDynamics
+from dynamics.full_dynamics import FullDynamics
 from dynamics.simple_dynamics import SimpleDynamics
 from core.solver import Solver
 from utils.load_config import load_config, load_dynamics_config
@@ -43,7 +43,7 @@ def main():
         logger.log("Warning: CUDA is available but the config file does not set device to cuda.") 
     
     dynamics_cfg = load_dynamics_config(args.dynamics_path)
-    dynamics = AidDynamics(dynamics_cfg=dynamics_cfg, device=device)
+    dynamics = FullDynamics(dynamics_cfg=dynamics_cfg, device=device)
     
     # Load the model
     train_cfg_path = os.path.join(args.model_dir, "train_config.json")
