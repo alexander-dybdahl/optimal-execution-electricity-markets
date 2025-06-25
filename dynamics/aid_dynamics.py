@@ -1,6 +1,7 @@
 import torch
 import matplotlib.pyplot as plt
 import numpy as np
+import torch.nn as nn
 import matplotlib.cm as cm
 
 from dynamics.dynamics import Dynamics
@@ -51,27 +52,42 @@ class AidDynamics(Dynamics):
         Sigma[:, 2, 1] = (1 - self.rho**2)**0.5 * self.sigma_D # dD = ... dW2
         return Sigma
 
-    def optimal_control(self, t, y, dY_dy):
+    def optimal_control(self, t, y, dY_dy, smooth=True, eps=1):
         dY_dX = dY_dy[:, 0:1]
         dY_dP = dY_dy[:, 1:2]
         P = y[:, 1:2]
 
-        # Define xi = P + dV/dX + nu * dV/dP
-        xi = P + dY_dX + self.nu * dY_dP
-        psi = self.psi  # assumed to be a scalar or tensor of shape [1]
+        # Define Lambda = P + dV/dX + nu * dV/dP
+        Lambda = P + dY_dX + self.nu * dY_dP
+        psi = self.psi  # half-spread, scalar or tensor
+        gamma = self.gamma  # temporary impact
 
-        # Compute the candidate optimal q in each region
-        q_pos = -(xi + psi) / (2 * self.gamma)  # candidate when q > 0
-        q_neg = -(xi - psi) / (2 * self.gamma)  # candidate when q < 0
+        if psi == 0:
+            # If psi is zero, the control is simply the optimal control without bid-ask spread
+            q = -Lambda / (2 * gamma)
+            return q
 
-        # Piecewise definition: check which region gives the minimum
-        q = torch.where(
-            xi > psi, q_pos,  # If xi > psi, optimal q is positive
-            torch.where(
-                xi < -psi, q_neg,  # If xi < -psi, optimal q is negative
-                torch.zeros_like(xi)  # Else, zero is optimal
+        if smooth:
+            self.eps = nn.Parameter(torch.tensor(eps))
+            sigmoid = lambda x: torch.sigmoid(x / self.eps)
+
+            # Smooth control transitions
+            q_pos = -(Lambda + psi) / (2 * gamma)
+            q_neg = -(Lambda - psi) / (2 * gamma)
+
+            q = q_pos * sigmoid(Lambda - psi) + q_neg * sigmoid(-Lambda - psi)
+        else:
+            # Piecewise (non-smooth) definition
+            q_pos = -(Lambda + psi) / (2 * gamma)
+            q_neg = -(Lambda - psi) / (2 * gamma)
+
+            q = torch.where(
+                Lambda > psi, q_pos,
+                torch.where(
+                    Lambda < -psi, q_neg,
+                    torch.zeros_like(Lambda)
+                )
             )
-        )
         return q
 
     def optimal_control_analytic(self, t, y):

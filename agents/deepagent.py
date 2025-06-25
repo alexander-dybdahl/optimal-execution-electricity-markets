@@ -476,14 +476,14 @@ class DeepAgent(nn.Module):
         # === Terminal loss ===
         terminal_loss = 0.0
         if self.loss_weights["lambda_T"] > 0:
-            terminal_loss = self.apply_thresholded_loss(Y0 - self.dynamics.terminal_cost(y0)).mean()
+            terminal_loss = self.apply_thresholded_loss(Y0 - self.dynamics.terminal_cost(y0.detach())).mean()
             losses_dict["lambda_T"] = terminal_loss
             self.terminal_loss = terminal_loss.detach()
 
         # === Terminal gradient loss ===
         terminal_gradient_loss = 0.0
         if self.loss_weights["lambda_TG"] > 0:
-            terminal_gradient_loss = self.apply_thresholded_loss(dY_dy - self.dynamics.terminal_cost_grad(y0)).mean()
+            terminal_gradient_loss = self.apply_thresholded_loss(dY_dy - self.dynamics.terminal_cost_grad(y0.detach().requires_grad_())).mean()
             losses_dict["lambda_TG"] = terminal_gradient_loss
             self.terminal_gradient_loss = terminal_gradient_loss.detach()
 

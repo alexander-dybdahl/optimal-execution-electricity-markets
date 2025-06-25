@@ -36,7 +36,8 @@ class Solver:
         cost_objective = compute_cost_objective(
             dynamics=self.dynamics,
             q_traj=torch.from_numpy(results["q_learned"]).to(self.device),
-            y_traj=torch.from_numpy(results["y_learned"]).to(self.device)
+            y_traj=torch.from_numpy(results["y_learned"]).to(self.device),
+            terminal_cost=True
         )
         self.results[agent_name] = {
             'timesteps': timesteps,
