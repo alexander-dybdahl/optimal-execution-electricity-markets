@@ -124,7 +124,7 @@ def main():
         logger.log(f"Running on device: {device}, Parallel training disabled")
 
     dynamics_cfg = load_dynamics_config(args.dynamics_path)
-    dynamics = SimpleDynamics(dynamics_cfg=dynamics_cfg, device=device)
+    dynamics = FullDynamics(dynamics_cfg=dynamics_cfg, device=device)
     train_cfg = vars(args).copy()
     
     # Initialize variables for training
