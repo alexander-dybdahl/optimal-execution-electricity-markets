@@ -51,6 +51,7 @@ class DeepAgent(nn.Module):
         self.strong_grad_output = model_cfg["strong_grad_output"]  # whether to use strong output gradient
         self.scale_output = model_cfg["scale_output"]  # how much to scale the output of the network
         self.careful_init = model_cfg["careful_init"]  # whether to use careful initialization
+        self.detach_control = model_cfg["detach_control"]  # whether to detach the control from the network output
 
         # Loss and Loss Weights
         self.lowest_loss = float("inf")
@@ -391,7 +392,117 @@ class DeepAgent(nn.Module):
 
         # Residual from HJB
         residual = dY_dt + (mu * dY_dy).sum(dim=1, keepdim=True) + 0.5 * trace_term + f
+        
+        # Validate intermediate values
+        self.validate_loss(dY_dt, "hjb_dY_dt")
+        self.validate_loss((mu * dY_dy).sum(dim=1, keepdim=True), "hjb_drift_term")
+        self.validate_loss(trace_term, "hjb_trace_term")
+        self.validate_loss(f, "hjb_generator_term")
+        self.validate_loss(residual, "hjb_residual")
+        
         return self.apply_thresholded_loss(residual).mean()
+
+    def sample_random_points(self, n_samples, point_type="initial"):
+        """
+        Sample random points for training.
+        
+        Args:
+            n_samples: Number of random samples to generate
+            point_type: "initial" for t=0 samples, "terminal" for t=T samples, "random" for random t
+            
+        Returns:
+            t_samples: Time points
+            y_samples: State samples
+        """
+        if point_type == "initial":
+            # Sample around initial state y0
+            t_samples = torch.zeros(n_samples, 1, device=self.device)
+            y0_base = self.dynamics.y0.detach().flatten().cpu()
+            
+            # Create random perturbations around y0
+            std_mult = 2.0  # Standard deviation multiplier
+            perturbations = []
+            for i in range(self.dynamics.dim):
+                base = y0_base[i].item()
+                try:
+                    # Estimate std from dynamics
+                    dummy_t = torch.zeros(1, 1, device=self.device)
+                    dummy_y = self.dynamics.y0.detach()
+                    sigma = self.dynamics.sigma(dummy_t, dummy_y)[0]
+                    std_estimate = torch.norm(sigma[i]).item() * self.dynamics.T**0.5
+                    std = std_mult * std_estimate
+                except Exception:
+                    std = abs(base) * 0.1 + 0.1  # Fallback: 10% of value + small constant
+                
+                perturbation = torch.normal(0, std, (n_samples,))
+                perturbations.append(perturbation)
+            
+            perturbation_tensor = torch.stack(perturbations, dim=1).to(self.device)
+            y_samples = self.dynamics.y0.repeat(n_samples, 1) + perturbation_tensor
+            
+        elif point_type == "terminal":
+            # Sample around terminal time T
+            t_samples = torch.full((n_samples, 1), self.dynamics.T, device=self.device)
+            
+            # Generate random terminal states by forward simulation
+            _, _, y_paths = self.dynamics.generate_paths(n_samples)
+            y_samples = y_paths[-1]  # Take terminal states
+            
+        elif point_type == "random":
+            # Sample random time and state points
+            t_samples = torch.rand(n_samples, 1, device=self.device) * self.dynamics.T
+            
+            # Sample states in a reasonable range
+            y0_base = self.dynamics.y0.detach().flatten().cpu()
+            std_mult = 3.0
+            y_min_list, y_max_list = [], []
+            
+            for i in range(self.dynamics.dim):
+                base = y0_base[i].item()
+                try:
+                    dummy_t = torch.zeros(1, 1, device=self.device)
+                    dummy_y = self.dynamics.y0.detach()
+                    sigma = self.dynamics.sigma(dummy_t, dummy_y)[0]
+                    std_estimate = torch.norm(sigma[i]).item() * self.dynamics.T**0.5
+                    delta = std_mult * std_estimate
+                except Exception:
+                    delta = abs(base) * 0.5 + 1.0  # Fallback
+                
+                y_min_list.append(base - delta)
+                y_max_list.append(base + delta)
+            
+            y_min = torch.tensor(y_min_list, device=self.device)
+            y_max = torch.tensor(y_max_list, device=self.device)
+            y_samples = y_min + (y_max - y_min) * torch.rand(n_samples, self.dynamics.dim, device=self.device)
+        
+        return t_samples, y_samples
+
+    def validate_loss(self, loss_value, loss_name, epoch=None):
+        """
+        Validate that a loss value is finite (not NaN or inf).
+        
+        Args:
+            loss_value: The loss tensor to validate
+            loss_name: Name of the loss for error reporting
+            epoch: Current epoch number (optional)
+        """
+        if torch.isnan(loss_value).any():
+            error_msg = f"NaN detected in {loss_name}"
+            if epoch is not None:
+                error_msg += f" at epoch {epoch}"
+            print(f"ERROR: {error_msg}")
+            print(f"Loss value: {loss_value}")
+            raise ValueError(error_msg)
+        
+        if torch.isinf(loss_value).any():
+            error_msg = f"Inf detected in {loss_name}"
+            if epoch is not None:
+                error_msg += f" at epoch {epoch}"
+            print(f"ERROR: {error_msg}")
+            print(f"Loss value: {loss_value}")
+            raise ValueError(error_msg)
+        
+        return True
 
     def apply_thresholded_loss(self, diff):
 
@@ -404,7 +515,7 @@ class DeepAgent(nn.Module):
         
         return large_diff_mask * linear_loss + (1 - large_diff_mask) * squared_loss
     
-    def forward(self, t, dW):
+    def forward(self, t, dW, epoch=None):
         t0 = t[0]
         y0 = self.dynamics.y0.repeat(self.batch_size, 1).to(self.device)
 
@@ -447,6 +558,8 @@ class DeepAgent(nn.Module):
                 )[0]
             
             q = self.dynamics.optimal_control(t0, y0, dY0_dy)
+            if self.detach_control:
+                q = q.detach()
             y1 = self.dynamics.forward_dynamics(y0, q, dW[n, :, :], t0, dt)
             dy = y1 - y0
 
@@ -493,7 +606,9 @@ class DeepAgent(nn.Module):
             Z0 = torch.bmm(self.dynamics.sigma(t0, y0).transpose(1, 2), dY0_dy.unsqueeze(-1)).squeeze(-1)
             Y1 = Y0 - self.dynamics.generator(y0, q) * dt + (Z0 * (dW[n, :, :])).sum(dim=1, keepdim=True)
 
-            Y_loss += self.apply_thresholded_loss(Y1 - Y1_tilde).mean()
+            step_loss = self.apply_thresholded_loss(Y1 - Y1_tilde).mean()
+            self.validate_loss(step_loss, f"Y_step_loss_n{n}", epoch)
+            Y_loss += step_loss
 
             t_traj.append(t1)
             y_traj.append(y1)
@@ -503,6 +618,7 @@ class DeepAgent(nn.Module):
             t0, y0, Y0 = t1, y1, Y1
 
         if self.loss_weights["lambda_Y"] > 0:
+            self.validate_loss(Y_loss, "Y_loss (FBSNN)", epoch)
             losses_dict["lambda_Y"] = Y_loss
             self.Y_loss = Y_loss.detach()
 
@@ -515,6 +631,7 @@ class DeepAgent(nn.Module):
         terminal_loss = 0.0
         if self.loss_weights["lambda_T"] > 0:
             terminal_loss = self.apply_thresholded_loss(Y0 - self.dynamics.terminal_cost(y0)).mean()
+            self.validate_loss(terminal_loss, "terminal_loss", epoch)
             losses_dict["lambda_T"] = terminal_loss
             self.terminal_loss = terminal_loss.detach()
 
@@ -522,6 +639,7 @@ class DeepAgent(nn.Module):
         terminal_gradient_loss = 0.0
         if self.loss_weights["lambda_TG"] > 0:
             terminal_gradient_loss = self.apply_thresholded_loss(dY0_dy - self.dynamics.terminal_cost_grad(y0)).mean()
+            self.validate_loss(terminal_gradient_loss, "terminal_gradient_loss", epoch)
             losses_dict["lambda_TG"] = terminal_gradient_loss
             self.terminal_gradient_loss = terminal_gradient_loss.detach()
 
@@ -561,6 +679,7 @@ class DeepAgent(nn.Module):
                 y_pinn = torch.cat([y_pinn, sobol_points], dim=0).requires_grad_(True)
 
             pinn_loss = self.hjb_residual(t_pinn, y_pinn)
+            self.validate_loss(pinn_loss, "pinn_loss", epoch)
             losses_dict["lambda_pinn"] = pinn_loss
             self.pinn_loss = pinn_loss.detach()
 
@@ -570,6 +689,7 @@ class DeepAgent(nn.Module):
             q_diffs = [q_traj[i+1] - q_traj[i] for i in range(len(q_traj) - 1)]
             dq_all = torch.cat(q_diffs, dim=0)
             reg_loss = self.apply_thresholded_loss(q_all).mean() #+ self.apply_thresholded_loss(dq_all).mean()
+            self.validate_loss(reg_loss, "reg_loss", epoch)
             losses_dict["lambda_reg"] = reg_loss
             self.reg_loss = reg_loss.detach()
 
@@ -582,6 +702,7 @@ class DeepAgent(nn.Module):
                 y_traj=torch.stack(y_traj, dim=0),
                 terminal_cost=True
             ).mean()
+            self.validate_loss(cost_objective, "cost_objective", epoch)
             losses_dict["lambda_cost"] = cost_objective
             self.cost_loss = cost_objective.detach()
 
@@ -589,6 +710,7 @@ class DeepAgent(nn.Module):
         Y0_loss = 0.0
         if self.loss_weights["lambda_Y0"] > 0:
             Y0_loss = self.apply_thresholded_loss(Y0_init - self.cost_loss).mean()
+            self.validate_loss(Y0_loss, "Y0_loss", epoch)
             losses_dict["lambda_Y0"] = Y0_loss
             self.Y0_loss = Y0_loss.detach()
 
@@ -596,10 +718,12 @@ class DeepAgent(nn.Module):
         if self.dynamics.analytical_known:
             Y_true = self.dynamics.value_function_analytic(t_all, y_all)
             Y_val_loss = self.apply_thresholded_loss(Y_all - Y_true).mean()
+            self.validate_loss(Y_val_loss, "Y_val_loss", epoch)
             self.val_Y_loss = Y_val_loss.detach()
 
             q_true = self.dynamics.optimal_control_analytic(t_all[:-self.batch_size], y_all[:-self.batch_size])
             q_val_loss = self.apply_thresholded_loss(q_all - q_true).mean()
+            self.validate_loss(q_val_loss, "q_val_loss", epoch)
             self.val_q_loss = q_val_loss.detach()
 
         # === Total loss computation ===
@@ -612,10 +736,13 @@ class DeepAgent(nn.Module):
                 for key, value in losses_dict.items()
             ) 
 
+        self.validate_loss(total_loss, "total_loss", epoch)
+
         # === Supervised loss ===
         if self.dynamics.analytical_known and self.supervised:
             total_loss += Y_val_loss
             total_loss += q_val_loss
+            self.validate_loss(total_loss, "total_loss_with_supervised", epoch)
 
         return total_loss
 
@@ -934,7 +1061,7 @@ class DeepAgent(nn.Module):
                 self.dynamics.anneal(epoch, epochs)
             optimizer.zero_grad()
             t, dW, _ = self.dynamics.generate_paths(self.batch_size)
-            loss = self(t=t, dW=dW)
+            loss = self(t=t, dW=dW, epoch=epoch)
             loss.backward()
 
             # === Optimizer and scheduler step ===

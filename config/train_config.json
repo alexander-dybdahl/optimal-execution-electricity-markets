@@ -10,6 +10,7 @@
   "strong_grad_output": false,
   "scale_output": 100.0,
   "careful_init": true,
+  "detach_control": true,
   "network_type": "dY",
   "supervised": false,
   "architecture": "lstmwithsubnets",
