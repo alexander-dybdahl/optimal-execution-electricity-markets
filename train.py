@@ -44,6 +44,7 @@ def main():
     parser.add_argument("--adaptive", type=str2bool, nargs='?', const=True, default=train_cfg["adaptive"], help="Use adaptive learning rate")
     parser.add_argument("--adaptive_factor", type=float, default=train_cfg["adaptive_factor"], help="Adaptive factor")
     parser.add_argument("--lr", type=float, default=train_cfg["lr"], help="Learning rate for the optimizer")
+    parser.add_argument("--annealing", type=str2bool, nargs='?', const=True, default=train_cfg["annealing"], help="Use annealing for psi, gamma, and nu")
     parser.add_argument("--adaptive_loss", type=str2bool, nargs='?', const=True, default=train_cfg["adaptive_loss"], help="Use adaptive loss function")
     parser.add_argument("--lambda_Y0", type=float, default=train_cfg["lambda_Y0"], help="Weight for the Y0 term in the loss function")
     parser.add_argument("--lambda_Y", type=float, default=train_cfg["lambda_Y"], help="Weight for the Y term in the loss function")
@@ -123,7 +124,7 @@ def main():
         logger.log(f"Running on device: {device}, Parallel training disabled")
 
     dynamics_cfg = load_dynamics_config(args.dynamics_path)
-    dynamics = FullDynamics(dynamics_cfg=dynamics_cfg, device=device)
+    dynamics = SimpleDynamics(dynamics_cfg=dynamics_cfg, device=device)
     train_cfg = vars(args).copy()
     
     # Initialize variables for training

@@ -9,20 +9,40 @@ from dynamics.dynamics import Dynamics
 class FullDynamics(Dynamics):
     def __init__(self, dynamics_cfg, device="cpu"):
         super().__init__(dynamics_cfg=dynamics_cfg, device=device)
+        
+        self.mu_D = dynamics_cfg["mu_D"]       # drift for D
+        self.mu_P = dynamics_cfg["mu_P"]       # drift for P
+        
         self.time_dep_vol = dynamics_cfg["time_dep_vol"]  # boolean for time-dependent volatility
         self.sigma_P = dynamics_cfg["sigma_P"] # volatility for price
         self.alpha_P = dynamics_cfg["alpha_P"] # time dependent volatility for price
         self.beta_P = dynamics_cfg["beta_P"]   # constant volatility for price
+
         self.sigma_D = dynamics_cfg["sigma_D"] # volatility for demand
         self.alpha_D = dynamics_cfg["alpha_D"] # time dependent volatility for demand
         self.beta_D = dynamics_cfg["beta_D"]   # constant volatility for demand
+
         self.rho = dynamics_cfg["rho"]         # correlation between price and demand noise
+
         self.psi = dynamics_cfg["psi"]         # bid-ask spread
+        self.psi_end = self.psi                # bid-ask spread
         self.gamma = dynamics_cfg["gamma"]     # temp impact
+        self.gamma_end = self.gamma            # temp impact
         self.nu = dynamics_cfg["nu"]           # perm impact
+        self.nu_end = self.nu                  # perm impact
+
         self.eta = dynamics_cfg["eta"]         # terminal penalty
-        self.mu_D = dynamics_cfg["mu_D"]       # drift for D
-        self.mu_P = dynamics_cfg["mu_P"]       # drift for P
+
+    def anneal(self, epoch, total_epochs):
+        """Linearly anneal psi, gamma, and nu from start to target values."""
+        progress = min(epoch / total_epochs, 1.0) ** 2
+        self.psi_start = 0.1
+        self.gamma_start = 0.1
+        self.nu_start = 0.1
+        
+        self.psi = (1 - progress) * self.psi_start + progress * self.psi_end
+        self.gamma = (1 - progress) * self.gamma_start + progress * self.gamma_end
+        self.nu = (1 - progress) * self.nu_start + progress * self.nu_end
 
     def generator(self, y, q):
         P = y[:, 1:2]

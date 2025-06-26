@@ -210,6 +210,19 @@ class DeepAgent(nn.Module):
             self.Y_net = internal_net
 
         self.to(torch.device(device))
+        self.initialize_weights()
+
+    def initialize_weights(self):
+        def xavier_init_weights(module):
+            if isinstance(module, nn.Linear):
+                nn.init.xavier_normal_(module.weight)
+                nn.init.zeros_(module.bias)
+
+        if self.network_type == "Y":
+            self.Y_net.apply(xavier_init_weights)
+        elif self.network_type == "dY":
+            self.dY_net.apply(xavier_init_weights)
+            self.Y_init_net.apply(xavier_init_weights)
 
     @classmethod
     def load_from_checkpoint(cls, dynamics, model_cfg, device, model_dir, best=True):
@@ -395,46 +408,45 @@ class DeepAgent(nn.Module):
 
             # === Compute dY using the network ===
             if self.network_type == "dY":
-                dY = self.dY_net(t0, y0)
-                dY_dt = dY[:, 0:1]
-                dY_dy = dY[:, 1:]
+                dY0 = self.dY_net(t0, y0)
+                dY0_dt = dY0[:, 0:1]
+                dY0_dy = dY0[:, 1:]
             elif self.network_type == "Y":
-                Y = self.Y_net(t0, y0)
-                dY_dy = torch.autograd.grad(
-                    outputs=Y,
+                dY0_dy = torch.autograd.grad(
+                    outputs=Y0,
                     inputs=y0,
-                    grad_outputs=torch.ones_like(Y),
+                    grad_outputs=torch.ones_like(Y0),
                     create_graph=True,
                     retain_graph=True
                 )[0]
             
-            q = self.dynamics.optimal_control(t0, y0, dY_dy)
+            q = self.dynamics.optimal_control(t0, y0, dY0_dy)
             y1 = self.dynamics.forward_dynamics(y0, q, dW[n, :, :], t0, dt)
             dy = y1 - y0
 
             # === Compute Y1 using the network ===
             if self.network_type == "dY":
                 # Predict next state using the dY network
-                Y1 = Y0 + dY_dt * dt + (dY_dy * dy).sum(dim=1, keepdim=True)
+                Y1 = Y0 + dY0_dt * dt + (dY0_dy * dy).sum(dim=1, keepdim=True)
 
                 if self.second_order_taylor:
                     # Second-order Taylor approximation
                     ddY_ddt = torch.autograd.grad(
-                        outputs=dY_dt,
+                        outputs=dY0_dt,
                         inputs=t0,
-                        grad_outputs=torch.ones_like(dY_dt),
+                        grad_outputs=torch.ones_like(dY0_dt),
                         create_graph=False,
                         retain_graph=True,
                     )[0]
                     cross_term = torch.autograd.grad(
-                        outputs=dY_dt,
+                        outputs=dY0_dt,
                         inputs=y0,
-                        grad_outputs=torch.ones_like(dY_dt),
+                        grad_outputs=torch.ones_like(dY0_dt),
                         create_graph=False,
                         retain_graph=True,
                     )[0]
                     hvp = torch.autograd.grad(
-                        outputs=(dY_dy * dy).sum(),
+                        outputs=(dY0_dy * dy).sum(),
                         inputs=y0,
                         create_graph=False,
                         retain_graph=True
@@ -452,7 +464,7 @@ class DeepAgent(nn.Module):
                 # Predict next state using the Y network
                 Y1 = self.Y_net(t1, y1)
 
-            Z0 = torch.bmm(self.dynamics.sigma(t0, y0).transpose(1, 2), dY_dy.unsqueeze(-1)).squeeze(-1)
+            Z0 = torch.bmm(self.dynamics.sigma(t0, y0).transpose(1, 2), dY0_dy.unsqueeze(-1)).squeeze(-1)
             Y1_tilde = Y0 - self.dynamics.generator(y0, q) * dt + (Z0 * (dW[n, :, :])).sum(dim=1, keepdim=True)
 
             Y_loss += self.apply_thresholded_loss(Y1 - Y1_tilde).mean()
@@ -465,7 +477,7 @@ class DeepAgent(nn.Module):
             t0, y0, Y0 = t1, y1, Y1
 
         if self.loss_weights["lambda_Y"] > 0:
-            losses_dict["lambda_Y"] = self.Y_loss
+            losses_dict["lambda_Y"] = Y_loss
             self.Y_loss = Y_loss.detach()
 
         t_all = torch.cat(t_traj, dim=0)
@@ -483,7 +495,7 @@ class DeepAgent(nn.Module):
         # === Terminal gradient loss ===
         terminal_gradient_loss = 0.0
         if self.loss_weights["lambda_TG"] > 0:
-            terminal_gradient_loss = self.apply_thresholded_loss(dY_dy - self.dynamics.terminal_cost_grad(y0.detach().requires_grad_())).mean()
+            terminal_gradient_loss = self.apply_thresholded_loss(dY0_dy - self.dynamics.terminal_cost_grad(y0.detach().requires_grad_())).mean()
             losses_dict["lambda_TG"] = terminal_gradient_loss
             self.terminal_gradient_loss = terminal_gradient_loss.detach()
 
