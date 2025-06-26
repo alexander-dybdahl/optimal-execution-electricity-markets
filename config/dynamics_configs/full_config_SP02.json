@@ -17,7 +17,7 @@
   "rho": -0.15,
   "psi": 6,
   "gamma": 0.0017,
-  "nu": 0.0035,
+  "nu": 0.005,
   "eta": 10,
   "analytical_known": true
 }

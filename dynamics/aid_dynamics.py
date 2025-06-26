@@ -11,18 +11,16 @@ class AidDynamics(Dynamics):
         self.sigma_P = dynamics_cfg["sigma_P"]
         self.sigma_D = dynamics_cfg["sigma_D"]
         self.rho = dynamics_cfg["rho"]
-        self.psi = dynamics_cfg["psi"]         # bid-ask spread
         self.gamma = dynamics_cfg["gamma"]     # temp impact
         self.nu = dynamics_cfg["nu"]           # perm impact
         self.eta = dynamics_cfg["eta"]         # terminal penalty
         self.mu_D = dynamics_cfg["mu_D"]       # drift for D
-        self.mu_P = dynamics_cfg["mu_P"]       # drift for D
+        self.mu_P = dynamics_cfg["mu_P"]       # drift for P
 
     def generator(self, y, q):
         P = y[:, 1:2]
         temporary_impact = self.gamma * q
-        bid_ask_spread = torch.sign(q) * self.psi
-        execution_price = P + bid_ask_spread + temporary_impact
+        execution_price = P + temporary_impact
         return q * execution_price
 
     def terminal_cost(self, y):
@@ -50,42 +48,12 @@ class AidDynamics(Dynamics):
         Sigma[:, 2, 1] = (1 - self.rho**2)**0.5 * self.sigma_D # dD = ... dW2
         return Sigma
 
-    def optimal_control(self, t, y, dY_dy, smooth=True, eps=1):
+    def optimal_control(self, t, y, dY_dy, smooth=True, eps=1.0):
         dY_dX = dY_dy[:, 0:1]
         dY_dP = dY_dy[:, 1:2]
         P = y[:, 1:2]
 
-        # Define Lambda = P + dV/dX + nu * dV/dP
-        Lambda = P + dY_dX + self.nu * dY_dP
-        psi = self.psi  # half-spread, scalar or tensor
-        gamma = self.gamma  # temporary impact
-
-        if psi == 0:
-            # If psi is zero, the control is simply the optimal control without bid-ask spread
-            q = -Lambda / (2 * gamma)
-            return q
-
-        if smooth:
-            self.eps = nn.Parameter(torch.tensor(eps))
-            sigmoid = lambda x: torch.sigmoid(x / self.eps)
-
-            # Smooth control transitions
-            q_pos = -(Lambda + psi) / (2 * gamma)
-            q_neg = -(Lambda - psi) / (2 * gamma)
-
-            q = q_pos * sigmoid(Lambda - psi) + q_neg * sigmoid(-Lambda - psi)
-        else:
-            # Piecewise (non-smooth) definition
-            q_pos = -(Lambda + psi) / (2 * gamma)
-            q_neg = -(Lambda - psi) / (2 * gamma)
-
-            q = torch.where(
-                Lambda > psi, q_pos,
-                torch.where(
-                    Lambda < -psi, q_neg,
-                    torch.zeros_like(Lambda)
-                )
-            )
+        q = -(P + dY_dX + self.nu * dY_dP) / (2 * self.gamma)
         return q
 
     def optimal_control_analytic(self, t, y):

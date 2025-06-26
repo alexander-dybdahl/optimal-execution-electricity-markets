@@ -35,7 +35,7 @@ class FullDynamics(Dynamics):
 
     def anneal(self, epoch, total_epochs):
         """Linearly anneal psi, gamma, and nu from start to target values."""
-        progress = min(epoch / total_epochs, 1.0) ** 2
+        progress = min(epoch / total_epochs, 1.0)
         self.psi_start = 0.1
         self.gamma_start = 0.1
         self.nu_start = 0.1

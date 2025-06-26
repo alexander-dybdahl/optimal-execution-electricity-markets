@@ -30,6 +30,7 @@ def main():
     parser.add_argument("--affine", type=str2bool, nargs='?', const=True, default=train_cfg["affine"], help="Use affine transformation in batch normalization")
     parser.add_argument("--strong_grad_output", type=str2bool, nargs='?', const=True, default=train_cfg["strong_grad_output"], help="Use strong gradient output in initial network")
     parser.add_argument("--scale_output", type=float, default=train_cfg["scale_output"], help="How much to scale output in initial network")
+    parser.add_argument("--careful_init", type=str2bool, nargs='?', const=True, default=train_cfg["careful_init"], help="Use careful initialization for the neural network weights")
     parser.add_argument("--network_type", type=str, default=train_cfg["network_type"], help="Type of network to use for the agent (Y or dY)")
     parser.add_argument("--supervised", type=str2bool, default=train_cfg["supervised"], help="Use supervised learning using analytical solution")
     parser.add_argument("--architecture", type=str, default=train_cfg["architecture"], help="Neural network architecture to use")

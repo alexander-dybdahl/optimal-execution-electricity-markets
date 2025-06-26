@@ -1,0 +1,23 @@
+{
+  "dynamics": "FullDynamics",
+  "T": 1.0,
+  "N": 40,
+  "dim": 3,
+  "dim_W": 2,
+  "y0": [100.0, 80.0, 0.0],
+  "mu_P": 0.0,
+  "mu_D": 0.0,
+  "time_dep_vol": false,
+  "sigma_P": 10.0,
+  "alpha_P": 20.871,
+  "beta_P": 3.069,
+  "sigma_D": 10.0,
+  "alpha_D": 3.285,
+  "beta_D": 33.467,
+  "rho": -0.1,
+  "psi": 0,
+  "gamma": 0.01,
+  "nu": 0.01,
+  "eta": 10,
+  "analytical_known": true
+}

@@ -3,6 +3,7 @@ import time
 
 import matplotlib.pyplot as plt
 import numpy as np
+import math
 import torch
 import torch.distributed as dist
 import torch.nn as nn
@@ -49,9 +50,11 @@ class DeepAgent(nn.Module):
         self.adaptive_factor = model_cfg["adaptive_factor"]
         self.strong_grad_output = model_cfg["strong_grad_output"]  # whether to use strong output gradient
         self.scale_output = model_cfg["scale_output"]  # how much to scale the output of the network
+        self.careful_init = model_cfg["careful_init"]  # whether to use careful initialization
 
         # Loss and Loss Weights
         self.lowest_loss = float("inf")
+        self.annealing = model_cfg["annealing"]
         self.adaptive_loss = model_cfg["adaptive_loss"]
         self.loss_weights = {
             "lambda_Y0": model_cfg["lambda_Y0"],
@@ -210,19 +213,42 @@ class DeepAgent(nn.Module):
             self.Y_net = internal_net
 
         self.to(torch.device(device))
-        self.initialize_weights()
+        if self.careful_init:
+            self.initialize_weights(self.activation)
 
-    def initialize_weights(self):
-        def xavier_init_weights(module):
-            if isinstance(module, nn.Linear):
-                nn.init.xavier_normal_(module.weight)
-                nn.init.zeros_(module.bias)
+    def initialize_weights(self, activation):
+        """Applies careful initialization to all nn.Linear layers in the model."""
 
-        if self.network_type == "Y":
-            self.Y_net.apply(xavier_init_weights)
-        elif self.network_type == "dY":
-            self.dY_net.apply(xavier_init_weights)
-            self.Y_init_net.apply(xavier_init_weights)
+        if isinstance(activation, nn.Module):
+            act_name = activation.__class__.__name__
+        else:
+            act_name = str(activation)
+
+        if act_name in ['ReLU', 'LeakyReLU', 'ELU', 'GELU', 'SELU', 'SiLU', 'Swish', 'Hardswish']:
+            init_type = "kaiming"
+        elif act_name in ['Sigmoid', 'Tanh', 'Hardsigmoid', 'Hardtanh', 'Softmax', 'Softsign']:
+            init_type = "xavier"
+        elif act_name == 'Sine':
+            init_type = "sine"
+        else:
+            raise ValueError(f"Unsupported activation function for initialization: {act_name}")
+
+        def init_fn(m):
+            if isinstance(m, nn.Linear):
+                if init_type == "kaiming":
+                    nn.init.kaiming_uniform_(m.weight, a=math.sqrt(5), nonlinearity='relu')
+                elif init_type == "xavier":
+                    nn.init.xavier_uniform_(m.weight)
+                elif init_type == "sine":
+                    nn.init.uniform_(m.weight, -1 / m.in_features, 1 / m.in_features)
+
+                if m.bias is not None:
+                    fan_in, _ = nn.init._calculate_fan_in_and_fan_out(m.weight)
+                    bound = 1 / math.sqrt(fan_in) if fan_in > 0 else 0
+                    nn.init.uniform_(m.bias, -bound, bound)
+
+        self.apply(init_fn)
+
 
     @classmethod
     def load_from_checkpoint(cls, dynamics, model_cfg, device, model_dir, best=True):
@@ -427,7 +453,7 @@ class DeepAgent(nn.Module):
             # === Compute Y1 using the network ===
             if self.network_type == "dY":
                 # Predict next state using the dY network
-                Y1 = Y0 + dY0_dt * dt + (dY0_dy * dy).sum(dim=1, keepdim=True)
+                Y1_tilde = Y0 + dY0_dt * dt + (dY0_dy * dy).sum(dim=1, keepdim=True)
 
                 if self.second_order_taylor:
                     # Second-order Taylor approximation
@@ -456,16 +482,16 @@ class DeepAgent(nn.Module):
                     if ddY_ddt is None:
                         ddY_ddt = 0
 
-                    Y1 += 0.5 * (ddY_ddt * dt ** 2 
+                    Y1_tilde += 0.5 * (ddY_ddt * dt ** 2 
                                  + 2 * (cross_term * dy).sum(dim=1, keepdim=True) * dt 
                                  + (hvp * dy).sum(dim=1, keepdim=True)
                                  )
             elif self.network_type == "Y":
                 # Predict next state using the Y network
-                Y1 = self.Y_net(t1, y1)
+                Y1_tilde = self.Y_net(t1, y1)
 
             Z0 = torch.bmm(self.dynamics.sigma(t0, y0).transpose(1, 2), dY0_dy.unsqueeze(-1)).squeeze(-1)
-            Y1_tilde = Y0 - self.dynamics.generator(y0, q) * dt + (Z0 * (dW[n, :, :])).sum(dim=1, keepdim=True)
+            Y1 = Y0 - self.dynamics.generator(y0, q) * dt + (Z0 * (dW[n, :, :])).sum(dim=1, keepdim=True)
 
             Y_loss += self.apply_thresholded_loss(Y1 - Y1_tilde).mean()
 
@@ -488,14 +514,14 @@ class DeepAgent(nn.Module):
         # === Terminal loss ===
         terminal_loss = 0.0
         if self.loss_weights["lambda_T"] > 0:
-            terminal_loss = self.apply_thresholded_loss(Y0 - self.dynamics.terminal_cost(y0.detach())).mean()
+            terminal_loss = self.apply_thresholded_loss(Y0 - self.dynamics.terminal_cost(y0)).mean()
             losses_dict["lambda_T"] = terminal_loss
             self.terminal_loss = terminal_loss.detach()
 
         # === Terminal gradient loss ===
         terminal_gradient_loss = 0.0
         if self.loss_weights["lambda_TG"] > 0:
-            terminal_gradient_loss = self.apply_thresholded_loss(dY0_dy - self.dynamics.terminal_cost_grad(y0.detach().requires_grad_())).mean()
+            terminal_gradient_loss = self.apply_thresholded_loss(dY0_dy - self.dynamics.terminal_cost_grad(y0)).mean()
             losses_dict["lambda_TG"] = terminal_gradient_loss
             self.terminal_gradient_loss = terminal_gradient_loss.detach()
 
@@ -904,6 +930,8 @@ class DeepAgent(nn.Module):
         # === Training loop ===
         for epoch in range(start_epoch, epochs + 1):
             self.epoch = epoch
+            if self.annealing:
+                self.dynamics.anneal(epoch, epochs)
             optimizer.zero_grad()
             t, dW, _ = self.dynamics.generate_paths(self.batch_size)
             loss = self(t=t, dW=dW)
