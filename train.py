@@ -9,9 +9,7 @@ import torch.distributed as dist
 from torch.nn.parallel import DistributedDataParallel as DDP
 
 from agents.deepagent import DeepAgent
-from dynamics.aid_dynamics import AidDynamics
-from dynamics.full_dynamics import FullDynamics
-from dynamics.simple_dynamics import SimpleDynamics
+from dynamics import create_dynamics
 from core.solver import Solver
 from utils.load_config import load_dynamics_config, load_train_config
 from utils.plots import plot_approx_vs_analytic, plot_approx_vs_analytic_expectation, plot_terminal_histogram 
@@ -124,7 +122,8 @@ def main():
         logger.log(f"Running on device: {device}, Parallel training disabled")
 
     dynamics_cfg = load_dynamics_config(args.dynamics_path)
-    dynamics = FullDynamics(dynamics_cfg=dynamics_cfg, device=device)
+    dynamics = create_dynamics(dynamics_cfg=dynamics_cfg, device=device)
+    
     train_cfg = vars(args).copy()
     
     # Initialize variables for training

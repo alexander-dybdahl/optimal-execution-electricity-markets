@@ -1,4 +1,5 @@
 {
+  "dynamics": "FullDynamics",
   "T": 6.0,
   "N": 72,
   "dim": 3,
