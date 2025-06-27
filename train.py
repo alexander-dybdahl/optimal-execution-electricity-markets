@@ -143,6 +143,22 @@ def main():
         else:
             logger.log(f"Loading dynamics config from {args.dynamics_path}")
             dynamics_cfg = load_dynamics_config(args.dynamics_path)
+    
+    # Log the dynamics configuration in a nice format
+    logger.log("-" * 60)
+    logger.log("DYNAMICS CONFIGURATION:")
+    logger.log("-" * 60)
+    for key, value in dynamics_cfg.items():
+        if isinstance(value, dict):
+            logger.log(f"{key}:")
+            for subkey, subvalue in value.items():
+                logger.log(f"  {subkey}: {subvalue}")
+        elif isinstance(value, list):
+            logger.log(f"{key}: {value}")
+        else:
+            logger.log(f"{key}: {value}")
+    logger.log("-" * 60)
+        
     except Exception as e:
         logger.log(f"Error loading dynamics config: {e}")
         raise
