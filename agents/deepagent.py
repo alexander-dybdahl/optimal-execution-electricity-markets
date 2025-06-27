@@ -1127,8 +1127,8 @@ class DeepAgent(nn.Module):
                         status = self.save_model(save_path, optimizer, scheduler, epoch, history)
 
                     # === Save best model if conditions are met ===
-                    if "best" in self.save and np.mean(losses[-K:]) < self.lowest_loss:
-                        self.lowest_loss = np.mean(losses[-K:])
+                    if "best" in self.save and np.mean(losses_cost[-K:]) < self.lowest_loss:
+                        self.lowest_loss = np.mean(losses_cost[-K:])
                         # Create history dictionary with all losses
                         history = {
                             'losses': losses,

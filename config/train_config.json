@@ -41,7 +41,7 @@
   "train": true,
   "load_if_exists": true,
   "resume": true,
-  "save_dir": "saved_models/full_SP01_x0_gamma0.01_lowvol_psi0.5",
+  "save_dir": "saved_models/full_SP01_eta50_x0_gamma0.01_lowvol_psi0",
   "dynamics_path": "config/dynamics_configs/full_config_SP01.json",
   "save": ["best", "every"],
   "save_n": 50,
