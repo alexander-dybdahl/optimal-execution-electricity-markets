@@ -112,7 +112,17 @@ def main():
         os.makedirs(save_dir, exist_ok=True)
         os.makedirs(save_dir + "/imgs", exist_ok=True)
 
-    logger = Logger(save_dir=save_dir, is_main=is_main, verbose=args.verbose, filename="training.log", overwrite=args.train)
+    # If loading an existing model and training.log exists, append to it instead of overwriting
+    training_log_path = os.path.join(save_dir, "training.log")
+    overwrite_log = args.train and not (args.load_if_exists and os.path.exists(training_log_path))
+    
+    logger = Logger(save_dir=save_dir, is_main=is_main, verbose=args.verbose, filename="training.log", overwrite=overwrite_log)
+
+    # Log whether we're starting fresh or appending
+    if args.load_if_exists and os.path.exists(training_log_path) and not overwrite_log:
+        logger.log("=" * 80)
+        logger.log("RESUMING TRAINING - APPENDING TO EXISTING LOG")
+        logger.log("=" * 80)
 
     if torch.cuda.is_available() and args.device != "cuda":
         logger.log("Warning: CUDA is available but the config file does not set device to cuda.") 
@@ -123,7 +133,19 @@ def main():
     else:
         logger.log(f"Running on device: {device}, Parallel training disabled")
 
-    dynamics_cfg = load_dynamics_config(args.dynamics_path)
+    try:
+        # Try to load dynamics config from save_dir if it exists, otherwise use args.dynamics_path
+        dynamics_cfg_path = os.path.join(save_dir, "dynamics_config.json")
+        if os.path.exists(dynamics_cfg_path):
+            logger.log(f"Loading dynamics config from {dynamics_cfg_path}")
+            dynamics_cfg = load_dynamics_config(dynamics_cfg_path)
+        else:
+            logger.log(f"Loading dynamics config from {args.dynamics_path}")
+            dynamics_cfg = load_dynamics_config(args.dynamics_path)
+    except Exception as e:
+        logger.log(f"Error loading dynamics config: {e}")
+        raise
+        
     dynamics = create_dynamics(dynamics_cfg=dynamics_cfg, device=device)
     
     train_cfg = vars(args).copy()
