@@ -5,6 +5,7 @@ saved_models/*
 !saved_models/keep/
 saved_evaluations/*
 !saved_evaluations/keep/
+saved_evaluations/keep/imgs/*
 !*.gitkeep
 .cache/*
 .local/*
