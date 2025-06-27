@@ -113,7 +113,17 @@ def main():
         os.makedirs(save_dir, exist_ok=True)
         os.makedirs(save_dir + "/imgs", exist_ok=True)
 
-    logger = Logger(save_dir=save_dir, is_main=is_main, verbose=args.verbose, filename="training.log", overwrite=args.train)
+    # If loading an existing model and training.log exists, append to it instead of overwriting
+    training_log_path = os.path.join(save_dir, "training.log")
+    overwrite_log = args.train and not (args.load_if_exists and os.path.exists(training_log_path))
+    
+    logger = Logger(save_dir=save_dir, is_main=is_main, verbose=args.verbose, filename="training.log", overwrite=overwrite_log)
+
+    # Log whether we're starting fresh or appending
+    if args.load_if_exists and os.path.exists(training_log_path) and not overwrite_log:
+        logger.log("=" * 80)
+        logger.log("RESUMING TRAINING - APPENDING TO EXISTING LOG")
+        logger.log("=" * 80)
 
     if torch.cuda.is_available() and args.device != "cuda":
         logger.log("Warning: CUDA is available but the config file does not set device to cuda.") 
