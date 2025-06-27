@@ -7,12 +7,15 @@ class Logger:
         self.verbose = verbose
         self.log_path = os.path.join(save_dir, filename)
 
-        if self.is_main and overwrite:
+        if self.is_main:
             os.makedirs(save_dir, exist_ok=True)
+            
+            # Determine file mode based on overwrite parameter
+            filemode = "w" if overwrite else "a"
 
             logging.basicConfig(
                 filename=self.log_path,
-                filemode="w",
+                filemode=filemode,
                 level=logging.INFO,
                 format="%(message)s",
             )

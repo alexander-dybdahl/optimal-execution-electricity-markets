@@ -2,6 +2,7 @@ import torch
 import numpy as np
 import torch.nn as nn
 from scipy.integrate import quad
+from scipy.interpolate import interp1d
 
 from dynamics.dynamics import Dynamics
 
@@ -39,6 +40,11 @@ class FullDynamics(Dynamics):
         self.nu_end = self.nu                  # perm impact
 
         self.eta = dynamics_cfg["eta"]         # terminal penalty
+
+        self.use_exact = dynamics_cfg["analytical_known"]  # whether to plot exact solution
+        if self.use_exact:
+            self.K_interp = None  # placeholder for K interpolator
+            self.precompute_K_table()  # precompute the K(τ) interpolation
 
     def anneal(self, epoch, total_epochs):
         """Linearly anneal psi, gamma, and nu from start to target values."""
@@ -150,10 +156,37 @@ class FullDynamics(Dynamics):
         return (self.eta * (self.mu_D * tau + D - X) - P) / ((self.eta + self.nu) * tau + 2 * self.gamma)
 
     def value_function_analytic(self, t, y):
-        if self.time_dep_vol:
+        if self.time_dep_vol and self.use_exact:
             return self.value_function_analytic_time_dep(t, y)
         else:
             return self.value_function_analytic_const(t, y)
+
+    def precompute_K_table(self, num_points=500):
+        T = self.T
+        eta = self.eta
+        nu = self.nu
+        gamma = self.gamma
+        rho = self.rho
+
+        # Time-dependent volatilities
+        def sigma_P2(s): return self.alpha_P * s**2 + self.beta_P
+        def sigma_D2(s): return self.alpha_D * s**2 + self.beta_D
+        def sigma_P(s): return np.sqrt(sigma_P2(s))
+        def sigma_D(s): return np.sqrt(sigma_D2(s))
+
+        # Coefficient functions
+        def A(s): return eta * (0.5 * nu * s + gamma) / ((eta + nu) * s + 2 * gamma)
+        def B(s): return -0.5 * s / ((eta + nu) * s + 2 * gamma)
+        def F(s): return eta * s / ((eta + nu) * s + 2 * gamma)
+
+        def integrand(s):
+            return B(s) * sigma_P2(s) + A(s) * sigma_D2(s) + rho * F(s) * sigma_P(s) * sigma_D(s)
+
+        tau_grid = np.linspace(0, T, num_points)
+        K_values = np.array([quad(integrand, 0, tau)[0] for tau in tau_grid])
+
+        # Save interpolator
+        self.K_interp = interp1d(tau_grid, K_values, kind="cubic", fill_value="extrapolate")
 
     def value_function_analytic_time_dep(self, t_tensor, y_tensor):
         t = t_tensor.detach().cpu().numpy() if isinstance(t_tensor, torch.Tensor) else t_tensor
@@ -170,36 +203,24 @@ class FullDynamics(Dynamics):
         mu = self.mu_D
         rho = self.rho
 
-        # Time-dependent sigmas
-        def sigma_P2(s): return self.alpha_P * s**2 + self.beta_P
-        def sigma_D2(s): return self.alpha_D * s**2 + self.beta_D
-        def sigma_P(s): return np.sqrt(sigma_P2(s))
-        def sigma_D(s): return np.sqrt(sigma_D2(s))
+        tau = T - t.flatten()  # shape: (batch,)
+        tau = np.clip(tau, 0.0, T)  # ensure valid range
 
-        # Coefficients
+        # Precompute coefficients
         def A(s): return eta * (0.5 * nu * s + gamma) / ((eta + nu) * s + 2 * gamma)
         def B(s): return -0.5 * s / ((eta + nu) * s + 2 * gamma)
         def F(s): return eta * s / ((eta + nu) * s + 2 * gamma)
 
-        V = np.zeros((y.shape[0], 1))
-        for i in range(y.shape[0]):
-            tau_i = T - t[i]  # scalar
-            X_i, P_i, D_i = X[i], P[i], D[i]
+        A_tau = A(tau).reshape(-1, 1)
+        B_tau = B(tau).reshape(-1, 1)
+        F_tau = F(tau).reshape(-1, 1)
+        G = (2 * mu * tau).reshape(-1, 1) * A_tau
+        H = (-2 * eta * mu * tau).reshape(-1, 1) * B_tau
 
-            def integrand(s):
-                return B(s) * sigma_P2(s) + A(s) * sigma_D2(s) + rho * F(s) * sigma_P(s) * sigma_D(s)
+        z = D - X
+        K = self.K_interp(tau).reshape(-1, 1)
 
-            K_i, _ = quad(integrand, 0, tau_i)
-
-            A_tau = A(tau_i)
-            B_tau = B(tau_i)
-            F_tau = F(tau_i)
-            G = 2 * mu * tau_i * A_tau
-            H = -2 * eta * mu * tau_i * B_tau
-
-            z = D_i - X_i
-            V[i] = A_tau * z**2 + B_tau * P_i**2 + F_tau * z * P_i + G * z + H * P_i + K_i
-
+        V = A_tau * z**2 + B_tau * P**2 + F_tau * z * P + G * z + H * P + K
         return torch.tensor(V, dtype=torch.float32, device=t_tensor.device if isinstance(t_tensor, torch.Tensor) else "cpu")
 
     def value_function_analytic_const(self, t, y):

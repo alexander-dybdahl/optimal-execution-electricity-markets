@@ -32,7 +32,7 @@ def plot_approx_vs_analytic(results, timesteps, validation=None, plot=True, save
     axs[0, 0].grid(True)
     axs[0, 0].legend(loc='upper left')
 
-    if validation is not None:
+    if validation is not None and true_q is not None:
         for i in range(approx_q.shape[1]):
             diff = (approx_q[:, i] - true_q[:, i]) ** 2
             axs[0, 1].plot(timesteps[:-1], diff, color=colors(i), alpha=0.6, label=f"$|q_{i}(t) - q^*_{i}(t)|^2 ({val_q_loss[-1]:.2f})$" if i == 0 else None)
@@ -53,7 +53,7 @@ def plot_approx_vs_analytic(results, timesteps, validation=None, plot=True, save
     axs[1, 0].grid(True)
     axs[1, 0].legend(loc='upper left')
 
-    if validation is not None:
+    if validation is not None and true_Y is not None:
         for i in range(Y_vals.shape[1]):
             diff_Y = (Y_vals[:, i, 0] - true_Y[:, i, 0]) ** 2
             axs[1, 1].plot(timesteps, diff_Y, color=colors(i), alpha=0.6, label=f"$|Y_{i}(t) - Y^*_{i}(t)|^2$ ({val_Y_loss[-1]:.2f})" if i == 0 else None)
