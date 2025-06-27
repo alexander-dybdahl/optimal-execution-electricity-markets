@@ -95,7 +95,8 @@ class DeepAgent(nn.Module):
 
         # Saving & Checkpointing
         self.epoch = 0
-        self.reset_lr = model_cfg["reset_lr"]
+        self.reset_lr = model_cfg["reset_lr"]       # whether to reset the learning rate
+        self.reset_best = model_cfg["reset_best"]  # whether to reset the best loss
         self.save = model_cfg["save"]               # e.g., "best", "every", "last"
         self.save_n = model_cfg["save_n"]           # save every n epochs if "every"
         self.plot_n = model_cfg["plot_n"]           # save every n epochs if "every"
@@ -303,8 +304,9 @@ class DeepAgent(nn.Module):
         start_epoch = checkpoint['epoch'] + 1  # Start from next epoch
         
         # Restore lowest loss
-        self.lowest_loss = checkpoint['lowest_loss']
-        
+        if not self.reset_best:
+            self.lowest_loss = checkpoint['lowest_loss']
+
         # Restore validation history if applicable
         if 'validation' in checkpoint and hasattr(self, 'validation'):
             self.validation = checkpoint['validation']
