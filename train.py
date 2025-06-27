@@ -62,7 +62,7 @@ def main():
     parser.add_argument("--train", type=str2bool, nargs='?', const=True, default=train_cfg["train"], help="Train the model")
     parser.add_argument("--load_if_exists", type=str2bool, nargs='?', const=True, default=train_cfg["load_if_exists"], help="Load model if it exists")
     parser.add_argument("--resume", type=str2bool, nargs='?', const=True, default=train_cfg["resume"], help="Resume training with optimizer/scheduler state")
-    parser.add_argument("--reset_lr", type=str2bool, nargs='?', const=True, default=train_cfg["reset_lr"], help="Reset the learning rate when resuming training")
+    parser.add_argument("--reset_lr", type=str2bool, nargs='?', const=True, default=train_cfg["reset_lr"], help="Reset the learning rate to the initial value")
     parser.add_argument("--save_dir", type=str, default=train_cfg["save_dir"], help="Path to save the model")
     parser.add_argument("--dynamics_path", type=str, default=train_cfg["dynamics_path"], help="Path to the dynamics configuration file")
     parser.add_argument("--save", nargs="+", default=train_cfg["save"], help="Model saving strategy: choose from 'best', 'every'")
@@ -113,17 +113,7 @@ def main():
         os.makedirs(save_dir, exist_ok=True)
         os.makedirs(save_dir + "/imgs", exist_ok=True)
 
-    # If loading an existing model and training.log exists, append to it instead of overwriting
-    training_log_path = os.path.join(save_dir, "training.log")
-    overwrite_log = args.train and not (args.load_if_exists and os.path.exists(training_log_path))
-    
-    logger = Logger(save_dir=save_dir, is_main=is_main, verbose=args.verbose, filename="training.log", overwrite=overwrite_log)
-
-    # Log whether we're starting fresh or appending
-    if args.load_if_exists and os.path.exists(training_log_path) and not overwrite_log:
-        logger.log("=" * 80)
-        logger.log("RESUMING TRAINING - APPENDING TO EXISTING LOG")
-        logger.log("=" * 80)
+    logger = Logger(save_dir=save_dir, is_main=is_main, verbose=args.verbose, filename="training.log", overwrite=args.train)
 
     if torch.cuda.is_available() and args.device != "cuda":
         logger.log("Warning: CUDA is available but the config file does not set device to cuda.") 
@@ -143,22 +133,6 @@ def main():
         else:
             logger.log(f"Loading dynamics config from {args.dynamics_path}")
             dynamics_cfg = load_dynamics_config(args.dynamics_path)
-        
-        # Log the dynamics configuration in a nice format
-        logger.log("-" * 60)
-        logger.log("DYNAMICS CONFIGURATION:")
-        logger.log("-" * 60)
-        for key, value in dynamics_cfg.items():
-            if isinstance(value, dict):
-                logger.log(f"{key}:")
-                for subkey, subvalue in value.items():
-                    logger.log(f"  {subkey}: {subvalue}")
-            elif isinstance(value, list):
-                logger.log(f"{key}: {value}")
-            else:
-                logger.log(f"{key}: {value}")
-        logger.log("-" * 60)
-        
     except Exception as e:
         logger.log(f"Error loading dynamics config: {e}")
         raise
