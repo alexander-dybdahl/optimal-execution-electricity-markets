@@ -1,7 +1,7 @@
 {
   "device": "cuda",
   "save_dir": "saved_evaluations/full",
-  "model_dir": "saved_models/full_naisnet_GELU",
+  "model_dir": "saved_models/full_naislstm_GELU",
   "dynamics_path": "config/dynamics_configs/full_config_SP01.json",
   "best": false,
   "verbose": true,

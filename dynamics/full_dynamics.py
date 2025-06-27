@@ -14,13 +14,20 @@ class FullDynamics(Dynamics):
         self.mu_P = dynamics_cfg["mu_P"]       # drift for P
         
         self.time_dep_vol = dynamics_cfg["time_dep_vol"]  # boolean for time-dependent volatility
-        self.sigma_P = dynamics_cfg["sigma_P"] # volatility for price
+        self.low_vol = dynamics_cfg["low_vol"]  # boolean for low volatility regime
+
         self.alpha_P = dynamics_cfg["alpha_P"] # time dependent volatility for price
         self.beta_P = dynamics_cfg["beta_P"]   # constant volatility for price
 
-        self.sigma_D = dynamics_cfg["sigma_D"] # volatility for demand
         self.alpha_D = dynamics_cfg["alpha_D"] # time dependent volatility for demand
         self.beta_D = dynamics_cfg["beta_D"]   # constant volatility for demand
+
+        if self.low_vol:
+            self.sigma_P = np.sqrt(self.beta_P)
+            self.sigma_D = np.sqrt(self.beta_D)
+        else:
+            self.sigma_P = np.sqrt(self.alpha_P + self.beta_P)
+            self.sigma_D = np.sqrt(self.alpha_D + self.beta_D)
 
         self.rho = dynamics_cfg["rho"]         # correlation between price and demand noise
 
