@@ -39,6 +39,8 @@ class FullDynamics(Dynamics):
         self.nu = dynamics_cfg["nu"]           # perm impact
         self.nu_end = self.nu                  # perm impact
 
+        self.eps = nn.Parameter(torch.tensor(dynamics_cfg["eps"]))
+
         self.eta = dynamics_cfg["eta"]         # terminal penalty
 
         self.use_exact = dynamics_cfg["analytical_known"]  # whether to plot exact solution
@@ -90,8 +92,8 @@ class FullDynamics(Dynamics):
         batch = y.shape[0]
         t_scaled = t / self.T  # normalize time to [0,1]
 
-        sigma_P_t = torch.sqrt(self.alpha_P * t_scaled**2 + self.beta_P).squeeze(-1)
-        sigma_D_t = torch.sqrt(self.alpha_D * t_scaled**2 + self.beta_D).squeeze(-1)
+        sigma_P_t = torch.sqrt(self.alpha_P * t_scaled + self.beta_P).squeeze(-1)
+        sigma_D_t = torch.sqrt(self.alpha_D * t_scaled + self.beta_D).squeeze(-1)
 
         Sigma = torch.zeros(batch, 3, 2, device=self.device)
 
@@ -110,7 +112,7 @@ class FullDynamics(Dynamics):
         Sigma[:, 2, 1] = (1 - self.rho**2)**0.5 * self.sigma_D # dD = ... dW2
         return Sigma
 
-    def optimal_control(self, t, y, dY_dy, smooth=True, eps=1.0):
+    def optimal_control(self, t, y, dY_dy, smooth=True):
         dY_dX = dY_dy[:, 0:1]
         dY_dP = dY_dy[:, 1:2]
         P = y[:, 1:2]
@@ -126,7 +128,6 @@ class FullDynamics(Dynamics):
             return q
 
         if smooth:
-            self.eps = nn.Parameter(torch.tensor(eps))
             sigmoid = lambda x: torch.sigmoid(x / self.eps)
 
             # Smooth control transitions

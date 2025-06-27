@@ -22,5 +22,6 @@
   "gamma": 0.01,
   "nu": 0.042,
   "eta": 50,
+  "eps": 0.01,
   "analytical_known": true
 }

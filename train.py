@@ -62,6 +62,7 @@ def main():
     parser.add_argument("--train", type=str2bool, nargs='?', const=True, default=train_cfg["train"], help="Train the model")
     parser.add_argument("--load_if_exists", type=str2bool, nargs='?', const=True, default=train_cfg["load_if_exists"], help="Load model if it exists")
     parser.add_argument("--resume", type=str2bool, nargs='?', const=True, default=train_cfg["resume"], help="Resume training with optimizer/scheduler state")
+    parser.add_argument("--reset_lr", type=str2bool, nargs='?', const=True, default=train_cfg["reset_lr"], help="Reset the learning rate when resuming training")
     parser.add_argument("--save_dir", type=str, default=train_cfg["save_dir"], help="Path to save the model")
     parser.add_argument("--dynamics_path", type=str, default=train_cfg["dynamics_path"], help="Path to the dynamics configuration file")
     parser.add_argument("--save", nargs="+", default=train_cfg["save"], help="Model saving strategy: choose from 'best', 'every'")
