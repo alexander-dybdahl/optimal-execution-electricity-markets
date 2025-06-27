@@ -1,0 +1,32 @@
+{
+    "dynamics": "FullDynamics",
+    "T": 1.0,
+    "N": 72,
+    "dim": 3,
+    "dim_W": 2,
+    "y0": [
+        100.0,
+        80.0,
+        0.0
+    ],
+    "mu_P": 0.0,
+    "mu_D": 0.0,
+    "time_dep_vol": false,
+    "low_vol": true,
+    "sigma_P0": 3.139,
+    "sigma_P1": 4.907,
+    "alpha_P": 14.22,
+    "beta_P": 9.856,
+    "sigma_D0": 4.66,
+    "sigma_D1": 6.815,
+    "alpha_D": 24.731,
+    "beta_D": 21.714,
+    "rho": -0.1,
+    "psi": 0.5,
+    "gamma": 0.01,
+    "nu": 0.042,
+    "eta": 10,
+    "eps": 1.0,
+    "analytical_known": true,
+    "dt": 0.013888888888888888
+}

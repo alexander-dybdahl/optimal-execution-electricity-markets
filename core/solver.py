@@ -2,6 +2,7 @@ import numpy as np
 import torch
 import matplotlib.pyplot as plt
 from matplotlib.patches import Patch
+from scipy import stats
 
 from utils.simulator import simulate_paths, compute_cost_objective
 
@@ -187,4 +188,172 @@ class Solver:
         if plot:
             plt.show()
         else:
+            plt.close()
+            
+    def compare_agents(self, agent_name1, agent_name2, alpha=0.05, alternative='less'):
+        """
+        Perform a t-test to compare the cost objectives between two agents.
+        
+        Args:
+            agent_name1 (str): First agent name (test if this agent performs better)
+            agent_name2 (str): Second agent name
+            alpha (float): Significance level for the test (default: 0.05)
+            alternative (str): 'less' tests if agent1 has lower costs than agent2,
+                              'greater' tests if agent1 has higher costs than agent2,
+                              'two-sided' tests if the costs are different
+                              
+        Returns:
+            dict: Dictionary containing test results with the following keys:
+                  - p_value: p-value of the test
+                  - significant: True if the difference is statistically significant
+                  - mean_diff: Difference in means (agent1 - agent2)
+                  - better: If alternative='less', True if agent1 has significantly lower costs
+        """
+        if agent_name1 not in self.costs or agent_name2 not in self.costs:
+            missing = []
+            if agent_name1 not in self.costs:
+                missing.append(agent_name1)
+            if agent_name2 not in self.costs:
+                missing.append(agent_name2)
+            raise ValueError(f"Agent(s) not found in evaluated costs: {', '.join(missing)}")
+            
+        # Get cost arrays
+        costs1 = self.costs[agent_name1]
+        costs2 = self.costs[agent_name2]
+        
+        # Calculate means
+        mean1 = np.mean(costs1)
+        mean2 = np.mean(costs2)
+        mean_diff = mean1 - mean2
+        
+        # Perform t-test
+        t_stat, p_value = stats.ttest_ind(costs1, costs2, equal_var=False, alternative=alternative)
+        
+        # Check if result is statistically significant
+        significant = p_value < alpha
+        
+        # Determine if agent1 is better (has lower costs)
+        # Note: This interpretation depends on the alternative hypothesis
+        if alternative == 'less':
+            better = mean1 < mean2 and significant
+        elif alternative == 'greater':
+            better = mean1 > mean2 and significant
+        else:  # two-sided
+            better = False  # Cannot determine "better" with a two-sided test
+        
+        # Return results - ensure p_value is a float, not an array
+        return {
+            'p_value': float(p_value),  # Convert to float
+            'significant': significant,
+            'mean_diff': mean_diff,
+            'better': better,
+            'mean1': mean1,
+            'mean2': mean2,
+            't_statistic': float(t_stat),  # Convert to float
+            'sample_size1': len(costs1),
+            'sample_size2': len(costs2)
+        }
+        
+    def generate_comparison_report(self, alpha=0.05, alternative='less', save_dir=None):
+        """
+        Generate a comprehensive comparison report between all pairs of agents.
+        
+        Args:
+            alpha (float): Significance level for the tests
+            alternative (str): Direction for the t-test ('less', 'greater', or 'two-sided')
+            save_dir (str): Directory to save the report table figure, if provided
+            
+        Returns:
+            dict: Dictionary of comparison results between all agent pairs
+        """
+        if len(self.costs) < 2:
+            print("Need at least 2 agents to generate a comparison report.")
+            return {}
+            
+        agent_names = list(self.costs.keys())
+        n_agents = len(agent_names)
+        comparison_results = {}
+        
+        # Perform all pairwise comparisons
+        for i in range(n_agents):
+            for j in range(i+1, n_agents):
+                agent1 = agent_names[i]
+                agent2 = agent_names[j]
+                
+                # Perform comparison both ways
+                result_1_vs_2 = self.compare_agents(agent1, agent2, alpha, alternative)
+                result_2_vs_1 = self.compare_agents(agent2, agent1, alpha, alternative)
+                
+                comparison_results[f"{agent1} vs {agent2}"] = result_1_vs_2
+                comparison_results[f"{agent2} vs {agent1}"] = result_2_vs_1
+        
+        # Create a visual table of the results
+        if save_dir:
+            self._plot_comparison_table(comparison_results, alpha, save_dir)
+            
+        return comparison_results
+        
+    def _plot_comparison_table(self, comparison_results, alpha, save_dir):
+        """Create a visual table of the comparison results"""
+        agent_names = list(set([name.split(" vs ")[0] for name in comparison_results.keys()]))
+        n_agents = len(agent_names)
+        
+        # Create figure and axis
+        fig = plt.figure(figsize=(n_agents*2 + 2, n_agents*1.5 + 1))
+        ax = fig.gca()
+        ax.axis('tight')
+        ax.axis('off')
+        
+        # Prepare table data
+        table_data = []
+        header = ["Agent"] + agent_names
+        table_data.append(header)
+        
+        for i, row_agent in enumerate(agent_names):
+            row = [row_agent]
+            for j, col_agent in enumerate(agent_names):
+                if i == j:  # Same agent
+                    cell = "—"
+                else:
+                    key = f"{row_agent} vs {col_agent}"
+                    if key in comparison_results:
+                        result = comparison_results[key]
+                        p_value = result['p_value']
+                        mean_diff = result['mean_diff']
+                        
+                        # Format cell content - ensure p_value is a float
+                        p_val = float(p_value)  # Convert to float explicitly
+                        if result['significant']:
+                            if result['better']:
+                                cell = f"Better\np={p_val:.4f}*"
+                            else:
+                                cell = f"Worse\np={p_val:.4f}*"
+                        else:
+                            cell = f"No diff\np={p_val:.4f}"
+                    else:
+                        cell = "N/A"
+                row.append(cell)
+            table_data.append(row)
+        
+        # Create table
+        table = ax.table(cellText=table_data[1:], 
+                        colLabels=table_data[0],
+                        loc='center',
+                        cellLoc='center')
+        
+        # Style the table
+        table.auto_set_font_size(False)
+        table.set_fontsize(10)
+        table.scale(1.2, 2.0)
+        
+        # Add title and notes
+        plt.title(f'Pairwise Agent Comparison (α={alpha})', pad=20)
+        plt.figtext(0.5, 0.01, 
+                   f"*Statistically significant at α={alpha}. 'Better' means lower cost objective.", 
+                   ha='center', fontsize=8)
+        
+        plt.tight_layout()
+
+        if save_dir:
+            plt.savefig(f"{save_dir}/imgs/agent_comparison_table.png", dpi=300, bbox_inches='tight')
             plt.close()

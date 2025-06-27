@@ -70,6 +70,7 @@ def main():
     logger.log(f"Evaluation completed with seed {seed}.")
     solver.plot_traj(plot=args.plot, save_dir=save_dir)
     solver.plot_cost_histograms(plot=args.plot, save_dir=save_dir)
+    solver.generate_comparison_report(save_dir=save_dir)
 
 if __name__ == "__main__":
     main()
