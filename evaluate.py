@@ -33,7 +33,9 @@ def main():
 
     device = torch.device(args.device)
 
-    save_dir = f"{args.save_dir}"
+    # Use model_dir if save_dir is None or empty
+    save_dir = args.save_dir if args.save_dir else args.model_dir
+    save_dir = f"{save_dir}"
     os.makedirs(save_dir, exist_ok=True)
     os.makedirs(save_dir + "/imgs", exist_ok=True)
 
