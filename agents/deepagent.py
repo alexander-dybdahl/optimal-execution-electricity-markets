@@ -1,5 +1,6 @@
 import os
 import time
+import csv
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -100,6 +101,7 @@ class DeepAgent(nn.Module):
         self.save = model_cfg["save"]               # e.g., "best", "every", "last"
         self.save_n = model_cfg["save_n"]           # save every n epochs if "every"
         self.plot_n = model_cfg["plot_n"]           # save every n epochs if "every"
+        self.csv_log_n = model_cfg.get("csv_log_n", 1)  # save to CSV every n epochs (default: every epoch)
         self.n_simulations = model_cfg["n_simulations"]
 
         if model_cfg["activation"] == "Sine":
@@ -1110,6 +1112,27 @@ class DeepAgent(nn.Module):
                 losses_pinn.append(pinn_loss.item())
                 losses_reg.append(reg_loss.item())
                 losses_cost.append(cost_loss.item())
+
+                # === CSV logging (every csv_log_n epochs) ===
+                if epoch % self.csv_log_n == 0 or epoch == 1:
+                    csv_path = os.path.join(save_dir, 'losses.csv')
+                    # Check if CSV file exists and is not empty to determine if header is needed
+                    write_header = not os.path.exists(csv_path) or os.path.getsize(csv_path) == 0
+                    
+                    with open(csv_path, mode='a', newline='') as csvfile:
+                        loss_writer = csv.writer(csvfile)
+                        if write_header:  # Write header if file doesn't exist or is empty
+                            if self.dynamics.analytical_known:
+                                header = ["Epoch", "Y_val_loss", "q_val_loss", "Total_loss"] + [name.replace(" ", "_") for name, _ in active_losses]
+                            else:
+                                header = ["Epoch", "Total_loss"] + [name.replace(" ", "_") for name, _ in active_losses]
+                            loss_writer.writerow(header)
+                        
+                        if self.dynamics.analytical_known:
+                            row = [epoch, val_Y_loss.item(), val_q_loss.item(), loss.item()] + [fn() for _, fn in active_losses]
+                        else:
+                            row = [epoch, loss.item()] + [fn() for _, fn in active_losses]
+                        loss_writer.writerow(row)
 
                 if epoch % K == 0 or epoch == 1:
                     status = ""

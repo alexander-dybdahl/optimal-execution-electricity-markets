@@ -8,6 +8,7 @@
   "mu_P": 0.0,
   "mu_D": 0.0,
   "time_dep_vol": false,
+  "use_exact": true,
   "low_vol": true,
   "sigma_P0": 3.120,
   "sigma_P1": 4.226,
@@ -22,6 +23,7 @@
   "gamma": 0.01,
   "nu": 0.016,
   "eta": 50,
+  "smooth_control": true,
   "eps": 0.01,
   "analytical_known": true
 }

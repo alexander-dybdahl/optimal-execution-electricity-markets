@@ -23,6 +23,7 @@ def main():
     parser.add_argument("--save_dir", type=str, default=eval_cfg["save_dir"], help="Path to save the evaluation results")
     parser.add_argument("--model_dir", type=str, default=eval_cfg["model_dir"], help="Path to the saved model")
     parser.add_argument("--dynamics_path", type=str, default=eval_cfg["dynamics_path"], help="Path to the dynamics configuration file")
+    parser.add_argument("--use_model_dynamics", type=str2bool, nargs='?', const=True, default=eval_cfg["use_model_dynamics"], help="Use dynamics config from model folder if it exists")
     parser.add_argument("--best", type=str2bool, nargs='?', const=True, default=eval_cfg["best"], help="Load the model using the best model found during training")
     parser.add_argument("--verbose", type=str2bool, nargs='?', const=True, default=eval_cfg["verbose"], help="Print training progress")
     parser.add_argument("--plot", type=str2bool, nargs='?', const=True, default=eval_cfg["plot"], help="Plot after training")
@@ -41,7 +42,17 @@ def main():
     if torch.cuda.is_available() and args.device != "cuda":
         logger.log("Warning: CUDA is available but the config file does not set device to cuda.") 
     
-    dynamics_cfg = load_dynamics_config(args.dynamics_path)
+    # Determine which dynamics config to use
+    dynamics_path = args.dynamics_path
+    if args.use_model_dynamics:
+        model_dynamics_path = os.path.join(args.model_dir, "dynamics_config.json")
+        if os.path.exists(model_dynamics_path):
+            dynamics_path = model_dynamics_path
+            logger.log(f"Using dynamics config from model folder: {model_dynamics_path}")
+        else:
+            logger.log(f"Model dynamics config not found at {model_dynamics_path}, using default: {dynamics_path}")
+    
+    dynamics_cfg = load_dynamics_config(dynamics_path)
     dynamics = create_dynamics(dynamics_cfg=dynamics_cfg, device=device)
     
     # Load the model

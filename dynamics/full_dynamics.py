@@ -44,7 +44,7 @@ class FullDynamics(Dynamics):
 
         self.eta = dynamics_cfg["eta"]         # terminal penalty
 
-        self.use_exact = dynamics_cfg["analytical_known"]  # whether to plot exact solution
+        self.use_exact = dynamics_cfg["use_exact"]  # whether to plot exact solution
         if self.use_exact:
             self.K_interp = None  # placeholder for K interpolator
             self.precompute_K_table()  # precompute the K(τ) interpolation

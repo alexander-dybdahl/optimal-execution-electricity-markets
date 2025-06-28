@@ -541,18 +541,26 @@ class Solver:
             values = [self.risk_metrics[agent][metric_key] for agent in agent_names]
             colors = [self.colors.get(agent, 'gray') for agent in agent_names]
             
-            # Create bar plot
-            bars = ax.bar(agent_names, values, color=colors, alpha=0.7)
+            # Create line plot with points
+            x_positions = range(len(agent_names))
+            for j, (agent, value, color) in enumerate(zip(agent_names, values, colors)):
+                ax.plot(j, value, 'o-', color=color, markersize=8, linewidth=2, 
+                       label=agent if i == 0 else "")  # Only add legend for first subplot
             
-            # Add value labels on bars
-            for bar, value in zip(bars, values):
-                height = bar.get_height()
-                ax.text(bar.get_x() + bar.get_width()/2., height,
-                       f'{value:.4f}', ha='center', va='bottom', fontsize=9)
+            # Add value labels next to each point
+            for j, (agent, value) in enumerate(zip(agent_names, values)):
+                ax.text(j, value, f'{value:.4f}', ha='center', va='bottom', 
+                       fontsize=9, bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.8))
             
             ax.set_title(title)
             ax.set_ylabel(ylabel)
+            ax.set_xticks(x_positions)
+            ax.set_xticklabels(agent_names)
             ax.grid(True, linestyle='--', alpha=0.3)
+            
+            # Add legend only to the first subplot
+            if i == 0:
+                ax.legend(loc='best')
             
             # Rotate x-axis labels if many agents
             if len(agent_names) > 3:
