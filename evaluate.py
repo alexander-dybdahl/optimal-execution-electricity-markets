@@ -68,8 +68,15 @@ def main():
     solver.evaluate_agent(agent=TimeWeightedAgent(dynamics=dynamics), agent_name="TimeWeightedAgent")
     # solver.evaluate_agent(agent=ImmediateAgent(dynamics=dynamics), agent_name="ImmediateAgent")
     logger.log(f"Evaluation completed with seed {seed}.")
+    
+    # Display risk metrics in console
+    solver.display_risk_metrics()
+    
+    # Generate plots
     solver.plot_traj(plot=args.plot, save_dir=save_dir)
     solver.plot_cost_histograms(plot=args.plot, save_dir=save_dir)
+    solver.plot_risk_metrics(plot=args.plot, save_dir=save_dir)
+    solver.plot_risk_comparison_radar(plot=args.plot, save_dir=save_dir)
     solver.generate_comparison_report(save_dir=save_dir)
 
 if __name__ == "__main__":

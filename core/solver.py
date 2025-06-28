@@ -15,6 +15,7 @@ class Solver:
         self.n_sim = n_sim
         self.results = {}
         self.costs = {}
+        self.risk_metrics = {}
         self.colors = {}
         self._color_cycle = plt.rcParams['axes.prop_cycle'].by_key()['color']
         self._color_idx = 0
@@ -40,12 +41,18 @@ class Solver:
             y_traj=torch.from_numpy(results["y_learned"]).to(self.device),
             terminal_cost=True
         )
+        
+        costs_numpy = cost_objective.detach().cpu().numpy()
+        
         self.results[agent_name] = {
             'timesteps': timesteps,
             'results': results
         }
 
-        self.costs[agent_name] = cost_objective.detach().cpu().numpy()
+        self.costs[agent_name] = costs_numpy
+        
+        # Calculate and store risk metrics
+        self.risk_metrics[agent_name] = self.calculate_risk_metrics(costs_numpy)
 
     def plot_traj(self, plot=True, save_dir=None):
         if not self.results:
@@ -189,6 +196,88 @@ class Solver:
             plt.show()
         else:
             plt.close()
+            
+    def calculate_risk_metrics(self, costs, confidence_levels=[0.95, 0.99]):
+        """
+        Calculate comprehensive risk metrics for a given cost distribution.
+        
+        Args:
+            costs (np.array): Array of cost values
+            confidence_levels (list): Confidence levels for VaR and CVaR calculation
+            
+        Returns:
+            dict: Dictionary containing various risk metrics
+        """
+        costs = np.array(costs)
+        risk_metrics = {}
+        
+        # Basic statistics
+        risk_metrics['mean'] = float(np.mean(costs))
+        risk_metrics['std'] = float(np.std(costs))
+        risk_metrics['skewness'] = float(stats.skew(costs))
+        risk_metrics['kurtosis'] = float(stats.kurtosis(costs))
+        risk_metrics['min'] = float(np.min(costs))
+        risk_metrics['max'] = float(np.max(costs))
+        
+        # Percentiles
+        risk_metrics['percentile_10'] = float(np.percentile(costs, 10))
+        risk_metrics['percentile_25'] = float(np.percentile(costs, 25))
+        risk_metrics['percentile_50'] = float(np.percentile(costs, 50))  # Median
+        risk_metrics['percentile_75'] = float(np.percentile(costs, 75))
+        risk_metrics['percentile_90'] = float(np.percentile(costs, 90))
+        
+        # Calculate VaR and CVaR for different confidence levels
+        for confidence_level in confidence_levels:
+            alpha = 1 - confidence_level
+            
+            # Value at Risk (VaR) - quantile at confidence level
+            var_value = float(np.percentile(costs, confidence_level * 100))
+            risk_metrics[f'VaR_{int(confidence_level*100)}'] = var_value
+            
+            # Conditional Value at Risk (CVaR) - expected value of costs above VaR
+            tail_costs = costs[costs >= var_value]
+            if len(tail_costs) > 0:
+                cvar_value = float(np.mean(tail_costs))
+            else:
+                cvar_value = var_value
+            risk_metrics[f'CVaR_{int(confidence_level*100)}'] = cvar_value
+            
+            # Expected Shortfall (same as CVaR but calculated differently for verification)
+            sorted_costs = np.sort(costs)
+            n = len(sorted_costs)
+            var_index = int(np.ceil(confidence_level * n)) - 1
+            if var_index < n - 1:
+                es_value = float(np.mean(sorted_costs[var_index:]))
+            else:
+                es_value = float(sorted_costs[-1])
+            risk_metrics[f'ES_{int(confidence_level*100)}'] = es_value
+        
+        # Semi-deviation (downside risk)
+        mean_cost = risk_metrics['mean']
+        downside_deviations = costs[costs > mean_cost] - mean_cost
+        if len(downside_deviations) > 0:
+            risk_metrics['semi_deviation'] = float(np.sqrt(np.mean(downside_deviations**2)))
+        else:
+            risk_metrics['semi_deviation'] = 0.0
+            
+        # Maximum Drawdown (in context of cost, this is maximum increase from minimum)
+        running_min = np.minimum.accumulate(costs)
+        drawdowns = costs - running_min
+        risk_metrics['max_drawdown'] = float(np.max(drawdowns))
+        
+        # Sharpe-like ratio (mean/std)
+        if risk_metrics['std'] > 0:
+            risk_metrics['sharpe_ratio'] = float(risk_metrics['mean'] / risk_metrics['std'])
+        else:
+            risk_metrics['sharpe_ratio'] = 0.0
+            
+        # Sortino ratio (mean/semi_deviation)
+        if risk_metrics['semi_deviation'] > 0:
+            risk_metrics['sortino_ratio'] = float(risk_metrics['mean'] / risk_metrics['semi_deviation'])
+        else:
+            risk_metrics['sortino_ratio'] = 0.0
+            
+        return risk_metrics
             
     def compare_agents(self, agent_name1, agent_name2, alpha=0.05, alternative='less'):
         """
@@ -356,4 +445,185 @@ class Solver:
 
         if save_dir:
             plt.savefig(f"{save_dir}/imgs/agent_comparison_table.png", dpi=300, bbox_inches='tight')
+            plt.close()
+    
+    def display_risk_metrics(self, agent_name=None):
+        """
+        Display risk metrics for one or all agents in a formatted table.
+        
+        Args:
+            agent_name (str, optional): Specific agent to display. If None, displays all agents.
+        """
+        if not self.risk_metrics:
+            print("No risk metrics calculated. Run evaluate_agent() first.")
+            return
+            
+        if agent_name and agent_name not in self.risk_metrics:
+            print(f"Agent '{agent_name}' not found in risk metrics.")
+            return
+            
+        agents_to_display = [agent_name] if agent_name else list(self.risk_metrics.keys())
+        
+        print("\n" + "="*80)
+        print("RISK METRICS SUMMARY")
+        print("="*80)
+        
+        for agent in agents_to_display:
+            metrics = self.risk_metrics[agent]
+            print(f"\nAgent: {agent}")
+            print("-" * 50)
+            
+            # Basic statistics
+            print("BASIC STATISTICS:")
+            print(f"  Mean:                {metrics['mean']:.6f}")
+            print(f"  Std Deviation:       {metrics['std']:.6f}")
+            print(f"  Minimum:             {metrics['min']:.6f}")
+            print(f"  Maximum:             {metrics['max']:.6f}")
+            print(f"  Skewness:            {metrics['skewness']:.6f}")
+            print(f"  Kurtosis:            {metrics['kurtosis']:.6f}")
+            
+            # Percentiles
+            print("\nPERCENTILES:")
+            print(f"  10th Percentile:     {metrics['percentile_10']:.6f}")
+            print(f"  25th Percentile:     {metrics['percentile_25']:.6f}")
+            print(f"  50th Percentile:     {metrics['percentile_50']:.6f}")
+            print(f"  75th Percentile:     {metrics['percentile_75']:.6f}")
+            print(f"  90th Percentile:     {metrics['percentile_90']:.6f}")
+            
+            # Risk measures
+            print("\nRISK MEASURES:")
+            print(f"  VaR 95%:             {metrics['VaR_95']:.6f}")
+            print(f"  CVaR 95%:            {metrics['CVaR_95']:.6f}")
+            print(f"  VaR 99%:             {metrics['VaR_99']:.6f}")
+            print(f"  CVaR 99%:            {metrics['CVaR_99']:.6f}")
+            print(f"  Semi-deviation:      {metrics['semi_deviation']:.6f}")
+            print(f"  Max Drawdown:        {metrics['max_drawdown']:.6f}")
+            
+            # Risk-adjusted ratios
+            print("\nRISK-ADJUSTED RATIOS:")
+            print(f"  Sharpe Ratio:        {metrics['sharpe_ratio']:.6f}")
+            print(f"  Sortino Ratio:       {metrics['sortino_ratio']:.6f}")
+            
+        print("\n" + "="*80)
+    
+    def plot_risk_metrics(self, plot=True, save_dir=None):
+        """
+        Create visualizations for risk metrics comparison across agents.
+        """
+        if not self.risk_metrics:
+            print("No risk metrics to plot.")
+            return
+            
+        n_agents = len(self.risk_metrics)
+        if n_agents == 0:
+            return
+            
+        agent_names = list(self.risk_metrics.keys())
+        
+        # Create figure with subplots for different risk metric categories
+        fig, axes = plt.subplots(2, 3, figsize=(18, 12))
+        axes = axes.flatten()
+        
+        # Define metrics to plot
+        metrics_to_plot = [
+            ('VaR_95', 'Value at Risk (95%)', 'VaR 95%'),
+            ('CVaR_95', 'Conditional Value at Risk (95%)', 'CVaR 95%'),
+            ('VaR_99', 'Value at Risk (99%)', 'VaR 99%'),
+            ('CVaR_99', 'Conditional Value at Risk (99%)', 'CVaR 99%'),
+            ('semi_deviation', 'Semi-Deviation (Downside Risk)', 'Semi-Deviation'),
+            ('max_drawdown', 'Maximum Drawdown', 'Max Drawdown')
+        ]
+        
+        for i, (metric_key, title, ylabel) in enumerate(metrics_to_plot):
+            ax = axes[i]
+            
+            # Extract metric values for all agents
+            values = [self.risk_metrics[agent][metric_key] for agent in agent_names]
+            colors = [self.colors.get(agent, 'gray') for agent in agent_names]
+            
+            # Create bar plot
+            bars = ax.bar(agent_names, values, color=colors, alpha=0.7)
+            
+            # Add value labels on bars
+            for bar, value in zip(bars, values):
+                height = bar.get_height()
+                ax.text(bar.get_x() + bar.get_width()/2., height,
+                       f'{value:.4f}', ha='center', va='bottom', fontsize=9)
+            
+            ax.set_title(title)
+            ax.set_ylabel(ylabel)
+            ax.grid(True, linestyle='--', alpha=0.3)
+            
+            # Rotate x-axis labels if many agents
+            if len(agent_names) > 3:
+                ax.tick_params(axis='x', rotation=45)
+        
+        plt.tight_layout()
+        if save_dir:
+            plt.savefig(f"{save_dir}/imgs/risk_metrics.png", dpi=300, bbox_inches='tight')
+        if plot:
+            plt.show()
+        else:
+            plt.close()
+            
+    def plot_risk_comparison_radar(self, plot=True, save_dir=None):
+        """
+        Create a radar chart comparing risk metrics across agents.
+        """
+        if not self.risk_metrics:
+            print("No risk metrics to plot.")
+            return
+            
+        agent_names = list(self.risk_metrics.keys())
+        if len(agent_names) == 0:
+            return
+            
+        # Select key risk metrics for radar chart (normalize them)
+        risk_metrics_keys = ['CVaR_95', 'CVaR_99', 'semi_deviation', 'max_drawdown', 'std']
+        risk_labels = ['CVaR 95%', 'CVaR 99%', 'Semi-Dev', 'Max DD', 'Std Dev']
+        
+        # Prepare data - normalize each metric to 0-1 scale
+        normalized_data = {}
+        for metric in risk_metrics_keys:
+            all_values = [self.risk_metrics[agent][metric] for agent in agent_names]
+            min_val, max_val = min(all_values), max(all_values)
+            
+            # Normalize to 0-1 (higher values = higher risk)
+            if max_val > min_val:
+                normalized_data[metric] = [(val - min_val) / (max_val - min_val) for val in all_values]
+            else:
+                normalized_data[metric] = [0.5] * len(all_values)  # All equal
+        
+        # Create radar chart
+        angles = np.linspace(0, 2 * np.pi, len(risk_metrics_keys), endpoint=False).tolist()
+        angles += angles[:1]  # Complete the circle
+        
+        fig, ax = plt.subplots(figsize=(10, 10), subplot_kw=dict(projection='polar'))
+        
+        for i, agent in enumerate(agent_names):
+            values = [normalized_data[metric][i] for metric in risk_metrics_keys]
+            values += values[:1]  # Complete the circle
+            
+            color = self.colors.get(agent, 'gray')
+            ax.plot(angles, values, 'o-', linewidth=2, label=agent, color=color)
+            ax.fill(angles, values, alpha=0.25, color=color)
+        
+        # Customize the radar chart
+        ax.set_xticks(angles[:-1])
+        ax.set_xticklabels(risk_labels)
+        ax.set_ylim(0, 1)
+        ax.set_yticks([0.2, 0.4, 0.6, 0.8, 1.0])
+        ax.set_yticklabels(['0.2', '0.4', '0.6', '0.8', '1.0'])
+        ax.grid(True)
+        
+        plt.legend(loc='upper right', bbox_to_anchor=(0.1, 0.1))
+        plt.title('Risk Metrics Comparison (Normalized)\nHigher values = Higher risk', 
+                 size=14, pad=20)
+        
+        plt.tight_layout()
+        if save_dir:
+            plt.savefig(f"{save_dir}/imgs/risk_radar_chart.png", dpi=300, bbox_inches='tight')
+        if plot:
+            plt.show()
+        else:
             plt.close()

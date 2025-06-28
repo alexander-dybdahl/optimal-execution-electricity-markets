@@ -39,7 +39,8 @@ class FullDynamics(Dynamics):
         self.nu = dynamics_cfg["nu"]           # perm impact
         self.nu_end = self.nu                  # perm impact
 
-        self.eps = nn.Parameter(torch.tensor(dynamics_cfg["eps"]))
+        self.smooth_control = dynamics_cfg["smooth_control"]  # whether to use smooth control
+        self.eps = torch.tensor(dynamics_cfg["eps"]) # epsilon for smooth control
 
         self.eta = dynamics_cfg["eta"]         # terminal penalty
 
@@ -112,7 +113,7 @@ class FullDynamics(Dynamics):
         Sigma[:, 2, 1] = (1 - self.rho**2)**0.5 * self.sigma_D # dD = ... dW2
         return Sigma
 
-    def optimal_control(self, t, y, dY_dy, smooth=True):
+    def optimal_control(self, t, y, dY_dy):
         dY_dX = dY_dy[:, 0:1]
         dY_dP = dY_dy[:, 1:2]
         P = y[:, 1:2]
@@ -127,7 +128,7 @@ class FullDynamics(Dynamics):
             q = -Lambda / (2 * gamma)
             return q
 
-        if smooth:
+        if self.smooth_control:
             sigmoid = lambda x: torch.sigmoid(x / self.eps)
 
             # Smooth control transitions
