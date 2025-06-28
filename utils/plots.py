@@ -180,9 +180,14 @@ def plot_terminal_histogram(results, dynamics, plot=True, save_dir=None, num=Non
     Y_T_approx = Y_vals[-1, :, 0]
     q_T_approx = q_vals[-1, :, 0]
     y_T_tensor = torch.tensor(y_T, dtype=torch.float32, device=dynamics.device)
-    Y_T_true = dynamics.terminal_cost(y_T_tensor).detach().cpu().numpy().squeeze()
+    Y_T_true = dynamics.terminal_cost(y_T_tensor).detach().cpu().numpy()
     if dynamics.analytical_known:
-        q_T_true = dynamics.optimal_control_analytic(dynamics.T - dynamics.dt, y_T_tensor).detach().cpu().numpy().squeeze()
+        q_T_true = dynamics.optimal_control_analytic(dynamics.T - dynamics.dt, y_T_tensor).detach().cpu().numpy()
+
+    # Ensure arrays are at least 1D for consistent indexing
+    Y_T_true = np.atleast_1d(Y_T_true.squeeze())
+    if dynamics.analytical_known:
+        q_T_true = np.atleast_1d(q_T_true.squeeze())
 
     # Filter out NaN or Inf
     mask = np.isfinite(Y_T_approx) & np.isfinite(Y_T_true)
