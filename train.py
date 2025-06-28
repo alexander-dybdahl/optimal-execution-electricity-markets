@@ -180,6 +180,17 @@ def main():
     # Check if we should load an existing model
     if args.load_if_exists:
         logger.log(f"Attempting to load model from {save_dir}")
+        
+        # Check if there are any existing model files in the directory
+        model_files = []
+        if os.path.exists(save_dir):
+            for file in os.listdir(save_dir):
+                if file.endswith('.pth') or file.endswith('.pt'):
+                    model_files.append(file)
+        
+        if model_files:
+            logger.log(f"Found existing model files: {model_files}")
+        
         try:
             # Use the instance method to load the checkpoint
             if args.resume:
@@ -188,7 +199,7 @@ def main():
                     model_dir=save_dir,
                     best=args.best
                 )
-                logger.log(f"Loaded model checkpoint from epoch {start_epoch-1} with training state")
+                logger.log(f"Successfully loaded model checkpoint from epoch {start_epoch-1} with training state")
             else:
                 # Otherwise just load the model state
                 optimizer_state, _, _ = model.load_checkpoint(
@@ -197,9 +208,65 @@ def main():
                 )
                 # Reset start_epoch to 1 since we're not resuming training
                 start_epoch = 1
-                logger.log(f"Loaded model checkpoint (model state only)")
+                logger.log(f"Successfully loaded model checkpoint (model state only)")
+        except FileNotFoundError as e:
+            logger.log(f"No model checkpoint file found in {save_dir}")
+            logger.log(f"    Expected files: model_best.pth or model_latest.pth")
+            if model_files:
+                logger.log("=" * 80)
+                logger.log("WARNING: EXISTING MODEL FILES DETECTED BUT NOT LOADABLE!")
+                logger.log("=" * 80)
+                logger.log(f"Found {len(model_files)} model files but none match expected format:")
+                for file in model_files:
+                    logger.log(f"  - {file}")
+                logger.log("This could indicate model files from a different configuration.")
+                logger.log("Starting from scratch - existing files will be overwritten!")
+                logger.log("=" * 80)
+            else:
+                logger.log("Starting training from scratch.")
+        except RuntimeError as e:
+            error_msg = str(e).lower()
+            logger.log(f"Model loading failed with RuntimeError: {e}")
+            if "size mismatch" in error_msg or "dimension" in error_msg:
+                logger.log("DIAGNOSIS: Network architecture mismatch detected!")
+                logger.log("    This usually means the saved model has different layer sizes")
+                logger.log("    than the current configuration. Check your network parameters:")
+                logger.log(f"    - Y0_layers: {args.Y0_layers}")
+                logger.log(f"    - Y_layers: {args.Y_layers}")
+                logger.log(f"    - architecture: {args.architecture}")
+                if hasattr(args, 'lstm_layers'):
+                    logger.log(f"    - lstm_layers: {args.lstm_layers}")
+            elif "device" in error_msg or "cuda" in error_msg:
+                logger.log("DIAGNOSIS: Device mismatch detected!")
+                logger.log(f"    Model may have been saved on a different device than current: {device}")
+            elif "key" in error_msg or "missing" in error_msg or "unexpected" in error_msg:
+                logger.log("DIAGNOSIS: Model state dictionary mismatch!")
+                logger.log("    This could be due to changes in the model architecture or")
+                logger.log("    trying to load a model saved with a different version of the code.")    
+            if model_files:
+                logger.log("=" * 80)
+                logger.log("WARNING: EXISTING MODEL FILES DETECTED BUT NOT LOADABLE!")
+                logger.log("=" * 80)
+                logger.log(f"Found {len(model_files)} model files that could not be loaded due to:")
+                logger.log(f"    {type(e).__name__}: {str(e)[:100]}{'...' if len(str(e)) > 100 else ''}")
+                logger.log("Starting from scratch - existing files will be overwritten!")
+                logger.log("=" * 80)
+            
+            logger.log("Starting training from scratch.")
         except Exception as e:
-            logger.log(f"No valid model found in {save_dir}, starting from scratch.")
+            logger.log(f"Unexpected error loading model: {type(e).__name__}: {e}")
+            logger.log("Full error details:")
+            import traceback
+            logger.log(traceback.format_exc())
+            if model_files:
+                logger.log("=" * 80)
+                logger.log("WARNING: EXISTING MODEL FILES DETECTED BUT NOT LOADABLE!")
+                logger.log("=" * 80)
+                logger.log(f"Found {len(model_files)} model files that could not be loaded.")
+                logger.log("Starting from scratch - existing files will be overwritten!")
+                logger.log("=" * 80)
+            else:
+                logger.log("Starting training from scratch.")
     else:
         logger.log("Not loading any model, starting from scratch.")
 
@@ -208,13 +275,16 @@ def main():
 
     # Save configuration files and train
     if args.train:
+        # Only save configuration after successful model loading/creation
         if is_main:
             train_cfg_path = os.path.join(save_dir, "train_config.json")
             dynamics_cfg_path = os.path.join(save_dir, "dynamics_config.json")
+            logger.log("Saving configuration files...")
             with open(train_cfg_path, 'w') as f:
                 json.dump(train_cfg, f, indent=4)
             with open(dynamics_cfg_path, 'w') as f:
                 json.dump(dynamics_cfg, f, indent=4)
+            logger.log(f"Configuration saved to {save_dir}")
         
         # Wrap in DDP if applicable
         if args.parallel:

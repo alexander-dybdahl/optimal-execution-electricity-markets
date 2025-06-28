@@ -1,7 +1,7 @@
 {
   "device": "cuda",
   "save_dir": null,
-  "model_dir": "saved_models/eta50_x0_gamma0.1_lowvol_psi0_naislstm_GELU",
+  "model_dir": "saved_models/eta10_x0_gamma0.01_lowvol_psi0_naislstm_GELU",
   "dynamics_path": "config/dynamics_configs/full_config.json",
   "use_model_dynamics": true,
   "best": false,

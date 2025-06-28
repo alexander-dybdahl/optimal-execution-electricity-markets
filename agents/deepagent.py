@@ -1243,6 +1243,10 @@ class DeepAgent(nn.Module):
 
                 # === Plot training losses ===
                 if epoch % 1000 == 0 and epoch > 0:
+                    # Create subdirectory for training loss plots
+                    training_loss_dir = os.path.join(save_dir, "imgs", "training_losses")
+                    os.makedirs(training_loss_dir, exist_ok=True)
+                    
                     plt.figure(figsize=(12, 8))
                     plt.plot(losses, label="Total Loss")
                     if self.loss_weights["lambda_Y0"] > 0: plt.plot(losses_Y0, label="Y0 Loss")
@@ -1268,7 +1272,7 @@ class DeepAgent(nn.Module):
                     plt.grid(True, which='both', linestyle='--', alpha=0.4)
                     plt.tight_layout()
                     if save_dir:
-                        plt.savefig(f"{save_dir}/imgs/loss_{epoch}.png", dpi=300, bbox_inches="tight")
+                        plt.savefig(f"{training_loss_dir}/loss_{epoch}.png", dpi=300, bbox_inches="tight")
                     if plot:
                         plt.show()
                     else:
@@ -1276,6 +1280,10 @@ class DeepAgent(nn.Module):
 
                     # === Plot validation losses ===
                     if self.dynamics.analytical_known:
+                        # Create subdirectory for validation loss plots
+                        validation_loss_dir = os.path.join(save_dir, "imgs", "validation_losses")
+                        os.makedirs(validation_loss_dir, exist_ok=True)
+                        
                         plt.figure(figsize=(12, 8))
                         plt.plot(self.validation["q_loss"], label="Validation q Loss")
                         plt.plot(self.validation["Y_loss"], label="Validation Y Loss")
@@ -1289,7 +1297,7 @@ class DeepAgent(nn.Module):
                         plt.grid(True, which='both', linestyle='--', alpha=0.4)
                         plt.tight_layout()
                         if save_dir:
-                            plt.savefig(f"{save_dir}/imgs/val_loss_{epoch}.png", dpi=300, bbox_inches="tight")
+                            plt.savefig(f"{validation_loss_dir}/val_loss_{epoch}.png", dpi=300, bbox_inches="tight")
                         if plot:
                             plt.show()
                         else:
