@@ -90,9 +90,9 @@ def plot_approx_vs_analytic(results, timesteps, validation=None, plot=True, save
     plt.tight_layout()
     if save_dir:
         if num:
-            plt.savefig(f"{save_dir}/imgs/approx_vs_analytic_{num}.png", dpi=300, bbox_inches='tight')
+            plt.savefig(f"{save_dir}/approx_vs_analytic_{num}.png", dpi=300, bbox_inches='tight')
         else:
-            plt.savefig(f"{save_dir}/imgs/approx_vs_analytic.png", dpi=300, bbox_inches='tight')
+            plt.savefig(f"{save_dir}/approx_vs_analytic.png", dpi=300, bbox_inches='tight')
     if plot:
         plt.show()
     else:
@@ -163,9 +163,9 @@ def plot_approx_vs_analytic_expectation(results, timesteps, plot=True, save_dir=
     plt.tight_layout()
     if save_dir:
         if num:
-            plt.savefig(f"{save_dir}/imgs/approx_vs_analytic_expectation_{num}.png", dpi=300, bbox_inches='tight')
+            plt.savefig(f"{save_dir}/approx_vs_analytic_expectation_{num}.png", dpi=300, bbox_inches='tight')
         else:
-            plt.savefig(f"{save_dir}/imgs/approx_vs_analytic_expectation.png", dpi=300, bbox_inches='tight')
+            plt.savefig(f"{save_dir}/approx_vs_analytic_expectation.png", dpi=300, bbox_inches='tight')
     if plot:
         plt.show()
     else:
@@ -243,9 +243,9 @@ def plot_terminal_histogram(results, dynamics, plot=True, save_dir=None, num=Non
 
     if save_dir:
         if num:
-            plt.savefig(f"{save_dir}/imgs/terminal_histogram_{num}.png", dpi=300, bbox_inches='tight')
+            plt.savefig(f"{save_dir}/terminal_histogram_{num}.png", dpi=300, bbox_inches='tight')
         else:
-            plt.savefig(f"{save_dir}/imgs/terminal_histogram.png", dpi=300, bbox_inches='tight')
+            plt.savefig(f"{save_dir}/terminal_histogram.png", dpi=300, bbox_inches='tight')
     if plot:
         plt.show()
     else:
