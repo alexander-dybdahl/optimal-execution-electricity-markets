@@ -1218,17 +1218,28 @@ class DeepAgent(nn.Module):
                 if epoch % self.plot_n == 0:
                     timesteps, results = simulate_paths(dynamics=self.dynamics, agent=self, n_sim=self.n_simulations, seed=42)
                     
+                    # Create subdirectories for different plot types
+                    approx_vs_analytic_dir = os.path.join(save_dir, "imgs", "approx_vs_analytic")
+                    os.makedirs(approx_vs_analytic_dir, exist_ok=True)
+                    
                     plot_approx_vs_analytic(
                         results = results,
                         timesteps = timesteps,
                         validation = self.validation,
                         plot=False,
-                        save_dir=save_dir,
+                        save_dir=approx_vs_analytic_dir,
                         num=epoch
                     )
                     timesteps, results = simulate_paths(dynamics=self.dynamics, agent=self, n_sim=1000, seed=42)
-                    # plot_approx_vs_analytic_expectation(results, timesteps, plot=False, save_dir=save_dir, num=epoch)
-                    plot_terminal_histogram(results=results, dynamics=self.dynamics, plot=False, save_dir=save_dir, num=epoch)
+                    
+                    # expectation_dir = os.path.join(save_dir, "imgs", "expectation")
+                    # os.makedirs(expectation_dir, exist_ok=True)
+                    # plot_approx_vs_analytic_expectation(results, timesteps, plot=False, save_dir=expectation_dir, num=epoch)
+                    
+                    # Create subdirectory for terminal histogram plots
+                    terminal_histogram_dir = os.path.join(save_dir, "imgs", "terminal_histograms")
+                    os.makedirs(terminal_histogram_dir, exist_ok=True)
+                    plot_terminal_histogram(results=results, dynamics=self.dynamics, plot=False, save_dir=terminal_histogram_dir, num=epoch)
 
                 # === Plot training losses ===
                 if epoch % 1000 == 0 and epoch > 0:
