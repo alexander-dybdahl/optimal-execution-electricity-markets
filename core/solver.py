@@ -186,7 +186,7 @@ class Solver:
             handles.append(Patch(color='none', label=f'Std Dev: {std_cost:.4f}'))
             handles.append(Patch(color='none', label=f'Mean/Std: {mean_std_ratio:.4f}'))
             
-            ax.legend(handles=handles)
+            ax.legend(handles=handles, loc="upper left")
             ax.grid(True, linestyle='--', alpha=0.5)
 
         plt.tight_layout()
@@ -623,6 +623,125 @@ class Solver:
         plt.tight_layout()
         if save_dir:
             plt.savefig(f"{save_dir}/imgs/risk_radar_chart.png", dpi=300, bbox_inches='tight')
+        if plot:
+            plt.show()
+        else:
+            plt.close()
+            
+    def plot_control_histograms(self, plot=True, save_dir=None, timestep_idx=None):
+        """
+        Plot histograms of control values (q) for each agent.
+        
+        Args:
+            plot (bool): Whether to show the plots interactively
+            save_dir (str): Directory to save the plots, if provided
+            timestep_idx (int or list, optional): Specific timestep index(es) to plot.
+                          If None, plots the average control across all timesteps.
+                          If int, plots the control at that specific timestep.
+                          If list, plots the control for each timestep in the list.
+        """
+        if not self.results:
+            print("No results to plot.")
+            return
+            
+        n_agents = len(self.results)
+        if n_agents == 0:
+            return
+            
+        # Handle different timestep_idx options
+        if isinstance(timestep_idx, (list, tuple)):
+            # Multiple specific timesteps
+            timestep_indices = timestep_idx
+            title_suffix = f"at timesteps {timestep_indices}"
+        elif isinstance(timestep_idx, int):
+            # Single specific timestep
+            timestep_indices = [timestep_idx]
+            title_suffix = f"at timestep {timestep_idx}"
+        else:
+            # Average across all timesteps
+            timestep_indices = None
+            title_suffix = "(averaged across all timesteps)"
+            
+        fig, axs = plt.subplots(n_agents, 1, figsize=(10, 6 * n_agents), squeeze=False)
+        
+        for i, (agent_name, data) in enumerate(self.results.items()):
+            ax = axs[i, 0]
+            color = self.colors.get(agent_name, 'gray')
+            
+            # Get the control values for this agent
+            results = data['results']
+            q_values = results.get('q_learned', None)
+            
+            if q_values is None:
+                ax.text(0.5, 0.5, f"No control data available for {agent_name}", 
+                        ha='center', va='center', transform=ax.transAxes)
+                continue
+                
+            # Convert to numpy array if needed
+            q_values = np.asarray(q_values)
+            
+            # Extract data based on timestep_idx
+            if timestep_indices is not None:
+                # Only use specific timesteps
+                q_data = []
+                for idx in timestep_indices:
+                    if idx < q_values.shape[0]:
+                        q_data.append(q_values[idx].flatten())
+                    else:
+                        print(f"Warning: Timestep {idx} is out of range for {agent_name}")
+                        
+                if not q_data:
+                    ax.text(0.5, 0.5, f"No valid timesteps for {agent_name}", 
+                            ha='center', va='center', transform=ax.transAxes)
+                    continue
+                    
+                q_data = np.concatenate(q_data)
+            else:
+                # Average across all timesteps
+                q_data = q_values.flatten()
+            
+            # Plot histogram
+            ax.hist(q_data, bins='auto', color=color, alpha=0.7, label='Control Distribution')
+            
+            # Calculate statistics
+            mean_q = np.mean(q_data)
+            std_q = np.std(q_data)
+            min_q = np.min(q_data)
+            max_q = np.max(q_data)
+            
+            # Plot mean line
+            ax.axvline(mean_q, color='red', linestyle='dotted', linewidth=2, label=f'Mean: {mean_q:.4f}')
+            
+            # Calculate and plot mode from histogram
+            hist, bin_edges = np.histogram(q_data, bins='auto')
+            if len(hist) > 0:
+                max_hist_index = np.argmax(hist)
+                mode_q = (bin_edges[max_hist_index] + bin_edges[max_hist_index+1]) / 2
+                ax.axvline(mode_q, color='green', linestyle='dotted', linewidth=2, label=f'Mode: {mode_q:.4f}')
+            
+            ax.set_title(f'Control (q) Distribution for {agent_name} {title_suffix}')
+            ax.set_xlabel("Control Value (q)")
+            ax.set_ylabel("Frequency")
+            
+            # Create legend
+            handles, labels = ax.get_legend_handles_labels()
+            
+            # Add stats to legend
+            handles.append(Patch(color='none', label=f'Std Dev: {std_q:.4f}'))
+            handles.append(Patch(color='none', label=f'Min: {min_q:.4f}'))
+            handles.append(Patch(color='none', label=f'Max: {max_q:.4f}'))
+            
+            ax.legend(handles=handles)
+            ax.grid(True, linestyle='--', alpha=0.5)
+        
+        plt.tight_layout()
+        if save_dir:
+            if timestep_indices is not None:
+                # Create a string representation of the timestep indices for the filename
+                ts_str = "_".join(map(str, timestep_indices)) if isinstance(timestep_indices, (list, tuple)) else str(timestep_indices)
+                plt.savefig(f"{save_dir}/imgs/control_histograms_t{ts_str}.png", dpi=300, bbox_inches='tight')
+            else:
+                plt.savefig(f"{save_dir}/imgs/control_histograms.png", dpi=300, bbox_inches='tight')
         if plot:
             plt.show()
         else:
