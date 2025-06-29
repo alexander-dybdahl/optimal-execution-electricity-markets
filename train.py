@@ -1,5 +1,6 @@
 import json
 import os
+import sys
 from argparse import ArgumentParser
 from utils.logger import Logger
 
@@ -14,8 +15,7 @@ from core.solver import Solver
 from utils.load_config import load_dynamics_config, load_train_config
 from utils.plots import plot_approx_vs_analytic, plot_approx_vs_analytic_expectation, plot_terminal_histogram 
 from utils.simulator import simulate_paths
-from utils.tools import str2bool
-
+from utils.tools import str2bool, prompt_overwrite_confirmation
 
 def main():
     train_cfg = load_train_config(path="config/train_config.json")
@@ -27,6 +27,7 @@ def main():
     parser.add_argument("--train", type=str2bool, nargs='?', const=True, default=train_cfg["train"], help="Train the model")
     parser.add_argument("--save", nargs="+", default=train_cfg["save"], help="Model saving strategy: choose from 'best', 'every'")
     parser.add_argument("--load_if_exists", type=str2bool, nargs='?', const=True, default=train_cfg["load_if_exists"], help="Load model if it exists")
+    parser.add_argument("--force_overwrite", type=str2bool, nargs='?', const=True, default=train_cfg.get("force_overwrite", False), help="Force overwrite existing files without prompting")
     parser.add_argument("--resume", type=str2bool, nargs='?', const=True, default=train_cfg["resume"], help="Resume training with optimizer/scheduler state")
     parser.add_argument("--reset_lr", type=str2bool, nargs='?', const=True, default=train_cfg["reset_lr"], help="Reset the learning rate to the initial value")
     parser.add_argument("--reset_best", type=str2bool, nargs='?', const=True, default=train_cfg["reset_best"], help="Reset the best loss to initial value")
@@ -220,6 +221,18 @@ def main():
                 for file in model_files:
                     logger.log(f"  - {file}")
                 logger.log("This could indicate model files from a different configuration.")
+                
+                # Prompt user for confirmation before overwriting
+                overwrite_msg = f"Found {len(model_files)} existing model files in {save_dir} that don't match expected format.\n"
+                overwrite_msg += "Files found:\n"
+                for file in model_files:
+                    overwrite_msg += f"  - {file}\n"
+                overwrite_msg += "\nStarting training from scratch will overwrite these files."
+                
+                if not prompt_overwrite_confirmation(overwrite_msg, logger, args.force_overwrite):
+                    logger.log("Training cancelled by user.")
+                    sys.exit(0)
+                
                 logger.log("Starting from scratch - existing files will be overwritten!")
                 logger.log("=" * 80)
             else:
@@ -249,6 +262,19 @@ def main():
                 logger.log("=" * 80)
                 logger.log(f"Found {len(model_files)} model files that could not be loaded due to:")
                 logger.log(f"    {type(e).__name__}: {str(e)[:100]}{'...' if len(str(e)) > 100 else ''}")
+                
+                # Prompt user for confirmation before overwriting
+                overwrite_msg = f"Found {len(model_files)} existing model files in {save_dir} that could not be loaded.\n"
+                overwrite_msg += f"Error: {type(e).__name__}: {str(e)[:100]}{'...' if len(str(e)) > 100 else ''}\n"
+                overwrite_msg += "Files found:\n"
+                for file in model_files:
+                    overwrite_msg += f"  - {file}\n"
+                overwrite_msg += "\nStarting training from scratch will overwrite these files."
+                
+                if not prompt_overwrite_confirmation(overwrite_msg, logger, args.force_overwrite):
+                    logger.log("Training cancelled by user.")
+                    sys.exit(0)
+                
                 logger.log("Starting from scratch - existing files will be overwritten!")
                 logger.log("=" * 80)
             
@@ -263,12 +289,48 @@ def main():
                 logger.log("WARNING: EXISTING MODEL FILES DETECTED BUT NOT LOADABLE!")
                 logger.log("=" * 80)
                 logger.log(f"Found {len(model_files)} model files that could not be loaded.")
+                
+                # Prompt user for confirmation before overwriting
+                overwrite_msg = f"Found {len(model_files)} existing model files in {save_dir} that could not be loaded.\n"
+                overwrite_msg += f"Error: {type(e).__name__}: {e}\n"
+                overwrite_msg += "Files found:\n"
+                for file in model_files:
+                    overwrite_msg += f"  - {file}\n"
+                overwrite_msg += "\nStarting training from scratch will overwrite these files."
+                
+                if not prompt_overwrite_confirmation(overwrite_msg, logger, args.force_overwrite):
+                    logger.log("Training cancelled by user.")
+                    sys.exit(0)
+                
                 logger.log("Starting from scratch - existing files will be overwritten!")
                 logger.log("=" * 80)
             else:
                 logger.log("Starting training from scratch.")
     else:
-        logger.log("Not loading any model, starting from scratch.")
+        # Check if there are existing model files even when not loading
+        model_files = []
+        if os.path.exists(save_dir):
+            for file in os.listdir(save_dir):
+                if file.endswith('.pth') or file.endswith('.pt'):
+                    model_files.append(file)
+        
+        if model_files:
+            logger.log(f"Found existing model files in {save_dir}: {model_files}")
+            
+            # Prompt user for confirmation before overwriting
+            overwrite_msg = f"Found {len(model_files)} existing model files in {save_dir}.\n"
+            overwrite_msg += "Files found:\n"
+            for file in model_files:
+                overwrite_msg += f"  - {file}\n"
+            overwrite_msg += "\nStarting training from scratch without loading existing models will overwrite these files."
+            
+            if not prompt_overwrite_confirmation(overwrite_msg, logger, args.force_overwrite):
+                logger.log("Training cancelled by user.")
+                sys.exit(0)
+            
+            logger.log("User confirmed: starting training from scratch and will overwrite existing files.")
+        else:
+            logger.log("No existing model files found, starting from scratch.")
 
     import warnings
     warnings.filterwarnings("ignore", message="Attempting to run cuBLAS, but there was no current CUDA context!")
