@@ -7,6 +7,8 @@
   "best": false,
   "verbose": true,
   "plot": false,
+  "plot_trading_comparison": false,
+  "plot_risk_metrics": true,
   "plot_controls": false,
   "n_simulations": 10000,
   "seed": 42
