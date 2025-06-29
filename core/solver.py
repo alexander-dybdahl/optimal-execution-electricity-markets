@@ -739,7 +739,7 @@ class Solver:
             handles.append(Patch(color='none', label=f'Min: {min_q:.4f}'))
             handles.append(Patch(color='none', label=f'Max: {max_q:.4f}'))
             
-            ax.legend(handles=handles)
+            ax.legend(handles=handles, loc="upper left")
             ax.grid(True, linestyle='--', alpha=0.5)
         
         plt.tight_layout()
