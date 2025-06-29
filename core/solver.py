@@ -72,7 +72,7 @@ class Solver:
         # Create agent handles, but filter for Y plot based on data availability
         all_agent_handles = []
         for agent_name, color in self.colors.items():
-            all_agent_handles.append(plt.Line2D([0], [0], color=color, linestyle='-', label=agent_name))
+            all_agent_handles.append(plt.Line2D([0], [0], color=color, linestyle='-', linewidth=3.0, label=agent_name))
             
         style_handles = [Patch(facecolor='gray', alpha=0.2, label='Agent ±1 std')]
 
@@ -88,7 +88,7 @@ class Solver:
                     key_learned = f'{var}_learned'
                     arr_learned = results.get(key_learned, None)
                     if arr_learned is not None:
-                        agent_handles.append(plt.Line2D([0], [0], color=color, linestyle='-', label=agent_name))
+                        agent_handles.append(plt.Line2D([0], [0], color=color, linestyle='-', linewidth=3.0, label=agent_name))
             else:
                 agent_handles = all_agent_handles
             
@@ -116,7 +116,8 @@ class Solver:
                             arr_mean,
                             color=color,
                             linestyle=line_styles['learned'],
-                            alpha=1.0
+                            alpha=1.0,
+                            linewidth=3.0
                         )
                         ax.fill_between(
                             timesteps[:arr_mean.shape[0]],
@@ -143,7 +144,8 @@ class Solver:
                                 arr_mean[:, i],
                                 color=color,
                                 linestyle=linestyle,
-                                alpha=1.0
+                                alpha=1.0,
+                                linewidth=3.0
                             )
                             ax.fill_between(
                                 timesteps[:arr_mean.shape[0]],
@@ -165,9 +167,9 @@ class Solver:
             # Add state component legend for y(t) plot
             if var == 'y':
                 state_legend_handles = [
-                    plt.Line2D([0], [0], color='black', linestyle='-', label='Position (X)'),
-                    plt.Line2D([0], [0], color='black', linestyle=':', label='Price (P)'),
-                    plt.Line2D([0], [0], color='black', linestyle=(0, (3, 1, 1, 1)), label='Generation (G)')
+                    plt.Line2D([0], [0], color='black', linestyle='-', linewidth=3.0, label='Position (X)'),
+                    plt.Line2D([0], [0], color='black', linestyle=':', linewidth=3.0, label='Price (P)'),
+                    plt.Line2D([0], [0], color='black', linestyle=(0, (3, 1, 1, 1)), linewidth=3.0, label='Generation (G)')
                 ]
                 ax.legend(handles=state_legend_handles, loc='lower left', frameon=True, fontsize=16)
         plt.tight_layout()
@@ -207,7 +209,7 @@ class Solver:
         # Create agent handles, but filter for Y plot based on data availability
         all_agent_handles = []
         for agent_name, color in self.colors.items():
-            all_agent_handles.append(plt.Line2D([0], [0], color=color, linestyle='-', label=agent_name))
+            all_agent_handles.append(plt.Line2D([0], [0], color=color, linestyle='-', linewidth=2.0, label=agent_name))
 
         for idx, var in enumerate(['q', 'y', 'Y']):
             ax = axs[idx]
@@ -226,7 +228,7 @@ class Solver:
                     key_learned = f'{var}_learned'
                     arr_learned = results.get(key_learned, None)
                     if arr_learned is not None:
-                        agent_handles.append(plt.Line2D([0], [0], color=color, linestyle='-', label=agent_name))
+                        agent_handles.append(plt.Line2D([0], [0], color=color, linestyle='-', linewidth=2.0, label=agent_name))
             else:
                 agent_handles = all_agent_handles
             
@@ -257,7 +259,7 @@ class Solver:
                                 color=color,
                                 linestyle=line_styles['learned'],
                                 alpha=0.6,
-                                linewidth=1
+                                linewidth=2.0
                             )
                             # Plot on individual figure if requested
                             if save_individual and save_dir:
@@ -267,7 +269,7 @@ class Solver:
                                     color=color,
                                     linestyle=line_styles['learned'],
                                     alpha=0.6,
-                                    linewidth=1
+                                    linewidth=2.0
                                 )
                         else:  # traj_data.ndim > 1
                             # Define line styles for different state components
@@ -286,7 +288,7 @@ class Solver:
                                     color=color,
                                     linestyle=linestyle,
                                     alpha=0.6,
-                                    linewidth=1
+                                    linewidth=2.0
                                 )
                                 # Plot on individual figure if requested
                                 if save_individual and save_dir:
@@ -296,7 +298,7 @@ class Solver:
                                         color=color,
                                         linestyle=linestyle,
                                         alpha=0.6,
-                                        linewidth=1
+                                        linewidth=2.0
                                     )
 
             # Configure main subplot
@@ -1612,21 +1614,21 @@ class Solver:
                 # Plot X trajectory (cumulative position)
                 line_label_X = f"{agent_name} X (traj {i+1})"
                 ax.plot(timesteps, X_traj[:, i], color=color, alpha=alpha, 
-                       linestyle=linestyle, linewidth=1.5, label=line_label_X,
+                       linestyle=linestyle, linewidth=3.0, label=line_label_X,
                        marker='o', markersize=3, markevery=len(timesteps)//10)
                 
                 # Plot G trajectory (generation) if available
                 if D_traj is not None:
                     line_label_D = f"{agent_name} G (traj {i+1})"
                     ax.plot(timesteps, D_traj[:, i], color=color, alpha=alpha*0.7, 
-                           linestyle=linestyle, linewidth=1.2, label=line_label_D,
+                           linestyle=linestyle, linewidth=2.5, label=line_label_D,
                            marker='s', markersize=2, markevery=len(timesteps)//10)
                 
                 trajectory_idx += 1
             
             # Store handle for agent legend (showing line style)
             agent_handles.append(plt.Line2D([0], [0], color='black', linestyle=linestyle, 
-                                          linewidth=2, label=f"{agent_name} (style)"))
+                                          linewidth=3.0, label=f"{agent_name} (style)"))
         
         # Customize subplot with DeepAgent style
         ax.set_title(f"State Trajectories $x(t)$ and $g(t)$: {n_traj} individual paths per agent")
@@ -1636,9 +1638,9 @@ class Solver:
         
         # Create custom legend handles for X and D distinction
         x_handle = plt.Line2D([0], [0], color='gray', marker='o', markersize=6, 
-                             label='X (position)', linestyle='-', linewidth=2)
+                             label='X (position)', linestyle='-', linewidth=3.0)
         d_handle = plt.Line2D([0], [0], color='gray', marker='s', markersize=4, 
-                             label='G (generation)', linestyle='-', linewidth=1.5, alpha=0.7)
+                             label='G (generation)', linestyle='-', linewidth=2.5, alpha=0.7)
         
         # Three legends: agents, X/D distinction, and individual trajectories
         leg1 = ax.legend(handles=agent_handles, title="Agents", loc='upper right', fontsize=9)
@@ -1714,12 +1716,12 @@ class Solver:
                 alpha = 0.8  # Make trajectories clearly visible
                 line_label = f"{agent_name} (traj {i+1})"
                 ax.plot(control_times, q_i, color=color, alpha=alpha, 
-                       linestyle=linestyle, linewidth=1.5, label=line_label)
+                       linestyle=linestyle, linewidth=3.0, label=line_label)
                 trajectory_idx += 1
             
             # Store handle for agent legend (showing line style)
             agent_handles.append(plt.Line2D([0], [0], color='black', linestyle=linestyle, 
-                                          linewidth=2, label=f"{agent_name} (style)"))
+                                          linewidth=3.0, label=f"{agent_name} (style)"))
         
         # Customize subplot with DeepAgent style
         ax.set_title(f"Control $q(t)$: {n_traj} individual paths per agent")
