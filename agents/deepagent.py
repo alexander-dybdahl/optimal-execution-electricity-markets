@@ -918,6 +918,9 @@ class DeepAgent(nn.Module):
             ) = [], [], [], [], [], [], [], [], [], []
             lr_decay_epochs = []
 
+        # === CSV logging state tracking ===
+        csv_initialized_properly = False
+
         # === Define active loss components ===
         loss_components = [
             ("Y0 loss", self.loss_weights["lambda_Y0"], lambda: np.mean(losses_Y0[-K:])),
@@ -1116,23 +1119,90 @@ class DeepAgent(nn.Module):
                 # === CSV logging (every csv_log_n epochs) ===
                 if epoch % self.csv_log_n == 0 or epoch == 1:
                     csv_path = os.path.join(save_dir, 'losses.csv')
-                    # Check if CSV file exists and is not empty to determine if header is needed
-                    write_header = not os.path.exists(csv_path) or os.path.getsize(csv_path) == 0
                     
-                    with open(csv_path, mode='a', newline='') as csvfile:
-                        loss_writer = csv.writer(csvfile)
-                        if write_header:  # Write header if file doesn't exist or is empty
-                            if self.dynamics.analytical_known:
-                                header = ["Epoch", "Y_val_loss", "q_val_loss", "Total_loss"] + [name.replace(" ", "_") for name, _ in active_losses]
-                            else:
-                                header = ["Epoch", "Total_loss"] + [name.replace(" ", "_") for name, _ in active_losses]
-                            loss_writer.writerow(header)
+                    # Only check CSV file state if we haven't already confirmed it's properly initialized
+                    if not csv_initialized_properly:
+                        # Check if CSV file exists and contains epoch 1
+                        csv_exists = os.path.exists(csv_path) and os.path.getsize(csv_path) > 0
+                        has_epoch_1 = False
                         
-                        if self.dynamics.analytical_known:
-                            row = [epoch, val_Y_loss.item(), val_q_loss.item(), loss.item()] + [fn() for _, fn in active_losses]
+                        if csv_exists:
+                            try:
+                                with open(csv_path, mode='r', newline='') as csvfile:
+                                    csv_reader = csv.reader(csvfile)
+                                    next(csv_reader, None)  # Skip header
+                                    first_row = next(csv_reader, None)
+                                    if first_row and len(first_row) > 0:
+                                        has_epoch_1 = int(first_row[0]) == 1
+                            except (StopIteration, ValueError, IndexError):
+                                has_epoch_1 = False
+                        
+                        # Determine what to write
+                        write_all_history = not csv_exists or not has_epoch_1
+                        
+                        if write_all_history:
+                            # Write complete history from epoch 1 to current epoch
+                            with open(csv_path, mode='w', newline='') as csvfile:
+                                loss_writer = csv.writer(csvfile)
+                                
+                                # Write header
+                                if self.dynamics.analytical_known:
+                                    header = ["Epoch", "Y_val_loss", "q_val_loss", "Total_loss"] + [name.replace(" ", "_") for name, _ in active_losses]
+                                else:
+                                    header = ["Epoch", "Total_loss"] + [name.replace(" ", "_") for name, _ in active_losses]
+                                loss_writer.writerow(header)
+                                
+                                # Write all historical data
+                                for i in range(len(losses)):
+                                    epoch_num = i + 1
+                                    if self.dynamics.analytical_known:
+                                        val_Y = self.validation["Y_loss"][i] if i < len(self.validation["Y_loss"]) else 0.0
+                                        val_q = self.validation["q_loss"][i] if i < len(self.validation["q_loss"]) else 0.0
+                                        row = [epoch_num, val_Y, val_q, losses[i]]
+                                    else:
+                                        row = [epoch_num, losses[i]]
+                                    
+                                    # Add active loss components
+                                    for name, _ in active_losses:
+                                        if name == "Y0 loss" and i < len(losses_Y0):
+                                            row.append(losses_Y0[i])
+                                        elif name == "Y loss" and i < len(losses_Y):
+                                            row.append(losses_Y[i])
+                                        elif name == "dY loss" and i < len(losses_dY):
+                                            row.append(losses_dY[i])
+                                        elif name == "dYt loss" and i < len(losses_dYt):
+                                            row.append(losses_dYt[i])
+                                        elif name == "T. loss" and i < len(losses_terminal):
+                                            row.append(losses_terminal[i])
+                                        elif name == "T.G. loss" and i < len(losses_terminal_gradient):
+                                            row.append(losses_terminal_gradient[i])
+                                        elif name == "pinn loss" and i < len(losses_pinn):
+                                            row.append(losses_pinn[i])
+                                        elif name == "reg loss" and i < len(losses_reg):
+                                            row.append(losses_reg[i])
+                                        elif name == "cost loss" and i < len(losses_cost):
+                                            row.append(losses_cost[i])
+                                        else:
+                                            row.append(0.0)  # Fallback for missing data
+                                    
+                                    loss_writer.writerow(row)
+                            
+                            # Mark CSV as properly initialized
+                            csv_initialized_properly = True
                         else:
-                            row = [epoch, loss.item()] + [fn() for _, fn in active_losses]
-                        loss_writer.writerow(row)
+                            # CSV exists and has epoch 1, mark as initialized
+                            csv_initialized_properly = True
+                    
+                    # If CSV is properly initialized, just append current epoch
+                    if csv_initialized_properly:
+                        with open(csv_path, mode='a', newline='') as csvfile:
+                            loss_writer = csv.writer(csvfile)
+                            
+                            if self.dynamics.analytical_known:
+                                row = [epoch, val_Y_loss.item(), val_q_loss.item(), loss.item()] + [fn() for _, fn in active_losses]
+                            else:
+                                row = [epoch, loss.item()] + [fn() for _, fn in active_losses]
+                            loss_writer.writerow(row)
 
                 if epoch % K == 0 or epoch == 1:
                     status = ""
