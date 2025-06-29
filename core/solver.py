@@ -69,14 +69,29 @@ class Solver:
         var_ylabels = {'q': '$q(t)$', 'y': '$y(t)$', 'Y': '$Y(t)$'}
         line_styles = {'learned': '-'}
         
-        agent_handles = []
+        # Create agent handles, but filter for Y plot based on data availability
+        all_agent_handles = []
         for agent_name, color in self.colors.items():
-            agent_handles.append(plt.Line2D([0], [0], color=color, linestyle='-', label=agent_name))
+            all_agent_handles.append(plt.Line2D([0], [0], color=color, linestyle='-', label=agent_name))
             
         style_handles = [Patch(facecolor='gray', alpha=0.2, label='Agent ±1 std')]
 
         for idx, var in enumerate(['q', 'y', 'Y']):
             ax = axs[idx]
+            
+            # For Y plot, create agent handles only for agents that have Y data
+            if var == 'Y':
+                agent_handles = []
+                for agent_name, color in self.colors.items():
+                    data = self.results[agent_name]
+                    results = data['results']
+                    key_learned = f'{var}_learned'
+                    arr_learned = results.get(key_learned, None)
+                    if arr_learned is not None:
+                        agent_handles.append(plt.Line2D([0], [0], color=color, linestyle='-', label=agent_name))
+            else:
+                agent_handles = all_agent_handles
+            
             for agent_name, data in self.results.items():
                 timesteps = data['timesteps']
                 results = data['results']
@@ -112,13 +127,22 @@ class Solver:
                             linewidth=0
                         )
                     else:  # arr_mean.ndim > 1
+                        # Define line styles and labels for different state components
+                        if var == 'y':
+                            state_styles = ['-', ':', (0, (3, 1, 1, 1))]  # Solid, Dotted, Dash-dot-dot
+                            state_labels = ['Position (X)', 'Price (P)', 'Demand (D)']
+                        else:
+                            state_styles = ['-'] * arr_mean.shape[-1]
+                            state_labels = [f'Dim {i}' for i in range(arr_mean.shape[-1])]
+                        
                         for i in range(arr_mean.shape[-1]):
-                            # Plot each dimension separately
+                            # Plot each dimension separately with appropriate style
+                            linestyle = state_styles[i] if i < len(state_styles) else '-'
                             ax.plot(
                                 timesteps[:arr_mean.shape[0]],
                                 arr_mean[:, i],
                                 color=color,
-                                linestyle=line_styles['learned'],
+                                linestyle=linestyle,
                                 alpha=1.0
                             )
                             ax.fill_between(
@@ -133,9 +157,13 @@ class Solver:
             ax.set_xlabel("Time")
             ax.set_ylabel(var_ylabels[var])
             ax.grid(True, linestyle='--', alpha=0.5)
-            leg1 = ax.legend(handles=agent_handles, loc='upper right', frameon=True)
-            ax.add_artist(leg1)
-            ax.legend(handles=style_handles, loc='lower right', frameon=True)
+            if agent_handles:  # Only add legend if there are agents with data
+                leg1 = ax.legend(handles=agent_handles, loc='upper left', frameon=True)
+                ax.add_artist(leg1)
+            
+            # Add state component legend for y(t) plot
+            if var == 'y':
+                ax.legend(handles=style_handles, loc='lower left', frameon=True)
         plt.tight_layout()
         if save_dir:
             plt.savefig(f"{save_dir}/imgs/trajectories_expectation.png", dpi=300, bbox_inches='tight')
@@ -169,12 +197,27 @@ class Solver:
         var_ylabels = {'q': '$q(t)$', 'y': '$y(t)$', 'Y': '$Y(t)$'}
         line_styles = {'learned': '-'}
         
-        agent_handles = []
+        # Create agent handles, but filter for Y plot based on data availability
+        all_agent_handles = []
         for agent_name, color in self.colors.items():
-            agent_handles.append(plt.Line2D([0], [0], color=color, linestyle='-', label=agent_name))
+            all_agent_handles.append(plt.Line2D([0], [0], color=color, linestyle='-', label=agent_name))
 
         for idx, var in enumerate(['q', 'y', 'Y']):
             ax = axs[idx]
+            
+            # For Y plot, create agent handles only for agents that have Y data
+            if var == 'Y':
+                agent_handles = []
+                for agent_name, color in self.colors.items():
+                    data = self.results[agent_name]
+                    results = data['results']
+                    key_learned = f'{var}_learned'
+                    arr_learned = results.get(key_learned, None)
+                    if arr_learned is not None:
+                        agent_handles.append(plt.Line2D([0], [0], color=color, linestyle='-', label=agent_name))
+            else:
+                agent_handles = all_agent_handles
+            
             for agent_name, data in self.results.items():
                 timesteps = data['timesteps']
                 results = data['results']
@@ -204,13 +247,20 @@ class Solver:
                                 linewidth=1
                             )
                         else:  # traj_data.ndim > 1
+                            # Define line styles for different state components
+                            if var == 'y':
+                                state_styles = ['-', ':', (0, (3, 1, 1, 1))]  # Solid, Dotted, Dash-dot-dot
+                            else:
+                                state_styles = ['-'] * traj_data.shape[-1]
+                            
                             for i in range(traj_data.shape[-1]):
-                                # Plot each dimension separately
+                                # Plot each dimension separately with appropriate style
+                                linestyle = state_styles[i] if i < len(state_styles) else '-'
                                 ax.plot(
                                     timesteps[:traj_data.shape[0]],
                                     traj_data[:, i],
                                     color=color,
-                                    linestyle=line_styles['learned'],
+                                    linestyle=linestyle,
                                     alpha=0.6,
                                     linewidth=1
                                 )
@@ -218,7 +268,20 @@ class Solver:
             ax.set_xlabel("Time")
             ax.set_ylabel(var_ylabels[var])
             ax.grid(True, linestyle='--', alpha=0.5)
-            ax.legend(handles=agent_handles, loc='upper right', frameon=True)
+            if agent_handles:  # Only add legend if there are agents with data
+                ax.legend(handles=agent_handles, loc='upper left', frameon=True)
+            
+            # Add state component legend for y(t) plot
+            if var == 'y':
+                # Create combined legend showing both agent colors and state line styles
+                state_legend_handles = [
+                    plt.Line2D([0], [0], color='black', linestyle='-', label='Position (X)'),
+                    plt.Line2D([0], [0], color='black', linestyle=':', label='Price (P)'),
+                    plt.Line2D([0], [0], color='black', linestyle=(0, (3, 1, 1, 1)), label='Demand (D)')
+                ]
+                # Position the state legend at bottom left
+                leg2 = ax.legend(handles=state_legend_handles, loc='upper left', frameon=True)
+                ax.add_artist(leg2)
 
         plt.tight_layout()
         if save_dir:

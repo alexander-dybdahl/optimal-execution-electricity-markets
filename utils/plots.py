@@ -23,9 +23,9 @@ def plot_approx_vs_analytic(results, timesteps, validation=None, plot=True, save
     colors = cm.get_cmap("tab10", approx_q.shape[1])
 
     for i in range(approx_q.shape[1]):
-        axs[0, 0].plot(timesteps[:-1], approx_q[:, i], color=colors(i), alpha=0.6, label=f"Learned $q_{i}(t)$" if i == 0 else None)
+        axs[0, 0].plot(timesteps[:-1], approx_q[:, i], color=colors(i), alpha=0.6, label=f"Learned $q(t)$" if i == 0 else None)
         if true_q is not None:
-            axs[0, 0].plot(timesteps[:-1], true_q[:, i], linestyle="--", color=colors(i), alpha=0.4, label=f"Analytical $q^*_{i}(t)$" if i == 0 else None)
+            axs[0, 0].plot(timesteps[:-1], true_q[:, i], linestyle="--", marker="|", color=colors(i), alpha=0.4, label=f"Analytical $\\bar{{q}}(t)$" if i == 0 else None)
     axs[0, 0].set_title("Control $q(t)$: Learned vs Analytical")
     axs[0, 0].set_xlabel("Time $t$")
     axs[0, 0].set_ylabel("$q(t)$")
@@ -35,18 +35,18 @@ def plot_approx_vs_analytic(results, timesteps, validation=None, plot=True, save
     if validation is not None and true_q is not None:
         for i in range(approx_q.shape[1]):
             diff = (approx_q[:, i] - true_q[:, i]) ** 2
-            axs[0, 1].plot(timesteps[:-1], diff, color=colors(i), alpha=0.6, label=f"$|q_{i}(t) - q^*_{i}(t)|^2 ({val_q_loss[-1]:.2f})$" if i == 0 else None)
+            axs[0, 1].plot(timesteps[:-1], diff, color=colors(i), alpha=0.6, label=f"$|q(t) - \\bar{{q}}(t)|^2 ({val_q_loss[-1]:.2f})$" if i == 0 else None)
         axs[0, 1].axhline(0, color='red', linestyle='--', linewidth=0.8)
         axs[0, 1].set_title("Error in Control $q(t)$")
         axs[0, 1].set_xlabel("Time $t$")
-        axs[0, 1].set_ylabel("$|q(t) - q^*(t)|^2$")
+        axs[0, 1].set_ylabel("$|q(t) - \\bar{{q}}(t)|^2$")
         axs[0, 1].grid(True)
         axs[0, 1].legend(loc='upper left')
 
     for i in range(Y_vals.shape[1]):
-        axs[1, 0].plot(timesteps, Y_vals[:, i, 0], color=colors(i), alpha=0.6, label=f"Learned $Y_{i}(t)$ ($Y_{i}(0) = {Y_vals[0, 0, 0]:.2f}$)" if i == 0 else None)
+        axs[1, 0].plot(timesteps, Y_vals[:, i, 0], color=colors(i), alpha=0.6, label=f"Learned $Y(t)$" if i == 0 else None)
         if true_Y is not None:
-            axs[1, 0].plot(timesteps, true_Y[:, i, 0], linestyle="--", color=colors(i), alpha=0.4, label=f"Analytical $Y^*_{i}(t)$ ($Y_{i}(0) = {true_Y[0, 0, 0]:.2f}$)" if i == 0 else None)
+            axs[1, 0].plot(timesteps, true_Y[:, i, 0], linestyle="--", marker="|", color=colors(i), alpha=0.4, label=f"Analytical $\\bar{{Y}}(t)$" if i == 0 else None)
     axs[1, 0].set_title("Cost-to-Go $Y(t)$")
     axs[1, 0].set_xlabel("Time $t$")
     axs[1, 0].set_ylabel("Y(t)")
@@ -56,20 +56,20 @@ def plot_approx_vs_analytic(results, timesteps, validation=None, plot=True, save
     if validation is not None and true_Y is not None:
         for i in range(Y_vals.shape[1]):
             diff_Y = (Y_vals[:, i, 0] - true_Y[:, i, 0]) ** 2
-            axs[1, 1].plot(timesteps, diff_Y, color=colors(i), alpha=0.6, label=f"$|Y_{i}(t) - Y^*_{i}(t)|^2$ ({val_Y_loss[-1]:.2f})" if i == 0 else None)
+            axs[1, 1].plot(timesteps, diff_Y, color=colors(i), alpha=0.6, label=f"$|Y(t) - \\bar{{Y}}(t)|^2$ ({val_Y_loss[-1]:.2f})" if i == 0 else None)
         axs[1, 1].axhline(0, color='red', linestyle='--', linewidth=0.8)
         axs[1, 1].set_title("Error in Cost-to-Go $Y(t)$")
         axs[1, 1].set_xlabel("Time $t$")
-        axs[1, 1].set_ylabel("$|Y(t) - Y^*(t)|^2$")
+        axs[1, 1].set_ylabel("$|Y(t) - \\bar{{Y}}(t)|^2$")
         axs[1, 1].grid(True)
         axs[1, 1].legend(loc='upper left')
 
     for i in range(y_vals.shape[1]):
-        axs[2, 0].plot(timesteps, y_vals[:, i, 0], color=colors(i), alpha=0.6, label=f"$x_{i}(t)$" if i == 0 else None)
+        axs[2, 0].plot(timesteps, y_vals[:, i, 0], color=colors(i), alpha=0.6, label=f"$x(t)$" if i == 0 else None)
         if true_y is not None:
-            axs[2, 0].plot(timesteps, true_y[:, i, 0], linestyle="--", color=colors(i), alpha=0.4, label=f"$x^*_{i}(t)$" if i == 0 else None)
+            axs[2, 0].plot(timesteps, true_y[:, i, 0], linestyle="--", marker="|", color=colors(i), alpha=0.4, label=f"$\\bar{{x}}(t)$" if i == 0 else None)
         if y_vals.shape[2] > 1:
-            axs[2, 0].plot(timesteps, y_vals[:, i, 2], linestyle="-.", color=colors(i), alpha=0.6, label=f"$d_{i}(t)$" if i == 0 else None)
+            axs[2, 0].plot(timesteps, y_vals[:, i, 2], linestyle="-.", color=colors(i), alpha=0.6, label=f"$d(t)$" if i == 0 else None)
     axs[2, 0].set_title("States: $x(t)$ and $d(t)$")
     axs[2, 0].set_xlabel("Time $t$")
     axs[2, 0].set_ylabel("x(t), d(t)")
@@ -78,9 +78,9 @@ def plot_approx_vs_analytic(results, timesteps, validation=None, plot=True, save
 
     if y_vals.shape[2] > 1:
         for i in range(y_vals.shape[1]):
-            axs[2, 1].plot(timesteps, y_vals[:, i, 1], color=colors(i), alpha=0.6, label=f"$p_{i}(t)$" if i == 0 else None)
+            axs[2, 1].plot(timesteps, y_vals[:, i, 1], color=colors(i), alpha=0.6, label=f"$p(t)$" if i == 0 else None)
             if true_y is not None:
-                axs[2, 1].plot(timesteps, true_y[:, i, 1], linestyle="--", color=colors(i), alpha=0.4, label=f"$p^*_{i}(t)$" if i == 0 else None)
+                axs[2, 1].plot(timesteps, true_y[:, i, 1], linestyle="--", marker="|", color=colors(i), alpha=0.4, label=f"$\\bar{{p}}(t)$" if i == 0 else None)
         axs[2, 1].set_title("State: $p(t)$")
         axs[2, 1].set_xlabel("Time $t$")
         axs[2, 1].set_ylabel("p(t)")
@@ -135,7 +135,7 @@ def plot_approx_vs_analytic_expectation(results, timesteps, plot=True, save_dir=
     axs[0, 1].plot(timesteps[:-1], mean_diff, color='red', label='Mean Difference')
     axs[0, 1].set_title("Error in Control $q(t)$")
     axs[0, 1].set_xlabel("Time $t$")
-    axs[0, 1].set_ylabel("$|q(t) - q^*(t)|^2$")
+    axs[0, 1].set_ylabel("$|q(t) - \\bar{{q}}(t)|^2$")
     axs[0, 1].grid(True)
     axs[0, 1].legend(loc='upper left')
 
@@ -156,7 +156,7 @@ def plot_approx_vs_analytic_expectation(results, timesteps, plot=True, save_dir=
     axs[1, 1].plot(timesteps, mean_diff_Y, color='red', label='Mean Difference')
     axs[1, 1].set_title("Error in Cost-to-Go $Y(t)$")
     axs[1, 1].set_xlabel("Time $t$")
-    axs[1, 1].set_ylabel("$|Y(t) - Y^*(t)|^2$")
+    axs[1, 1].set_ylabel("$|Y(t) - \\bar{{Y}}(t)|^2$")
     axs[1, 1].grid(True)
     axs[1, 1].legend(loc='upper left')
 
@@ -232,10 +232,10 @@ def plot_terminal_histogram(results, dynamics, plot=True, save_dir=None, num=Non
     plt.hist(q_T_approx, bins=bins, alpha=0.6, label="Approx. $q_T$", color="blue", density=True)
     plt.axvline(np.mean(q_T_approx), color='blue', linestyle='--', label=f"Mean approx: {np.mean(q_T_approx):.3f}")
     if dynamics.analytical_known:
-        plt.hist(q_T_true, bins=bins, alpha=0.6, label="Analytical $q^*(y_T)$", color="green", density=True)
+        plt.hist(q_T_true, bins=bins, alpha=0.6, label="Analytical $\\bar{{q}}(y_T)$", color="green", density=True)
         plt.axvline(np.mean(q_T_true), color='green', linestyle='--', label=f"Mean true: {np.mean(q_T_true):.3f}")
     plt.title("Distribution of Terminal Controls")
-    plt.xlabel("$q(T)$ / $q^*(y_T)$")
+    plt.xlabel("$q(T)$ / $\\bar{{q}}(y_T)$")
     plt.ylabel("Density")
     plt.legend()
     plt.grid(True)
