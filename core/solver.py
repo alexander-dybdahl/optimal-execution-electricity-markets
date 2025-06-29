@@ -359,10 +359,10 @@ class Solver:
             return
         
         # Create a comprehensive figure with multiple subplots
-        fig = plt.figure(figsize=(20, 16))
+        fig = plt.figure(figsize=(20, 20))
         
-        # Define subplot layout: 3 rows, 2 columns
-        gs = fig.add_gridspec(4, 2, height_ratios=[1, 1, 1, 1], hspace=0.3, wspace=0.25)
+        # Define subplot layout: 5 rows, 2 columns  
+        gs = fig.add_gridspec(5, 2, height_ratios=[1, 1, 1, 1, 1], hspace=0.3, wspace=0.25)
         
         # Subplot 1: Trade Size vs Execution Price (scatter plot)
         ax1 = fig.add_subplot(gs[0, 0])
@@ -376,8 +376,12 @@ class Solver:
         ax5 = fig.add_subplot(gs[2, 0])
         # Subplot 6: Trade Value (Trade Size × Price) vs Time
         ax6 = fig.add_subplot(gs[2, 1])
-        # Subplot 7: Cumulative Trade Value vs Time
-        ax7 = fig.add_subplot(gs[3, :])  # Spans both columns
+        # Subplot 7: Terminal Cost vs Time
+        ax7 = fig.add_subplot(gs[3, 0])
+        # Subplot 8: Cumulative Trading Cost vs Time
+        ax8 = fig.add_subplot(gs[3, 1])
+        # Subplot 9: Total Cost Components vs Time (spans both columns)
+        ax9 = fig.add_subplot(gs[4, :])  # Spans both columns
         
         agent_handles = []
         
@@ -401,6 +405,11 @@ class Solver:
             P_traj = y_traj[:, :, 1]  # Price
             if y_traj.shape[-1] > 2:
                 D_traj = y_traj[:, :, 2]  # Demand
+                # Calculate position-demand gap (this is what the terminal cost penalizes)
+                gap_traj = D_traj - X_traj  # Positive gap means undersupply, negative means oversupply
+            else:
+                D_traj = None
+                gap_traj = None
             
             # Calculate execution prices using the dynamics generator
             # The generator computes q * execution_price, so we divide by q to get execution_price
@@ -430,6 +439,33 @@ class Solver:
             exec_price_mean = execution_prices.mean(axis=1).squeeze()
             exec_price_std = execution_prices.std(axis=1).squeeze()
             
+            # Calculate gap statistics if demand is available
+            if gap_traj is not None:
+                gap_mean = gap_traj.mean(axis=1)
+                gap_std = gap_traj.std(axis=1)
+            else:
+                gap_mean = None
+                gap_std = None
+            
+            # Calculate terminal cost at each time step
+            terminal_costs = np.zeros((y_traj.shape[0], y_traj.shape[1]))
+            for t in range(y_traj.shape[0]):
+                y_t = torch.from_numpy(y_traj[t, :, :]).to(self.device)
+                if hasattr(self.dynamics, 'terminal_cost'):
+                    terminal_cost_t = self.dynamics.terminal_cost(y_t)
+                    terminal_costs[t, :] = terminal_cost_t.detach().cpu().numpy().squeeze()
+                else:
+                    # Fallback: assume terminal cost is 0.5 * eta * (D - X)^2
+                    X_t = y_t[:, 0:1]  # Position
+                    if y_t.shape[-1] > 2:
+                        D_t = y_t[:, 2:3]  # Demand
+                        eta = getattr(self.dynamics, 'eta', 1.0)  # Default eta = 1.0
+                        terminal_cost_t = 0.5 * eta * (D_t - X_t)**2
+                        terminal_costs[t, :] = terminal_cost_t.detach().cpu().numpy().squeeze()
+            
+            terminal_cost_mean = terminal_costs.mean(axis=1)
+            terminal_cost_std = terminal_costs.std(axis=1)
+            
             # Trade times (excluding t=0 since no trades happen then)
             trade_times = timesteps[:-1]
             
@@ -437,10 +473,20 @@ class Solver:
             ax1.scatter(exec_price_mean[q_mean != 0], q_mean[q_mean != 0], 
                        color=color, alpha=0.7, s=50, label=agent_name)
             
-            # 2. Cumulative Position vs Time
-            ax2.plot(timesteps, X_mean, color=color, linewidth=2, label=agent_name)
+            # 2. Cumulative Position vs Time (with Demand overlay)
+            ax2.plot(timesteps, X_mean, color=color, linewidth=2, 
+                    linestyle='-', label=f'{agent_name} (Position)')
             ax2.fill_between(timesteps, X_mean - X_std, X_mean + X_std, 
                            color=color, alpha=0.2)
+            
+            # Also plot demand if available
+            if D_traj is not None:
+                D_mean = D_traj.mean(axis=1)
+                D_std = D_traj.std(axis=1)
+                ax2.plot(timesteps, D_mean, color=color, linewidth=2, 
+                        linestyle='--', label=f'{agent_name} (Demand)')
+                ax2.fill_between(timesteps, D_mean - D_std, D_mean + D_std, 
+                               color=color, alpha=0.1)
             
             # 3. Price Evolution vs Time
             ax3.plot(timesteps, P_mean, color=color, linewidth=2, label=agent_name)
@@ -459,15 +505,31 @@ class Solver:
             ax5.fill_between(trade_times, exec_price_mean - exec_price_std, 
                            exec_price_mean + exec_price_std, color=color, alpha=0.2)
             
-            # 6. Trade Value vs Time
+            # 6. Trade Value vs Time (instantaneous running cost)
             trade_values = q_mean * exec_price_mean
             ax6.plot(trade_times, trade_values, color=color, linewidth=2, 
                     marker='^', markersize=3, label=agent_name)
             
-            # 7. Cumulative Trade Value vs Time
-            cumulative_trade_value = np.cumsum(np.concatenate([[0], trade_values]))
-            ax7.plot(timesteps, cumulative_trade_value, color=color, linewidth=3, 
+            # 7. Terminal Cost vs Time
+            ax7.plot(timesteps, terminal_cost_mean, color=color, linewidth=2, 
+                    marker='d', markersize=3, label=agent_name)
+            ax7.fill_between(timesteps, terminal_cost_mean - terminal_cost_std, 
+                           terminal_cost_mean + terminal_cost_std, color=color, alpha=0.2)
+            
+            # 8. Cumulative Trading Cost vs Time (properly scaled with dt)
+            dt = self.dynamics.dt
+            cumulative_trade_value = np.cumsum(np.concatenate([[0], trade_values * dt]))
+            ax8.plot(timesteps, cumulative_trade_value, color=color, linewidth=3, 
                     label=agent_name)
+            
+            # 9. Total Cost Components vs Time (running cost + terminal cost)
+            total_cost_at_time = cumulative_trade_value + terminal_cost_mean
+            ax9.plot(timesteps, cumulative_trade_value, color=color, linewidth=2, 
+                    linestyle='-', label=f'{agent_name} (Running Cost)')
+            ax9.plot(timesteps, terminal_cost_mean, color=color, linewidth=2, 
+                    linestyle='--', label=f'{agent_name} (Terminal Cost)')
+            ax9.plot(timesteps, total_cost_at_time, color=color, linewidth=3, 
+                    linestyle=':', label=f'{agent_name} (Total Cost)')
             
             # Store handle for legend
             if agent_name not in [h.get_label() for h in agent_handles]:
@@ -480,9 +542,9 @@ class Solver:
         ax1.grid(True, alpha=0.3)
         ax1.legend()
         
-        ax2.set_title('Cumulative Position vs Time', fontsize=12, fontweight='bold')
+        ax2.set_title('Position vs Demand vs Time', fontsize=12, fontweight='bold')
         ax2.set_xlabel('Time')
-        ax2.set_ylabel('Cumulative Position')
+        ax2.set_ylabel('Quantity')
         ax2.grid(True, alpha=0.3)
         ax2.legend()
         
@@ -505,18 +567,30 @@ class Solver:
         ax5.grid(True, alpha=0.3)
         ax5.legend()
         
-        ax6.set_title('Trade Values vs Time', fontsize=12, fontweight='bold')
+        ax6.set_title('Instantaneous Trading Cost Rate vs Time', fontsize=12, fontweight='bold')
         ax6.set_xlabel('Time')
-        ax6.set_ylabel('Trade Value (Size × Price)')
+        ax6.set_ylabel('q(t) × execution_price(t)')
         ax6.grid(True, alpha=0.3)
         ax6.axhline(y=0, color='black', linestyle='--', alpha=0.5)
         ax6.legend()
         
-        ax7.set_title('Cumulative Trade Value vs Time', fontsize=12, fontweight='bold')
+        ax7.set_title('Terminal Cost vs Time', fontsize=12, fontweight='bold')
         ax7.set_xlabel('Time')
-        ax7.set_ylabel('Cumulative Trade Value')
+        ax7.set_ylabel('Terminal Cost: 0.5η(D-X)²')
         ax7.grid(True, alpha=0.3)
         ax7.legend()
+        
+        ax8.set_title('Cumulative Running Cost vs Time', fontsize=12, fontweight='bold')
+        ax8.set_xlabel('Time')
+        ax8.set_ylabel('∫ q(s) × execution_price(s) ds')
+        ax8.grid(True, alpha=0.3)
+        ax8.legend()
+        
+        ax9.set_title('Total Cost Components Breakdown vs Time', fontsize=12, fontweight='bold')
+        ax9.set_xlabel('Time')
+        ax9.set_ylabel('Cost')
+        ax9.grid(True, alpha=0.3)
+        ax9.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
         
         plt.suptitle('Detailed Trading Trajectories Comparison', fontsize=16, fontweight='bold', y=0.98)
         
@@ -1006,3 +1080,154 @@ class Solver:
         else:
             plt.close()
     
+    def plot_terminal_cost_analysis(self, plot=True, save_dir=None):
+        """
+        Create a detailed analysis of terminal costs showing:
+        1. Final terminal cost distribution across simulations
+        2. Position-demand gap evolution over time
+        3. Terminal cost evolution over time
+        """
+        if not self.results:
+            print("No results to plot.")
+            return
+            
+        fig, axes = plt.subplots(2, 2, figsize=(16, 12))
+        axes = axes.flatten()
+        
+        # Subplot 1: Final terminal cost distribution (histogram)
+        ax1 = axes[0]
+        # Subplot 2: Position-demand gap evolution
+        ax2 = axes[1] 
+        # Subplot 3: Terminal cost evolution over time
+        ax3 = axes[2]
+        # Subplot 4: Summary statistics table
+        ax4 = axes[3]
+        ax4.axis('off')  # Turn off axis for table
+        
+        # Collect summary data for table
+        summary_data = []
+        summary_headers = ['Agent', 'Final Terminal Cost\n(Mean ± Std)', 'Final Gap\n(Mean ± Std)', 'Max Terminal Cost']
+        
+        for agent_name, data in self.results.items():
+            timesteps = data['timesteps']
+            results = data['results']
+            color = self.colors[agent_name]
+            
+            y_traj = results.get('y_learned', None)
+            if y_traj is None:
+                continue
+                
+            y_traj = np.asarray(y_traj)
+            
+            # Extract final states for terminal cost calculation
+            final_states = y_traj[-1, :, :]  # Last timestep, all simulations
+            
+            # Calculate final terminal costs
+            final_terminal_costs = []
+            for sim in range(final_states.shape[0]):
+                y_final = torch.from_numpy(final_states[sim:sim+1, :]).to(self.device)
+                if hasattr(self.dynamics, 'terminal_cost'):
+                    tc = self.dynamics.terminal_cost(y_final)
+                    final_terminal_costs.append(tc.detach().cpu().numpy().item())
+                else:
+                    # Fallback calculation
+                    X_final = y_final[:, 0:1]
+                    if y_final.shape[-1] > 2:
+                        D_final = y_final[:, 2:3]
+                        eta = getattr(self.dynamics, 'eta', 1.0)
+                        tc = 0.5 * eta * (D_final - X_final)**2
+                        final_terminal_costs.append(tc.detach().cpu().numpy().item())
+            
+            final_terminal_costs = np.array(final_terminal_costs)
+            
+            # Calculate position-demand gap if demand exists
+            if y_traj.shape[-1] > 2:
+                X_traj = y_traj[:, :, 0]
+                D_traj = y_traj[:, :, 2]
+                gap_traj = D_traj - X_traj
+                gap_mean = gap_traj.mean(axis=1)
+                gap_std = gap_traj.std(axis=1)
+                final_gap_mean = gap_traj[-1, :].mean()
+                final_gap_std = gap_traj[-1, :].std()
+                
+                # Plot position-demand gap evolution
+                ax2.plot(timesteps, gap_mean, color=color, linewidth=2, label=agent_name)
+                ax2.fill_between(timesteps, gap_mean - gap_std, gap_mean + gap_std, 
+                               color=color, alpha=0.2)
+            else:
+                final_gap_mean = 0.0
+                final_gap_std = 0.0
+            
+            # Calculate terminal cost evolution
+            terminal_costs_time = np.zeros((y_traj.shape[0], y_traj.shape[1]))
+            for t in range(y_traj.shape[0]):
+                for sim in range(y_traj.shape[1]):
+                    y_t = torch.from_numpy(y_traj[t:t+1, sim:sim+1, :]).to(self.device)
+                    if hasattr(self.dynamics, 'terminal_cost'):
+                        tc = self.dynamics.terminal_cost(y_t.squeeze(1))
+                        terminal_costs_time[t, sim] = tc.detach().cpu().numpy().item()
+                    else:
+                        X_t = y_t[:, :, 0:1]
+                        if y_t.shape[-1] > 2:
+                            D_t = y_t[:, :, 2:3]
+                            eta = getattr(self.dynamics, 'eta', 1.0)
+                            tc = 0.5 * eta * (D_t - X_t)**2
+                            terminal_costs_time[t, sim] = tc.detach().cpu().numpy().item()
+            
+            tc_time_mean = terminal_costs_time.mean(axis=1)
+            tc_time_std = terminal_costs_time.std(axis=1)
+            
+            # Plot 1: Final terminal cost histogram
+            ax1.hist(final_terminal_costs, bins=20, alpha=0.7, color=color, 
+                    label=f'{agent_name} (μ={np.mean(final_terminal_costs):.4f})')
+            
+            # Plot 3: Terminal cost evolution
+            ax3.plot(timesteps, tc_time_mean, color=color, linewidth=2, label=agent_name)
+            ax3.fill_between(timesteps, tc_time_mean - tc_time_std, tc_time_mean + tc_time_std,
+                           color=color, alpha=0.2)
+            
+            # Add to summary table
+            summary_data.append([
+                agent_name,
+                f'{np.mean(final_terminal_costs):.4f} ± {np.std(final_terminal_costs):.4f}',
+                f'{final_gap_mean:.4f} ± {final_gap_std:.4f}',
+                f'{np.max(final_terminal_costs):.4f}'
+            ])
+        
+        # Customize subplots
+        ax1.set_title('Final Terminal Cost Distribution', fontsize=12, fontweight='bold')
+        ax1.set_xlabel('Terminal Cost')
+        ax1.set_ylabel('Frequency')
+        ax1.legend()
+        ax1.grid(True, alpha=0.3)
+        
+        ax2.set_title('Position-Demand Gap Evolution', fontsize=12, fontweight='bold')
+        ax2.set_xlabel('Time')
+        ax2.set_ylabel('Gap: D(t) - X(t)')
+        ax2.axhline(y=0, color='black', linestyle='--', alpha=0.5, label='Perfect Execution')
+        ax2.legend()
+        ax2.grid(True, alpha=0.3)
+        
+        ax3.set_title('Terminal Cost Evolution Over Time', fontsize=12, fontweight='bold')
+        ax3.set_xlabel('Time')
+        ax3.set_ylabel('Terminal Cost: 0.5η(D-X)²')
+        ax3.legend()
+        ax3.grid(True, alpha=0.3)
+        
+        # Create summary table
+        if summary_data:
+            table = ax4.table(cellText=summary_data, colLabels=summary_headers,
+                             loc='center', cellLoc='center')
+            table.auto_set_font_size(False)
+            table.set_fontsize(10)
+            table.scale(1.2, 2.0)
+            ax4.set_title('Terminal Cost Summary Statistics', fontsize=12, fontweight='bold', pad=20)
+        
+        plt.tight_layout()
+        
+        if save_dir:
+            plt.savefig(f"{save_dir}/imgs/terminal_cost_analysis.png", dpi=300, bbox_inches='tight')
+        if plot:
+            plt.show()
+        else:
+            plt.close()

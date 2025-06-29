@@ -93,6 +93,7 @@ def main():
     if args.plot_trading_comparison:
         solver.plot_detailed_trading_trajectories(plot=args.plot, save_dir=save_dir)
         solver.plot_trading_heatmap(plot=args.plot, save_dir=save_dir)
+        solver.plot_terminal_cost_analysis(plot=args.plot, save_dir=save_dir)
     solver.plot_cost_histograms(plot=args.plot, save_dir=save_dir)
     if args.plot_risk_metrics:
         solver.plot_risk_metrics(plot=args.plot, save_dir=save_dir)

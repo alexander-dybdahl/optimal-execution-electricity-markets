@@ -5,6 +5,7 @@ import csv
 import matplotlib.pyplot as plt
 import numpy as np
 import math
+import random
 import torch
 import torch.distributed as dist
 import torch.nn as nn
@@ -313,6 +314,10 @@ class DeepAgent(nn.Module):
         if 'validation' in checkpoint and hasattr(self, 'validation'):
             self.validation = checkpoint['validation']
         
+        # Restore training seed if available
+        if 'training_seed' in checkpoint:
+            self.training_seed = checkpoint['training_seed']
+        
         # Store training history as temporary attribute
         if 'history' in checkpoint:
             self._training_history = checkpoint['history']
@@ -344,6 +349,10 @@ class DeepAgent(nn.Module):
             
         if hasattr(self, 'validation') and self.validation is not None:
             checkpoint['validation'] = self.validation
+            
+        # Save training seed if available
+        if hasattr(self, 'training_seed'):
+            checkpoint['training_seed'] = self.training_seed
             
         # Save history if provided
         if history is not None:
@@ -851,6 +860,49 @@ class DeepAgent(nn.Module):
             )[0]
         return self.dynamics.optimal_control(t, y, dY_dy)
 
+    def simulate_for_plotting(self, target_n_sim=None):
+        """
+        Simulate paths for plotting using the same batch size and training seed when available,
+        then select a subset based on target_n_sim.
+        
+        Args:
+            target_n_sim: Target number of simulations for the final result. 
+                         If None, uses self.n_simulations
+                         
+        Returns:
+            timesteps, results: Simulation results with target_n_sim simulations
+        """
+        if target_n_sim is None:
+            target_n_sim = self.n_simulations
+            
+        # Use training seed if available, otherwise default
+        sim_seed = getattr(self, 'training_seed', 42)
+        
+        # Simulate using batch_size (same as training) to get consistent results
+        sim_count = max(self.batch_size, target_n_sim)
+        
+        timesteps, results = simulate_paths(
+            dynamics=self.dynamics, 
+            agent=self, 
+            n_sim=sim_count, 
+            seed=sim_seed
+        )
+        
+        # If we simulated more than needed, select a subset
+        if sim_count > target_n_sim:
+            # Select the first target_n_sim simulations to maintain reproducibility
+            subset_results = {}
+            for key, value in results.items():
+                if value is not None and hasattr(value, 'shape') and len(value.shape) > 1:
+                    # For arrays with simulation dimension, take subset
+                    subset_results[key] = value[:, :target_n_sim, ...]
+                else:
+                    # For other data, keep as is
+                    subset_results[key] = value
+            results = subset_results
+            
+        return timesteps, results
+
     def train_model(
         self,
         epochs=1000,
@@ -882,6 +934,10 @@ class DeepAgent(nn.Module):
             optimizer_state: Optimizer state dict to resume from
             scheduler_state: Scheduler state dict to resume from
         """
+        # Store training parameters for later use in plotting
+        if seed is not None:
+            self.training_seed = seed
+        
         # Prepare save directory and logging
         save_path = os.path.join(save_dir, "model")
         logger = logger if logger is not None else Logger(save_dir, is_main=self.is_main, verbose=verbose, filename="training.log")
@@ -1287,7 +1343,7 @@ class DeepAgent(nn.Module):
 
                 # === Plot approximation vs analytical ===
                 if epoch % self.plot_n == 0:
-                    timesteps, results = simulate_paths(dynamics=self.dynamics, agent=self, n_sim=self.n_simulations, seed=42)
+                    timesteps, results = self.simulate_for_plotting(target_n_sim=self.n_simulations)
                     
                     # Create subdirectories for different plot types
                     approx_vs_analytic_dir = os.path.join(save_dir, "imgs", "approx_vs_analytic")
@@ -1313,7 +1369,7 @@ class DeepAgent(nn.Module):
                         save_dir=main_imgs_dir,
                         num=None  # This will save as the default filename without epoch number
                     )
-                    timesteps, results = simulate_paths(dynamics=self.dynamics, agent=self, n_sim=1000, seed=42)
+                    timesteps, results = self.simulate_for_plotting(target_n_sim=1000)
                     
                     # expectation_dir = os.path.join(save_dir, "imgs", "expectation")
                     # os.makedirs(expectation_dir, exist_ok=True)
