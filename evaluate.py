@@ -88,6 +88,8 @@ def main():
     
     # Generate plots
     solver.plot_traj(plot=args.plot, save_dir=save_dir)
+    solver.plot_detailed_trading_trajectories(plot=args.plot, save_dir=save_dir)
+    solver.plot_trading_heatmap(plot=args.plot, save_dir=save_dir)
     solver.plot_cost_histograms(plot=args.plot, save_dir=save_dir)
     solver.plot_risk_metrics(plot=args.plot, save_dir=save_dir)
     solver.plot_risk_comparison_radar(plot=args.plot, save_dir=save_dir)

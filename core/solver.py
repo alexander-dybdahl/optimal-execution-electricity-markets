@@ -342,6 +342,248 @@ class Solver:
             'sample_size1': len(costs1),
             'sample_size2': len(costs2)
         }
+    
+    def plot_detailed_trading_trajectories(self, plot=True, save_dir=None):
+        """
+        Plot detailed trading trajectories showing:
+        1. Individual trade sizes vs execution prices
+        2. Cumulative position vs time with price overlay
+        3. Trade-by-trade analysis for each agent
+        """
+        if not self.results:
+            print("No results to plot.")
+            return
+        
+        # Create a comprehensive figure with multiple subplots
+        fig = plt.figure(figsize=(20, 16))
+        
+        # Define subplot layout: 3 rows, 2 columns
+        gs = fig.add_gridspec(4, 2, height_ratios=[1, 1, 1, 1], hspace=0.3, wspace=0.25)
+        
+        # Subplot 1: Trade Size vs Execution Price (scatter plot)
+        ax1 = fig.add_subplot(gs[0, 0])
+        # Subplot 2: Cumulative Position vs Time
+        ax2 = fig.add_subplot(gs[0, 1])
+        # Subplot 3: Price Evolution vs Time
+        ax3 = fig.add_subplot(gs[1, 0])
+        # Subplot 4: Individual Trade Sizes vs Time
+        ax4 = fig.add_subplot(gs[1, 1])
+        # Subplot 5: Execution Price vs Time
+        ax5 = fig.add_subplot(gs[2, 0])
+        # Subplot 6: Trade Value (Trade Size × Price) vs Time
+        ax6 = fig.add_subplot(gs[2, 1])
+        # Subplot 7: Cumulative Trade Value vs Time
+        ax7 = fig.add_subplot(gs[3, :])  # Spans both columns
+        
+        agent_handles = []
+        
+        for agent_name, data in self.results.items():
+            timesteps = data['timesteps']
+            results = data['results']
+            color = self.colors[agent_name]
+            
+            # Extract data
+            q_traj = results.get('q_learned', None)  # Trade sizes (N x n_sim x control_dim)
+            y_traj = results.get('y_learned', None)  # State trajectories (N+1 x n_sim x state_dim)
+            
+            if q_traj is None or y_traj is None:
+                continue
+                
+            q_traj = np.asarray(q_traj)
+            y_traj = np.asarray(y_traj)
+            
+            # Extract components from state trajectory
+            X_traj = y_traj[:, :, 0]  # Cumulative position
+            P_traj = y_traj[:, :, 1]  # Price
+            if y_traj.shape[-1] > 2:
+                D_traj = y_traj[:, :, 2]  # Demand
+            
+            # Calculate execution prices using the dynamics generator
+            # The generator computes q * execution_price, so we divide by q to get execution_price
+            execution_prices = np.zeros_like(q_traj)
+            for t in range(q_traj.shape[0]):
+                y_t = torch.from_numpy(y_traj[t, :, :]).to(self.device)
+                q_t = torch.from_numpy(q_traj[t, :, :]).to(self.device)
+                
+                # Use the dynamics generator to get accurate execution prices
+                if hasattr(self.dynamics, 'generator'):
+                    # For dynamics like FullDynamics: execution_price = P + sign(q)*psi + gamma*q
+                    P_t = y_t[:, 1:2]  # Price
+                    if hasattr(self.dynamics, 'psi') and hasattr(self.dynamics, 'gamma'):
+                        temporary_impact = self.dynamics.gamma * q_t
+                        bid_ask_spread = torch.sign(q_t) * self.dynamics.psi
+                        exec_price_t = P_t + bid_ask_spread + temporary_impact
+                
+                execution_prices[t, :, :] = exec_price_t.detach().cpu().numpy()
+            
+            # Calculate means and stds for plotting
+            q_mean = q_traj.mean(axis=1).squeeze()
+            q_std = q_traj.std(axis=1).squeeze()
+            X_mean = X_traj.mean(axis=1)
+            X_std = X_traj.std(axis=1)
+            P_mean = P_traj.mean(axis=1)
+            P_std = P_traj.std(axis=1)
+            exec_price_mean = execution_prices.mean(axis=1).squeeze()
+            exec_price_std = execution_prices.std(axis=1).squeeze()
+            
+            # Trade times (excluding t=0 since no trades happen then)
+            trade_times = timesteps[:-1]
+            
+            # 1. Trade Size vs Execution Price (scatter plot)
+            ax1.scatter(exec_price_mean[q_mean != 0], q_mean[q_mean != 0], 
+                       color=color, alpha=0.7, s=50, label=agent_name)
+            
+            # 2. Cumulative Position vs Time
+            ax2.plot(timesteps, X_mean, color=color, linewidth=2, label=agent_name)
+            ax2.fill_between(timesteps, X_mean - X_std, X_mean + X_std, 
+                           color=color, alpha=0.2)
+            
+            # 3. Price Evolution vs Time
+            ax3.plot(timesteps, P_mean, color=color, linewidth=2, label=agent_name)
+            ax3.fill_between(timesteps, P_mean - P_std, P_mean + P_std, 
+                           color=color, alpha=0.2)
+            
+            # 4. Individual Trade Sizes vs Time
+            ax4.plot(trade_times, q_mean, color=color, linewidth=2, 
+                    marker='o', markersize=4, label=agent_name)
+            ax4.fill_between(trade_times, q_mean - q_std, q_mean + q_std, 
+                           color=color, alpha=0.2)
+            
+            # 5. Execution Price vs Time
+            ax5.plot(trade_times, exec_price_mean, color=color, linewidth=2, 
+                    marker='s', markersize=3, label=agent_name)
+            ax5.fill_between(trade_times, exec_price_mean - exec_price_std, 
+                           exec_price_mean + exec_price_std, color=color, alpha=0.2)
+            
+            # 6. Trade Value vs Time
+            trade_values = q_mean * exec_price_mean
+            ax6.plot(trade_times, trade_values, color=color, linewidth=2, 
+                    marker='^', markersize=3, label=agent_name)
+            
+            # 7. Cumulative Trade Value vs Time
+            cumulative_trade_value = np.cumsum(np.concatenate([[0], trade_values]))
+            ax7.plot(timesteps, cumulative_trade_value, color=color, linewidth=3, 
+                    label=agent_name)
+            
+            # Store handle for legend
+            if agent_name not in [h.get_label() for h in agent_handles]:
+                agent_handles.append(plt.Line2D([0], [0], color=color, linewidth=2, label=agent_name))
+        
+        # Customize subplots
+        ax1.set_title('Trade Size vs Execution Price', fontsize=12, fontweight='bold')
+        ax1.set_xlabel('Execution Price')
+        ax1.set_ylabel('Trade Size')
+        ax1.grid(True, alpha=0.3)
+        ax1.legend()
+        
+        ax2.set_title('Cumulative Position vs Time', fontsize=12, fontweight='bold')
+        ax2.set_xlabel('Time')
+        ax2.set_ylabel('Cumulative Position')
+        ax2.grid(True, alpha=0.3)
+        ax2.legend()
+        
+        ax3.set_title('Price Evolution vs Time', fontsize=12, fontweight='bold')
+        ax3.set_xlabel('Time')
+        ax3.set_ylabel('Price')
+        ax3.grid(True, alpha=0.3)
+        ax3.legend()
+        
+        ax4.set_title('Trade Sizes vs Time', fontsize=12, fontweight='bold')
+        ax4.set_xlabel('Time')
+        ax4.set_ylabel('Trade Size')
+        ax4.grid(True, alpha=0.3)
+        ax4.axhline(y=0, color='black', linestyle='--', alpha=0.5)
+        ax4.legend()
+        
+        ax5.set_title('Execution Prices vs Time', fontsize=12, fontweight='bold')
+        ax5.set_xlabel('Time')
+        ax5.set_ylabel('Execution Price')
+        ax5.grid(True, alpha=0.3)
+        ax5.legend()
+        
+        ax6.set_title('Trade Values vs Time', fontsize=12, fontweight='bold')
+        ax6.set_xlabel('Time')
+        ax6.set_ylabel('Trade Value (Size × Price)')
+        ax6.grid(True, alpha=0.3)
+        ax6.axhline(y=0, color='black', linestyle='--', alpha=0.5)
+        ax6.legend()
+        
+        ax7.set_title('Cumulative Trade Value vs Time', fontsize=12, fontweight='bold')
+        ax7.set_xlabel('Time')
+        ax7.set_ylabel('Cumulative Trade Value')
+        ax7.grid(True, alpha=0.3)
+        ax7.legend()
+        
+        plt.suptitle('Detailed Trading Trajectories Comparison', fontsize=16, fontweight='bold', y=0.98)
+        
+        if save_dir:
+            plt.savefig(f"{save_dir}/imgs/detailed_trading_trajectories.png", 
+                       dpi=300, bbox_inches='tight')
+        if plot:
+            plt.show()
+        else:
+            plt.close()
+
+    def plot_trading_heatmap(self, plot=True, save_dir=None):
+        """
+        Create a heatmap showing trading intensity across time and price levels for each agent
+        """
+        if not self.results:
+            print("No results to plot.")
+            return
+            
+        fig, axes = plt.subplots(1, len(self.results), figsize=(6*len(self.results), 8))
+        if len(self.results) == 1:
+            axes = [axes]
+        
+        for idx, (agent_name, data) in enumerate(self.results.items()):
+            timesteps = data['timesteps']
+            results = data['results']
+            
+            q_traj = results.get('q_learned', None)
+            y_traj = results.get('y_learned', None)
+            
+            if q_traj is None or y_traj is None:
+                continue
+                
+            q_traj = np.asarray(q_traj)
+            y_traj = np.asarray(y_traj)
+            
+            # Extract price and trade data
+            P_traj = y_traj[:-1, :, 1]  # Price at trade times
+            q_traj_flat = q_traj.reshape(-1)
+            P_traj_flat = P_traj.reshape(-1)
+            
+            # Create 2D histogram for heatmap
+            price_bins = np.linspace(P_traj_flat.min(), P_traj_flat.max(), 30)
+            trade_bins = np.linspace(q_traj_flat.min(), q_traj_flat.max(), 30)
+            
+            hist, xedges, yedges = np.histogram2d(P_traj_flat, q_traj_flat, 
+                                                 bins=[price_bins, trade_bins])
+            
+            # Plot heatmap
+            im = axes[idx].imshow(hist.T, origin='lower', aspect='auto', 
+                                 extent=[price_bins[0], price_bins[-1], 
+                                        trade_bins[0], trade_bins[-1]],
+                                 cmap='YlOrRd')
+            
+            axes[idx].set_title(f'{agent_name}\nTrading Intensity Heatmap', 
+                              fontweight='bold')
+            axes[idx].set_xlabel('Price')
+            axes[idx].set_ylabel('Trade Size')
+            
+            # Add colorbar
+            plt.colorbar(im, ax=axes[idx], label='Frequency')
+        
+        plt.tight_layout()
+        
+        if save_dir:
+            plt.savefig(f"{save_dir}/imgs/trading_heatmap.png", 
+                       dpi=300, bbox_inches='tight')
+        if plot:
+            plt.show()
+        else:
+            plt.close()
         
     def generate_comparison_report(self, alpha=0.05, alternative='less', save_dir=None):
         """
@@ -754,3 +996,4 @@ class Solver:
             plt.show()
         else:
             plt.close()
+    
