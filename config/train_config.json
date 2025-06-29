@@ -1,7 +1,7 @@
 {
   "device": "cuda",
   "parallel": false,
-  "save_dir": "saved_models/eta10_x0_gamma0.01_lowvol_psi0.5",
+  "save_dir": "saved_models/eta10_x50_gamma0.01_lowvol_psi0.5",
   "dynamics_path": "config/dynamics_configs/full_config.json",
   "train": true,
   "save": ["best", "every"],
