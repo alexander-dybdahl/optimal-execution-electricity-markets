@@ -1052,7 +1052,7 @@ class Solver:
         else:
             plt.close()
             
-    def plot_control_histograms(self, plot=True, save_dir=None, timestep_idx=None):
+    def plot_control_histograms(self, plot=True, save_dir=None, timestep_idx=None, exclude_zeros=True):
         """
         Plot histograms of control values (q) for each agent.
         
@@ -1063,6 +1063,8 @@ class Solver:
                           If None, plots the average control across all timesteps.
                           If int, plots the control at that specific timestep.
                           If list, plots the control for each timestep in the list.
+            exclude_zeros (bool): If True, excludes zero values from histogram to better show
+                                 the distribution of actual trades. Default is True.
         """
         plt.rcParams.update({'font.size': 14})
         if not self.results:
@@ -1125,36 +1127,71 @@ class Solver:
                 # Average across all timesteps
                 q_data = q_values.flatten()
             
+            # Store original data for statistics
+            q_data_original = q_data.copy()
+            
+            # Exclude zeros if requested
+            if exclude_zeros:
+                q_data_nonzero = q_data[q_data != 0]
+                if len(q_data_nonzero) == 0:
+                    ax.text(0.5, 0.5, f"All control values are zero for {agent_name}", 
+                            ha='center', va='center', transform=ax.transAxes)
+                    continue
+                q_data_plot = q_data_nonzero
+                zero_count = len(q_data) - len(q_data_nonzero)
+                zero_percentage = (zero_count / len(q_data)) * 100
+                title_suffix_full = f"{title_suffix} (excl. {zero_count} zeros: {zero_percentage:.1f}%)"
+            else:
+                q_data_plot = q_data
+                title_suffix_full = title_suffix
+            
             # Plot histogram
-            ax.hist(q_data, bins='auto', color=color, alpha=0.7, label='Control Distribution')
+            ax.hist(q_data_plot, bins='auto', color=color, alpha=0.7, label='Control Distribution')
             
-            # Calculate statistics
-            mean_q = np.mean(q_data)
-            std_q = np.std(q_data)
-            min_q = np.min(q_data)
-            max_q = np.max(q_data)
+            # Calculate statistics (always use original data for complete picture)
+            mean_q = np.mean(q_data_original)
+            std_q = np.std(q_data_original)
+            min_q = np.min(q_data_original)
+            max_q = np.max(q_data_original)
             
-            # Plot mean line
-            ax.axvline(mean_q, color='red', linestyle='dotted', linewidth=2, label=f'Mean: {mean_q:.4f}')
+            # Calculate statistics for non-zero data if excluding zeros
+            if exclude_zeros and len(q_data_plot) > 0:
+                mean_q_nonzero = np.mean(q_data_plot)
+                std_q_nonzero = np.std(q_data_plot)
+                min_q_nonzero = np.min(q_data_plot)
+                max_q_nonzero = np.max(q_data_plot)
+            
+            # Plot mean line (use appropriate mean based on what's displayed)
+            if exclude_zeros and len(q_data_plot) > 0:
+                ax.axvline(mean_q_nonzero, color='red', linestyle='dotted', linewidth=2, 
+                          label=f'Mean (non-zero): {mean_q_nonzero:.4f}')
+            else:
+                ax.axvline(mean_q, color='red', linestyle='dotted', linewidth=2, 
+                          label=f'Mean: {mean_q:.4f}')
             
             # Calculate and plot mode from histogram
-            hist, bin_edges = np.histogram(q_data, bins='auto')
+            hist, bin_edges = np.histogram(q_data_plot, bins='auto')
             if len(hist) > 0:
                 max_hist_index = np.argmax(hist)
                 mode_q = (bin_edges[max_hist_index] + bin_edges[max_hist_index+1]) / 2
                 ax.axvline(mode_q, color='green', linestyle='dotted', linewidth=2, label=f'Mode: {mode_q:.4f}')
             
-            ax.set_title(f'Control (q) Distribution for {agent_name} {title_suffix}')
+            ax.set_title(f'Control (q) Distribution for {agent_name} {title_suffix_full}')
             ax.set_xlabel("Control Value (q)")
             ax.set_ylabel("Frequency")
             
             # Create legend
             handles, labels = ax.get_legend_handles_labels()
             
-            # Add stats to legend
-            handles.append(Patch(color='none', label=f'Std Dev: {std_q:.4f}'))
-            handles.append(Patch(color='none', label=f'Min: {min_q:.4f}'))
-            handles.append(Patch(color='none', label=f'Max: {max_q:.4f}'))
+            # Add stats to legend (include both original and non-zero stats if relevant)
+            if exclude_zeros and len(q_data_plot) > 0:
+                handles.append(Patch(color='none', label=f'All data - Mean: {mean_q:.4f}, Std: {std_q:.4f}'))
+                handles.append(Patch(color='none', label=f'Non-zero - Std: {std_q_nonzero:.4f}'))
+                handles.append(Patch(color='none', label=f'Non-zero - Min: {min_q_nonzero:.4f}, Max: {max_q_nonzero:.4f}'))
+            else:
+                handles.append(Patch(color='none', label=f'Std Dev: {std_q:.4f}'))
+                handles.append(Patch(color='none', label=f'Min: {min_q:.4f}'))
+                handles.append(Patch(color='none', label=f'Max: {max_q:.4f}'))
             
             ax.legend(handles=handles, loc="upper left")
             ax.grid(True, linestyle='--', alpha=0.5)
@@ -1164,9 +1201,15 @@ class Solver:
             if timestep_indices is not None:
                 # Create a string representation of the timestep indices for the filename
                 ts_str = "_".join(map(str, timestep_indices)) if isinstance(timestep_indices, (list, tuple)) else str(timestep_indices)
-                plt.savefig(f"{save_dir}/imgs/control_histograms_t{ts_str}.png", dpi=300, bbox_inches='tight')
+                filename = f"control_histograms_t{ts_str}"
             else:
-                plt.savefig(f"{save_dir}/imgs/control_histograms.png", dpi=300, bbox_inches='tight')
+                filename = "control_histograms"
+            
+            # Add suffix for zero exclusion
+            if exclude_zeros:
+                filename += "_no_zeros"
+            
+            plt.savefig(f"{save_dir}/imgs/{filename}.png", dpi=300, bbox_inches='tight')
         if plot:
             plt.show()
         else:
