@@ -55,6 +55,7 @@ class Solver:
         self.risk_metrics[agent_name] = self.calculate_risk_metrics(costs_numpy)
 
     def plot_traj(self, plot=True, save_dir=None):
+        plt.rcParams.update({'font.size': 14})
         if not self.results:
             print("No results to plot.")
             return
@@ -143,6 +144,7 @@ class Solver:
             plt.close()
 
     def plot_cost_histograms(self, plot=True, save_dir=None):
+        plt.rcParams.update({'font.size': 14})
         if not self.costs:
             print("No costs to plot.")
             return
@@ -298,6 +300,7 @@ class Solver:
                   - mean_diff: Difference in means (agent1 - agent2)
                   - better: If alternative='less', True if agent1 has significantly lower costs
         """
+        plt.rcParams.update({'font.size': 14})
         if agent_name1 not in self.costs or agent_name2 not in self.costs:
             missing = []
             if agent_name1 not in self.costs:
@@ -350,6 +353,7 @@ class Solver:
         2. Cumulative position vs time with price overlay
         3. Trade-by-trade analysis for each agent
         """
+        plt.rcParams.update({'font.size': 14})
         if not self.results:
             print("No results to plot.")
             return
@@ -528,6 +532,7 @@ class Solver:
         """
         Create a heatmap showing trading intensity across time and price levels for each agent
         """
+        plt.rcParams.update({'font.size': 14})
         if not self.results:
             print("No results to plot.")
             return
@@ -597,6 +602,7 @@ class Solver:
         Returns:
             dict: Dictionary of comparison results between all agent pairs
         """
+        plt.rcParams.update({'font.size': 14})
         if len(self.costs) < 2:
             print("Need at least 2 agents to generate a comparison report.")
             return {}
@@ -696,6 +702,7 @@ class Solver:
         Args:
             agent_name (str, optional): Specific agent to display. If None, displays all agents.
         """
+        plt.rcParams.update({'font.size': 14})
         if not self.risk_metrics:
             print("No risk metrics calculated. Run evaluate_agent() first.")
             return
@@ -820,6 +827,7 @@ class Solver:
         """
         Create a radar chart comparing risk metrics across agents.
         """
+        plt.rcParams.update({'font.size': 14})
         if not self.risk_metrics:
             print("No risk metrics to plot.")
             return
@@ -890,6 +898,7 @@ class Solver:
                           If int, plots the control at that specific timestep.
                           If list, plots the control for each timestep in the list.
         """
+        plt.rcParams.update({'font.size': 14})
         if not self.results:
             print("No results to plot.")
             return
