@@ -7,7 +7,7 @@
   "best": true,
   "verbose": true,
   "plot": false,
-  "plot_individual_trajectories": false,
+  "plot_individual_trajectories": true,
   "n_traj": 1,
   "plot_control_trajectories": false,
   "plot_trading_comparison": false,

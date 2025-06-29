@@ -25,7 +25,7 @@ def plot_approx_vs_analytic(results, timesteps, validation=None, plot=True, save
     for i in range(approx_q.shape[1]):
         axs[0, 0].plot(timesteps[:-1], approx_q[:, i], color=colors(i), alpha=0.6, label=f"Learned $q(t)$" if i == 0 else None)
         if true_q is not None:
-            axs[0, 0].plot(timesteps[:-1], true_q[:, i], linestyle="--", marker="|", color=colors(i), alpha=0.4, label=f"Analytical $\\bar{{q}}(t)$" if i == 0 else None)
+            axs[0, 0].plot(timesteps[:-1], true_q[:, i], linestyle="--", color=colors(i), alpha=0.4, label=f"Analytical $\\bar{{q}}(t)$" if i == 0 else None)
     axs[0, 0].set_title("Control $q(t)$: Learned vs Analytical")
     axs[0, 0].set_xlabel("Time $t$")
     axs[0, 0].set_ylabel("$q(t)$")
@@ -46,7 +46,7 @@ def plot_approx_vs_analytic(results, timesteps, validation=None, plot=True, save
     for i in range(Y_vals.shape[1]):
         axs[1, 0].plot(timesteps, Y_vals[:, i, 0], color=colors(i), alpha=0.6, label=f"Learned $Y(t)$" if i == 0 else None)
         if true_Y is not None:
-            axs[1, 0].plot(timesteps, true_Y[:, i, 0], linestyle="--", marker="|", color=colors(i), alpha=0.4, label=f"Analytical $\\bar{{Y}}(t)$" if i == 0 else None)
+            axs[1, 0].plot(timesteps, true_Y[:, i, 0], linestyle="--", color=colors(i), alpha=0.4, label=f"Analytical $\\bar{{Y}}(t)$" if i == 0 else None)
     axs[1, 0].set_title("Cost-to-Go $Y(t)$")
     axs[1, 0].set_xlabel("Time $t$")
     axs[1, 0].set_ylabel("Y(t)")
@@ -67,7 +67,7 @@ def plot_approx_vs_analytic(results, timesteps, validation=None, plot=True, save
     for i in range(y_vals.shape[1]):
         axs[2, 0].plot(timesteps, y_vals[:, i, 0], color=colors(i), alpha=0.6, label=f"$x(t)$" if i == 0 else None)
         if true_y is not None:
-            axs[2, 0].plot(timesteps, true_y[:, i, 0], linestyle="--", marker="|", color=colors(i), alpha=0.4, label=f"$\\bar{{x}}(t)$" if i == 0 else None)
+            axs[2, 0].plot(timesteps, true_y[:, i, 0], linestyle="--", color=colors(i), alpha=0.4, label=f"$\\bar{{x}}(t)$" if i == 0 else None)
         if y_vals.shape[2] > 1:
             axs[2, 0].plot(timesteps, y_vals[:, i, 2], linestyle="-.", color=colors(i), alpha=0.6, label=f"$d(t)$" if i == 0 else None)
     axs[2, 0].set_title("States: $x(t)$ and $d(t)$")
@@ -80,7 +80,7 @@ def plot_approx_vs_analytic(results, timesteps, validation=None, plot=True, save
         for i in range(y_vals.shape[1]):
             axs[2, 1].plot(timesteps, y_vals[:, i, 1], color=colors(i), alpha=0.6, label=f"$p(t)$" if i == 0 else None)
             if true_y is not None:
-                axs[2, 1].plot(timesteps, true_y[:, i, 1], linestyle="--", marker="|", color=colors(i), alpha=0.4, label=f"$\\bar{{p}}(t)$" if i == 0 else None)
+                axs[2, 1].plot(timesteps, true_y[:, i, 1], linestyle="--", color=colors(i), alpha=0.4, label=f"$\\bar{{p}}(t)$" if i == 0 else None)
         axs[2, 1].set_title("State: $p(t)$")
         axs[2, 1].set_xlabel("Time $t$")
         axs[2, 1].set_ylabel("p(t)")

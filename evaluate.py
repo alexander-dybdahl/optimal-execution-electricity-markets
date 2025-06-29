@@ -82,9 +82,9 @@ def main():
     # Evaluate
     solver = Solver(dynamics=dynamics, seed=args.seed, n_sim=args.n_simulations)
     logger.log("Starting evaluation.")
-    #solver.evaluate_agent(agent=AnalyticalAgent(dynamics=dynamics), agent_name="AnalyticalAgent")
-    #solver.evaluate_agent(agent=DeepAgent.load_from_checkpoint(dynamics=dynamics, model_cfg=train_cfg, device=device, model_dir=args.model_dir, best=args.best), agent_name="DeepAgent")
-    #solver.evaluate_agent(agent=TimeWeightedAgent(dynamics=dynamics), agent_name="TimeWeightedAgent")
+    solver.evaluate_agent(agent=AnalyticalAgent(dynamics=dynamics), agent_name="AnalyticalAgent")
+    solver.evaluate_agent(agent=DeepAgent.load_from_checkpoint(dynamics=dynamics, model_cfg=train_cfg, device=device, model_dir=args.model_dir, best=args.best), agent_name="DeepAgent")
+    solver.evaluate_agent(agent=TimeWeightedAgent(dynamics=dynamics), agent_name="TimeWeightedAgent")
     #solver.evaluate_agent(agent=ImmediateAgent(dynamics=dynamics), agent_name="ImmediateAgent")
     logger.log(f"Evaluation completed with seed {args.seed}.")
     

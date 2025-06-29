@@ -59,7 +59,7 @@ class Solver:
         """
         Plot expected trajectories (mean ± std) of q, y, Y for each agent.
         """
-        plt.rcParams.update({'font.size': 14})
+        plt.rcParams.update({'font.size': 18})
         if not self.results:
             print("No results to plot.")
             return
@@ -130,7 +130,7 @@ class Solver:
                         # Define line styles and labels for different state components
                         if var == 'y':
                             state_styles = ['-', ':', (0, (3, 1, 1, 1))]  # Solid, Dotted, Dash-dot-dot
-                            state_labels = ['Position (X)', 'Price (P)', 'Demand (D)']
+                            state_labels = ['Position (X)', 'Price (P)', 'Generation (G)']
                         else:
                             state_styles = ['-'] * arr_mean.shape[-1]
                             state_labels = [f'Dim {i}' for i in range(arr_mean.shape[-1])]
@@ -154,16 +154,22 @@ class Solver:
                                 linewidth=0
                             )
 
-            ax.set_xlabel("Time")
-            ax.set_ylabel(var_ylabels[var])
+            ax.set_xlabel("Time", fontsize=20)
+            ax.set_ylabel(var_ylabels[var], fontsize=20)
+            ax.tick_params(axis='both', which='major', labelsize=16)
             ax.grid(True, linestyle='--', alpha=0.5)
             if agent_handles:  # Only add legend if there are agents with data
-                leg1 = ax.legend(handles=agent_handles, loc='upper left', frameon=True)
+                leg1 = ax.legend(handles=agent_handles, loc='upper left', frameon=True, fontsize=16)
                 ax.add_artist(leg1)
             
             # Add state component legend for y(t) plot
             if var == 'y':
-                ax.legend(handles=style_handles, loc='lower left', frameon=True)
+                state_legend_handles = [
+                    plt.Line2D([0], [0], color='black', linestyle='-', label='Position (X)'),
+                    plt.Line2D([0], [0], color='black', linestyle=':', label='Price (P)'),
+                    plt.Line2D([0], [0], color='black', linestyle=(0, (3, 1, 1, 1)), label='Generation (G)')
+                ]
+                ax.legend(handles=state_legend_handles, loc='lower left', frameon=True, fontsize=16)
         plt.tight_layout()
         if save_dir:
             plt.savefig(f"{save_dir}/imgs/trajectories_expectation.png", dpi=300, bbox_inches='tight')
@@ -172,7 +178,7 @@ class Solver:
         else:
             plt.close()
 
-    def plot_trajectories_individual(self, n_traj=5, plot=True, save_dir=None):
+    def plot_trajectories_individual(self, n_traj=5, plot=True, save_dir=None, save_individual=True):
         """
         Plot individual trajectories of q, y, Y for each agent.
         Shows n_traj individual realizations instead of expectation.
@@ -181,8 +187,9 @@ class Solver:
             n_traj (int): Number of individual trajectories to plot per agent
             plot (bool): Whether to show the plots interactively
             save_dir (str): Directory to save the plots, if provided
+            save_individual (bool): Whether to save each variable in separate plots
         """
-        plt.rcParams.update({'font.size': 14})
+        plt.rcParams.update({'font.size': 18})
         if not self.results:
             print("No results to plot.")
             return
@@ -204,6 +211,11 @@ class Solver:
 
         for idx, var in enumerate(['q', 'y', 'Y']):
             ax = axs[idx]
+            
+            # Create individual plot if requested
+            if save_individual and save_dir:
+                fig_individual, ax_individual = plt.subplots(1, 1, figsize=(10, 4))
+                plt.rcParams.update({'font.size': 18})
             
             # For Y plot, create agent handles only for agents that have Y data
             if var == 'Y':
@@ -238,6 +250,7 @@ class Solver:
 
                         # Handle plotting based on dimension
                         if traj_data.ndim == 1:
+                            # Plot on main figure
                             ax.plot(
                                 timesteps[:traj_data.shape[0]],
                                 traj_data,
@@ -246,6 +259,16 @@ class Solver:
                                 alpha=0.6,
                                 linewidth=1
                             )
+                            # Plot on individual figure if requested
+                            if save_individual and save_dir:
+                                ax_individual.plot(
+                                    timesteps[:traj_data.shape[0]],
+                                    traj_data,
+                                    color=color,
+                                    linestyle=line_styles['learned'],
+                                    alpha=0.6,
+                                    linewidth=1
+                                )
                         else:  # traj_data.ndim > 1
                             # Define line styles for different state components
                             if var == 'y':
@@ -256,6 +279,7 @@ class Solver:
                             for i in range(traj_data.shape[-1]):
                                 # Plot each dimension separately with appropriate style
                                 linestyle = state_styles[i] if i < len(state_styles) else '-'
+                                # Plot on main figure
                                 ax.plot(
                                     timesteps[:traj_data.shape[0]],
                                     traj_data[:, i],
@@ -264,12 +288,24 @@ class Solver:
                                     alpha=0.6,
                                     linewidth=1
                                 )
+                                # Plot on individual figure if requested
+                                if save_individual and save_dir:
+                                    ax_individual.plot(
+                                        timesteps[:traj_data.shape[0]],
+                                        traj_data[:, i],
+                                        color=color,
+                                        linestyle=linestyle,
+                                        alpha=0.6,
+                                        linewidth=1
+                                    )
 
-            ax.set_xlabel("Time")
-            ax.set_ylabel(var_ylabels[var])
+            # Configure main subplot
+            ax.set_xlabel("Time", fontsize=20)
+            ax.set_ylabel(var_ylabels[var], fontsize=20)
+            ax.tick_params(axis='both', which='major', labelsize=16)
             ax.grid(True, linestyle='--', alpha=0.5)
             if agent_handles:  # Only add legend if there are agents with data
-                ax.legend(handles=agent_handles, loc='upper left', frameon=True)
+                ax.legend(handles=agent_handles, loc='upper left', frameon=True, fontsize=16)
             
             # Add state component legend for y(t) plot
             if var == 'y':
@@ -277,11 +313,34 @@ class Solver:
                 state_legend_handles = [
                     plt.Line2D([0], [0], color='black', linestyle='-', label='Position (X)'),
                     plt.Line2D([0], [0], color='black', linestyle=':', label='Price (P)'),
-                    plt.Line2D([0], [0], color='black', linestyle=(0, (3, 1, 1, 1)), label='Demand (D)')
+                    plt.Line2D([0], [0], color='black', linestyle=(0, (3, 1, 1, 1)), label='Generation (G)')
                 ]
                 # Position the state legend at bottom left
-                leg2 = ax.legend(handles=state_legend_handles, loc='upper left', frameon=True)
+                leg2 = ax.legend(handles=state_legend_handles, loc='upper left', frameon=True, fontsize=16)
                 ax.add_artist(leg2)
+            
+            # Configure and save individual plot if requested
+            if save_individual and save_dir:
+                ax_individual.set_xlabel("Time", fontsize=20)
+                ax_individual.set_ylabel(var_ylabels[var], fontsize=20)
+                ax_individual.tick_params(axis='both', which='major', labelsize=16)
+                ax_individual.grid(True, linestyle='--', alpha=0.5)
+                if agent_handles:
+                    ax_individual.legend(handles=agent_handles, loc='upper left', frameon=True, fontsize=16)
+                
+                # Add state component legend for y(t) individual plot
+                if var == 'y':
+                    state_legend_handles = [
+                        plt.Line2D([0], [0], color='black', linestyle='-', label='Position (X)'),
+                        plt.Line2D([0], [0], color='black', linestyle=':', label='Price (P)'),
+                        plt.Line2D([0], [0], color='black', linestyle=(0, (3, 1, 1, 1)), label='Generation (G)')
+                    ]
+                    leg2_individual = ax_individual.legend(handles=state_legend_handles, loc='lower left', frameon=True, fontsize=16)
+                    ax_individual.add_artist(leg2_individual)
+                
+                plt.tight_layout()
+                plt.savefig(f"{save_dir}/imgs/trajectories_individual_{var}.png", dpi=300, bbox_inches='tight')
+                plt.close(fig_individual)
 
         plt.tight_layout()
         if save_dir:
@@ -319,8 +378,6 @@ class Solver:
 
             # Calculate stats
             mean_cost = np.mean(costs)
-            std_cost = np.std(costs)
-            mean_std_ratio = mean_cost / std_cost if std_cost > 0 else 0.0
 
             # Plot mean line
             ax.axvline(mean_cost, color='red', linestyle='dotted', linewidth=2, label=f'Mean: {mean_cost:.4f}')
@@ -338,10 +395,6 @@ class Solver:
             
             # Create legend
             handles, labels = ax.get_legend_handles_labels()
-            
-            # Add stats to legend
-            handles.append(Patch(color='none', label=f'Std Dev: {std_cost:.4f}'))
-            handles.append(Patch(color='none', label=f'Mean/Std: {mean_std_ratio:.4f}'))
             
             ax.legend(handles=handles, loc="upper left")
             ax.grid(True, linestyle='--', alpha=0.5)
@@ -559,8 +612,8 @@ class Solver:
             X_traj = y_traj[:, :, 0]  # Cumulative position
             P_traj = y_traj[:, :, 1]  # Price
             if y_traj.shape[-1] > 2:
-                D_traj = y_traj[:, :, 2]  # Demand
-                # Calculate position-demand gap (this is what the terminal cost penalizes)
+                D_traj = y_traj[:, :, 2]  # Generation
+                # Calculate position-generation gap (this is what the terminal cost penalizes)
                 gap_traj = D_traj - X_traj  # Positive gap means undersupply, negative means oversupply
             else:
                 D_traj = None
@@ -594,7 +647,7 @@ class Solver:
             exec_price_mean = execution_prices.mean(axis=1).squeeze()
             exec_price_std = execution_prices.std(axis=1).squeeze()
             
-            # Calculate gap statistics if demand is available
+            # Calculate gap statistics if generation is available
             if gap_traj is not None:
                 gap_mean = gap_traj.mean(axis=1)
                 gap_std = gap_traj.std(axis=1)
@@ -613,7 +666,7 @@ class Solver:
                     # Fallback: assume terminal cost is 0.5 * eta * (D - X)^2
                     X_t = y_t[:, 0:1]  # Position
                     if y_t.shape[-1] > 2:
-                        D_t = y_t[:, 2:3]  # Demand
+                        D_t = y_t[:, 2:3]  # Generation
                         eta = getattr(self.dynamics, 'eta', 1.0)  # Default eta = 1.0
                         terminal_cost_t = 0.5 * eta * (D_t - X_t)**2
                         terminal_costs[t, :] = terminal_cost_t.detach().cpu().numpy().squeeze()
@@ -628,18 +681,18 @@ class Solver:
             ax1.scatter(exec_price_mean[q_mean != 0], q_mean[q_mean != 0], 
                        color=color, alpha=0.7, s=50, label=agent_name)
             
-            # 2. Cumulative Position vs Time (with Demand overlay)
+            # 2. Cumulative Position vs Time (with Generation overlay)
             ax2.plot(timesteps, X_mean, color=color, linewidth=2, 
                     linestyle='-', label=f'{agent_name} (Position)')
             ax2.fill_between(timesteps, X_mean - X_std, X_mean + X_std, 
                            color=color, alpha=0.2)
             
-            # Also plot demand if available
+            # Also plot generation if available
             if D_traj is not None:
                 D_mean = D_traj.mean(axis=1)
                 D_std = D_traj.std(axis=1)
                 ax2.plot(timesteps, D_mean, color=color, linewidth=2, 
-                        linestyle='--', label=f'{agent_name} (Demand)')
+                        linestyle='--', label=f'{agent_name} (Generation)')
                 ax2.fill_between(timesteps, D_mean - D_std, D_mean + D_std, 
                                color=color, alpha=0.1)
             
@@ -697,7 +750,7 @@ class Solver:
         ax1.grid(True, alpha=0.3)
         ax1.legend()
         
-        ax2.set_title('Position vs Demand vs Time', fontsize=12, fontweight='bold')
+        ax2.set_title('Position vs Generation vs Time', fontsize=12, fontweight='bold')
         ax2.set_xlabel('Time')
         ax2.set_ylabel('Quantity')
         ax2.grid(True, alpha=0.3)
@@ -1115,19 +1168,18 @@ class Solver:
         else:
             plt.close()
             
-    def plot_control_histograms(self, plot=True, save_dir=None, timestep_idx=None, exclude_zeros=True):
+    def plot_control_histograms(self, plot=True, save_dir=None, timestep_idx=None):
         """
         Plot histograms of control values (q) for each agent.
+        Creates both terminal control and average control histograms.
         
         Args:
             plot (bool): Whether to show the plots interactively
             save_dir (str): Directory to save the plots, if provided
             timestep_idx (int or list, optional): Specific timestep index(es) to plot.
-                          If None, plots the average control across all timesteps.
+                          If None, plots both terminal and average control histograms.
                           If int, plots the control at that specific timestep.
                           If list, plots the control for each timestep in the list.
-            exclude_zeros (bool): If True, excludes zero values from histogram to better show
-                                 the distribution of actual trades. Default is True.
         """
         plt.rcParams.update({'font.size': 14})
         if not self.results:
@@ -1142,16 +1194,24 @@ class Solver:
         if isinstance(timestep_idx, (list, tuple)):
             # Multiple specific timesteps
             timestep_indices = timestep_idx
-            title_suffix = f"at timesteps {timestep_indices}"
         elif isinstance(timestep_idx, int):
             # Single specific timestep
             timestep_indices = [timestep_idx]
-            title_suffix = f"at timestep {timestep_idx}"
         else:
-            # Average across all timesteps
+            # Create both terminal and average control histograms
             timestep_indices = None
-            title_suffix = "(averaged across all timesteps)"
             
+        if timestep_indices is not None:
+            # Plot for specific timesteps only
+            self._plot_single_control_histogram(timestep_indices, plot, save_dir)
+        else:
+            # Create both terminal and average control histograms
+            self._plot_terminal_control_histogram(plot, save_dir)
+            self._plot_average_control_histogram(plot, save_dir)
+    
+    def _plot_single_control_histogram(self, timestep_indices, plot, save_dir):
+        """Helper method to plot control histogram for specific timesteps."""
+        n_agents = len(self.results)
         fig, axs = plt.subplots(n_agents, 1, figsize=(10, 6 * n_agents), squeeze=False)
         
         for i, (agent_name, data) in enumerate(self.results.items()):
@@ -1168,111 +1228,162 @@ class Solver:
                 continue
                 
             # Convert to numpy array if needed
-            q_values = np.asarray(q_values)
+            q_values = np.asarray(q_values)  # Shape: (N_timesteps, n_sim, control_dim)
             
-            # Extract data based on timestep_idx
-            if timestep_indices is not None:
-                # Only use specific timesteps
-                q_data = []
-                for idx in timestep_indices:
-                    if idx < q_values.shape[0]:
-                        q_data.append(q_values[idx].flatten())
-                    else:
-                        print(f"Warning: Timestep {idx} is out of range for {agent_name}")
-                        
-                if not q_data:
-                    ax.text(0.5, 0.5, f"No valid timesteps for {agent_name}", 
-                            ha='center', va='center', transform=ax.transAxes)
-                    continue
+            # Only use specific timesteps
+            q_data = []
+            for idx in timestep_indices:
+                if idx < q_values.shape[0]:
+                    # Get control values for all simulations at this timestep, then flatten control dimensions
+                    q_timestep = q_values[idx, :, :]  # All simulations at this timestep
+                    q_data.append(q_timestep.flatten())
+                else:
+                    print(f"Warning: Timestep {idx} is out of range for {agent_name}")
                     
-                q_data = np.concatenate(q_data)
-            else:
-                # Average across all timesteps
-                q_data = q_values.flatten()
+            if not q_data:
+                ax.text(0.5, 0.5, f"No valid timesteps for {agent_name}", 
+                        ha='center', va='center', transform=ax.transAxes)
+                continue
+                
+            q_data = np.concatenate(q_data)
+            data_description = f"t={timestep_indices}"
             
-            # Store original data for statistics
-            q_data_original = q_data.copy()
+            # Plot histogram with finer bins for better resolution
+            ax.hist(q_data, bins=50, color=color, alpha=0.7)
             
-            # Exclude zeros if requested
-            if exclude_zeros:
-                q_data_nonzero = q_data[q_data != 0]
-                if len(q_data_nonzero) == 0:
-                    ax.text(0.5, 0.5, f"All control values are zero for {agent_name}", 
-                            ha='center', va='center', transform=ax.transAxes)
-                    continue
-                q_data_plot = q_data_nonzero
-                zero_count = len(q_data) - len(q_data_nonzero)
-                zero_percentage = (zero_count / len(q_data)) * 100
-                title_suffix_full = f"{title_suffix} (excl. {zero_count} zeros: {zero_percentage:.1f}%)"
-            else:
-                q_data_plot = q_data
-                title_suffix_full = title_suffix
-            
-            # Plot histogram
-            ax.hist(q_data_plot, bins='auto', color=color, alpha=0.7, label='Control Distribution')
-            
-            # Calculate statistics (always use original data for complete picture)
-            mean_q = np.mean(q_data_original)
-            std_q = np.std(q_data_original)
-            min_q = np.min(q_data_original)
-            max_q = np.max(q_data_original)
-            
-            # Calculate statistics for non-zero data if excluding zeros
-            if exclude_zeros and len(q_data_plot) > 0:
-                mean_q_nonzero = np.mean(q_data_plot)
-                std_q_nonzero = np.std(q_data_plot)
-                min_q_nonzero = np.min(q_data_plot)
-                max_q_nonzero = np.max(q_data_plot)
-            
-            # Plot mean line (use appropriate mean based on what's displayed)
-            if exclude_zeros and len(q_data_plot) > 0:
-                ax.axvline(mean_q_nonzero, color='red', linestyle='dotted', linewidth=2, 
-                          label=f'Mean (non-zero): {mean_q_nonzero:.4f}')
-            else:
-                ax.axvline(mean_q, color='red', linestyle='dotted', linewidth=2, 
-                          label=f'Mean: {mean_q:.4f}')
+            # Calculate and plot mean
+            mean_q = np.mean(q_data)
+            ax.axvline(mean_q, color='red', linestyle='dotted', linewidth=2, 
+                      label=f'Mean: {mean_q:.4f}')
             
             # Calculate and plot mode from histogram
-            hist, bin_edges = np.histogram(q_data_plot, bins='auto')
+            hist, bin_edges = np.histogram(q_data, bins=50)
             if len(hist) > 0:
                 max_hist_index = np.argmax(hist)
                 mode_q = (bin_edges[max_hist_index] + bin_edges[max_hist_index+1]) / 2
-                ax.axvline(mode_q, color='green', linestyle='dotted', linewidth=2, label=f'Mode: {mode_q:.4f}')
+                ax.axvline(mode_q, color='green', linestyle='dotted', linewidth=2, 
+                          label=f'Mode: {mode_q:.4f}')
             
-            ax.set_title(f'Control (q) Distribution for {agent_name} {title_suffix_full}')
-            ax.set_xlabel("Control Value (q)")
-            ax.set_ylabel("Frequency")
-            
-            # Create legend
-            handles, labels = ax.get_legend_handles_labels()
-            
-            # Add stats to legend (include both original and non-zero stats if relevant)
-            if exclude_zeros and len(q_data_plot) > 0:
-                handles.append(Patch(color='none', label=f'All data - Mean: {mean_q:.4f}, Std: {std_q:.4f}'))
-                handles.append(Patch(color='none', label=f'Non-zero - Std: {std_q_nonzero:.4f}'))
-                handles.append(Patch(color='none', label=f'Non-zero - Min: {min_q_nonzero:.4f}, Max: {max_q_nonzero:.4f}'))
-            else:
-                handles.append(Patch(color='none', label=f'Std Dev: {std_q:.4f}'))
-                handles.append(Patch(color='none', label=f'Min: {min_q:.4f}'))
-                handles.append(Patch(color='none', label=f'Max: {max_q:.4f}'))
-            
-            ax.legend(handles=handles, loc="upper left")
+            ax.set_xlabel("Control Value (q)", fontsize=18)
+            ax.set_ylabel("Frequency", fontsize=18)
+            ax.tick_params(axis='both', which='major', labelsize=16)
+            ax.legend(loc="upper left", fontsize=14)
             ax.grid(True, linestyle='--', alpha=0.5)
         
         plt.tight_layout()
         if save_dir:
-            if timestep_indices is not None:
-                # Create a string representation of the timestep indices for the filename
-                ts_str = "_".join(map(str, timestep_indices)) if isinstance(timestep_indices, (list, tuple)) else str(timestep_indices)
-                filename = f"control_histograms_t{ts_str}"
-            else:
-                filename = "control_histograms"
-            
-            # Add suffix for zero exclusion
-            if exclude_zeros:
-                filename += "_no_zeros"
-            
+            # Create a string representation of the timestep indices for the filename
+            ts_str = "_".join(map(str, timestep_indices)) if isinstance(timestep_indices, (list, tuple)) else str(timestep_indices)
+            filename = f"control_histograms_t{ts_str}"
             plt.savefig(f"{save_dir}/imgs/{filename}.png", dpi=300, bbox_inches='tight')
+        if plot:
+            plt.show()
+        else:
+            plt.close()
+    
+    def _plot_terminal_control_histogram(self, plot, save_dir):
+        """Helper method to plot terminal control histogram (last timestep)."""
+        n_agents = len(self.results)
+        fig, axs = plt.subplots(n_agents, 1, figsize=(10, 6 * n_agents), squeeze=False)
+        
+        for i, (agent_name, data) in enumerate(self.results.items()):
+            ax = axs[i, 0]
+            color = self.colors.get(agent_name, 'gray')
+            
+            # Get the control values for this agent
+            results = data['results']
+            q_values = results.get('q_learned', None)
+            
+            if q_values is None:
+                ax.text(0.5, 0.5, f"No control data available for {agent_name}", 
+                        ha='center', va='center', transform=ax.transAxes)
+                continue
+                
+            # Convert to numpy array if needed
+            q_values = np.asarray(q_values)  # Shape: (N_timesteps, n_sim, control_dim)
+            
+            # Terminal control: use the last timestep control values for all simulations
+            q_data = q_values[-1, :, :].flatten()  # Last timestep, all simulations, flatten control dimensions
+            
+            # Plot histogram with finer bins for better resolution
+            ax.hist(q_data, bins=50, color=color, alpha=0.7)
+            
+            # Calculate and plot mean
+            mean_q = np.mean(q_data)
+            ax.axvline(mean_q, color='red', linestyle='dotted', linewidth=2, 
+                      label=f'Mean: {mean_q:.4f}')
+            
+            # Calculate and plot mode from histogram
+            hist, bin_edges = np.histogram(q_data, bins=50)
+            if len(hist) > 0:
+                max_hist_index = np.argmax(hist)
+                mode_q = (bin_edges[max_hist_index] + bin_edges[max_hist_index+1]) / 2
+                ax.axvline(mode_q, color='green', linestyle='dotted', linewidth=2, 
+                          label=f'Mode: {mode_q:.4f}')
+            
+            ax.set_xlabel("Control Value (q)", fontsize=18)
+            ax.set_ylabel("Frequency", fontsize=18)
+            ax.tick_params(axis='both', which='major', labelsize=16)
+            ax.legend(loc="upper left", fontsize=14)
+            ax.grid(True, linestyle='--', alpha=0.5)
+        
+        plt.tight_layout()
+        if save_dir:
+            plt.savefig(f"{save_dir}/imgs/control_histograms_terminal.png", dpi=300, bbox_inches='tight')
+        if plot:
+            plt.show()
+        else:
+            plt.close()
+    
+    def _plot_average_control_histogram(self, plot, save_dir):
+        """Helper method to plot average control histogram (averaged over all timesteps)."""
+        n_agents = len(self.results)
+        fig, axs = plt.subplots(n_agents, 1, figsize=(10, 6 * n_agents), squeeze=False)
+        
+        for i, (agent_name, data) in enumerate(self.results.items()):
+            ax = axs[i, 0]
+            color = self.colors.get(agent_name, 'gray')
+            
+            # Get the control values for this agent
+            results = data['results']
+            q_values = results.get('q_learned', None)
+            
+            if q_values is None:
+                ax.text(0.5, 0.5, f"No control data available for {agent_name}", 
+                        ha='center', va='center', transform=ax.transAxes)
+                continue
+                
+            # Convert to numpy array if needed
+            q_values = np.asarray(q_values)  # Shape: (N_timesteps, n_sim, control_dim)
+            
+            # Average control: average across all timesteps for each simulation, then flatten
+            q_data = q_values.mean(axis=0).flatten()  # Mean across time, then flatten
+            
+            # Plot histogram with finer bins for better resolution
+            ax.hist(q_data, bins=50, color=color, alpha=0.7)
+            
+            # Calculate and plot mean
+            mean_q = np.mean(q_data)
+            ax.axvline(mean_q, color='red', linestyle='dotted', linewidth=2, 
+                      label=f'Mean: {mean_q:.4f}')
+            
+            # Calculate and plot mode from histogram
+            hist, bin_edges = np.histogram(q_data, bins=50)
+            if len(hist) > 0:
+                max_hist_index = np.argmax(hist)
+                mode_q = (bin_edges[max_hist_index] + bin_edges[max_hist_index+1]) / 2
+                ax.axvline(mode_q, color='green', linestyle='dotted', linewidth=2, 
+                          label=f'Mode: {mode_q:.4f}')
+            
+            ax.set_xlabel("Control Value (q)", fontsize=18)
+            ax.set_ylabel("Frequency", fontsize=18)
+            ax.tick_params(axis='both', which='major', labelsize=16)
+            ax.legend(loc="upper left", fontsize=14)
+            ax.grid(True, linestyle='--', alpha=0.5)
+        
+        plt.tight_layout()
+        if save_dir:
+            plt.savefig(f"{save_dir}/imgs/control_histograms_average.png", dpi=300, bbox_inches='tight')
         if plot:
             plt.show()
         else:
@@ -1282,7 +1393,7 @@ class Solver:
         """
         Create a detailed analysis of terminal costs showing:
         1. Final terminal cost distribution across simulations
-        2. Position-demand gap evolution over time
+        2. Position-generation gap evolution over time
         3. Terminal cost evolution over time
         """
         if not self.results:
@@ -1294,7 +1405,7 @@ class Solver:
         
         # Subplot 1: Final terminal cost distribution (histogram)
         ax1 = axes[0]
-        # Subplot 2: Position-demand gap evolution
+        # Subplot 2: Position-generation gap evolution
         ax2 = axes[1] 
         # Subplot 3: Terminal cost evolution over time
         ax3 = axes[2]
@@ -1338,7 +1449,7 @@ class Solver:
             
             final_terminal_costs = np.array(final_terminal_costs)
             
-            # Calculate position-demand gap if demand exists
+            # Calculate position-generation gap if generation exists
             if y_traj.shape[-1] > 2:
                 X_traj = y_traj[:, :, 0]
                 D_traj = y_traj[:, :, 2]
@@ -1348,7 +1459,7 @@ class Solver:
                 final_gap_mean = gap_traj[-1, :].mean()
                 final_gap_std = gap_traj[-1, :].std()
                 
-                # Plot position-demand gap evolution
+                # Plot position-generation gap evolution
                 ax2.plot(timesteps, gap_mean, color=color, linewidth=2, label=agent_name)
                 ax2.fill_between(timesteps, gap_mean - gap_std, gap_mean + gap_std, 
                                color=color, alpha=0.2)
@@ -1399,9 +1510,9 @@ class Solver:
         ax1.legend()
         ax1.grid(True, alpha=0.3)
         
-        ax2.set_title('Position-Demand Gap Evolution', fontsize=12, fontweight='bold')
+        ax2.set_title('Position-Generation Gap Evolution', fontsize=12, fontweight='bold')
         ax2.set_xlabel('Time')
-        ax2.set_ylabel('Gap: D(t) - X(t)')
+        ax2.set_ylabel('Gap: G(t) - X(t)')
         ax2.axhline(y=0, color='black', linestyle='--', alpha=0.5, label='Perfect Execution')
         ax2.legend()
         ax2.grid(True, alpha=0.3)
@@ -1486,10 +1597,10 @@ class Solver:
                 
             y_traj = np.asarray(y_traj)  # Shape: (N+1, n_sim, state_dim)
             
-            # Extract X (cumulative position) and D (demand) if available
+            # Extract X (cumulative position) and G (generation) if available
             X_traj = y_traj[:, :, 0]  # Cumulative position
             if y_traj.shape[-1] > 2:
-                D_traj = y_traj[:, :, 2]  # Demand (if available)
+                D_traj = y_traj[:, :, 2]  # Generation (if available)
             else:
                 D_traj = None
             
@@ -1504,9 +1615,9 @@ class Solver:
                        linestyle=linestyle, linewidth=1.5, label=line_label_X,
                        marker='o', markersize=3, markevery=len(timesteps)//10)
                 
-                # Plot D trajectory (demand) if available
+                # Plot G trajectory (generation) if available
                 if D_traj is not None:
-                    line_label_D = f"{agent_name} D (traj {i+1})"
+                    line_label_D = f"{agent_name} G (traj {i+1})"
                     ax.plot(timesteps, D_traj[:, i], color=color, alpha=alpha*0.7, 
                            linestyle=linestyle, linewidth=1.2, label=line_label_D,
                            marker='s', markersize=2, markevery=len(timesteps)//10)
@@ -1518,7 +1629,7 @@ class Solver:
                                           linewidth=2, label=f"{agent_name} (style)"))
         
         # Customize subplot with DeepAgent style
-        ax.set_title(f"State Trajectories $x(t)$ and $d(t)$: {n_traj} individual paths per agent")
+        ax.set_title(f"State Trajectories $x(t)$ and $g(t)$: {n_traj} individual paths per agent")
         ax.set_xlabel("Time $t$")
         ax.set_ylabel("State Values")
         ax.grid(True)
@@ -1527,7 +1638,7 @@ class Solver:
         x_handle = plt.Line2D([0], [0], color='gray', marker='o', markersize=6, 
                              label='X (position)', linestyle='-', linewidth=2)
         d_handle = plt.Line2D([0], [0], color='gray', marker='s', markersize=4, 
-                             label='D (demand)', linestyle='-', linewidth=1.5, alpha=0.7)
+                             label='G (generation)', linestyle='-', linewidth=1.5, alpha=0.7)
         
         # Three legends: agents, X/D distinction, and individual trajectories
         leg1 = ax.legend(handles=agent_handles, title="Agents", loc='upper right', fontsize=9)
