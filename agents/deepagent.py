@@ -1222,6 +1222,7 @@ class DeepAgent(nn.Module):
                     approx_vs_analytic_dir = os.path.join(save_dir, "imgs", "approx_vs_analytic")
                     os.makedirs(approx_vs_analytic_dir, exist_ok=True)
                     
+                    # Save plot with epoch number in the subdirectory
                     plot_approx_vs_analytic(
                         results = results,
                         timesteps = timesteps,
@@ -1229,6 +1230,17 @@ class DeepAgent(nn.Module):
                         plot=False,
                         save_dir=approx_vs_analytic_dir,
                         num=epoch
+                    )
+                    
+                    # Also save the latest plot in the main imgs folder (always overwrite)
+                    main_imgs_dir = os.path.join(save_dir, "imgs")
+                    plot_approx_vs_analytic(
+                        results = results,
+                        timesteps = timesteps,
+                        validation = self.validation,
+                        plot=False,
+                        save_dir=main_imgs_dir,
+                        num=None  # This will save as the default filename without epoch number
                     )
                     timesteps, results = simulate_paths(dynamics=self.dynamics, agent=self, n_sim=1000, seed=42)
                     
