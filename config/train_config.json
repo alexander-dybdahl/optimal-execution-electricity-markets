@@ -41,7 +41,7 @@
   "lr": 1e-2,
   "annealing": false,
   "adaptive_loss": true,
-  "lambda_Y0": 1,
+  "lambda_Y0": 0,
   "lambda_Y": 1,
   "lambda_dY": 0,
   "lambda_dYt": 0,

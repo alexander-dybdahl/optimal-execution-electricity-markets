@@ -27,10 +27,9 @@ def main():
     parser.add_argument("--best", type=str2bool, nargs='?', const=True, default=eval_cfg["best"], help="Load the model using the best model found during training")
     parser.add_argument("--verbose", type=str2bool, nargs='?', const=True, default=eval_cfg["verbose"], help="Print training progress")
     parser.add_argument("--plot", type=str2bool, nargs='?', const=True, default=eval_cfg["plot"], help="Plot after training")
-    parser.add_argument("--n_traj", type=int, default=eval_cfg["n_traj"], help="Number of trajectories to plot")
-    parser.add_argument("--plot_state_trajectories", type=str2bool, nargs='?', const=True, default=eval_cfg["plot_state_trajectories"], help="Plot single state trajectories")
+    parser.add_argument("--plot_individual_trajectories", type=str2bool, nargs='?', const=True, default=eval_cfg.get("plot_individual_trajectories", False), help="Plot individual trajectories")
+    parser.add_argument("--n_traj", type=int, default=eval_cfg.get("n_traj", 5), help="Number of individual trajectories to plot")
     parser.add_argument("--plot_control_trajectories", type=str2bool, nargs='?', const=True, default=eval_cfg["plot_control_trajectories"], help="Plot control trajectories")
-    parser.add_argument("--plot_price_trajectories", type=str2bool, nargs='?', const=True, default=eval_cfg["plot_price_trajectories"], help="Plot price trajectories")
     parser.add_argument("--plot_trading_comparison", type=str2bool, nargs='?', const=True, default=eval_cfg["plot_trading_comparison"], help="Plot trading comparison")
     parser.add_argument("--plot_risk_metrics", type=str2bool, nargs='?', const=True, default=eval_cfg["plot_risk_metrics"], help="Plot risk metrics")
     parser.add_argument("--plot_controls", type=str2bool, nargs='?', const=True, default=eval_cfg["plot_controls"], help="Plot controls")
@@ -93,17 +92,18 @@ def main():
     solver.display_risk_metrics()
     
     # Generate plots
-    solver.plot_traj(plot=args.plot, save_dir=save_dir)
+    # Always plot expectation trajectories (mean ± std)
+    solver.plot_trajectories_expectation(plot=args.plot, save_dir=save_dir)
+    
+    # Plot individual trajectories if requested
+    if args.plot_individual_trajectories:
+        solver.plot_trajectories_individual(n_traj=args.n_traj, plot=args.plot, save_dir=save_dir)
+    
     solver.plot_cost_histograms(plot=args.plot, save_dir=save_dir)
-    if args.plot_state_trajectories:
-        solver.plot_state_trajectories(plot=args.plot, n_traj=args.n_traj, save_dir=save_dir)
-    if args.plot_control_trajectories:
-        solver.plot_control_trajectories(plot=args.plot, n_traj=args.n_traj, save_dir=save_dir)
-    if args.plot_price_trajectories:
-        solver.plot_price_trajectories(plot=args.plot, n_traj=args.n_traj, save_dir=save_dir)
     if args.plot_trading_comparison:
         solver.plot_detailed_trading_trajectories(plot=args.plot, save_dir=save_dir)
         solver.plot_trading_heatmap(plot=args.plot, save_dir=save_dir)
+        solver.plot_terminal_cost_analysis(plot=args.plot, save_dir=save_dir)
     if args.plot_risk_metrics:
         solver.plot_risk_metrics(plot=args.plot, save_dir=save_dir)
         solver.plot_risk_comparison_radar(plot=args.plot, save_dir=save_dir)
