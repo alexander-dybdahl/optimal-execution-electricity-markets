@@ -7,9 +7,13 @@
   "best": false,
   "verbose": true,
   "plot": false,
+  "n_traj": 1,
+  "plot_state_trajectories": false,
+  "plot_control_trajectories": false,
+  "plot_price_trajectories": false,
   "plot_trading_comparison": false,
-  "plot_risk_metrics": true,
+  "plot_risk_metrics": false,
   "plot_controls": false,
-  "n_simulations": 10000,
+  "n_simulations": 1024,
   "seed": 42
 }

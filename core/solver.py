@@ -1231,3 +1231,288 @@ class Solver:
             plt.show()
         else:
             plt.close()
+        
+    def _get_trajectory_colors_and_styles(self, n_traj):
+        """
+        Helper method to ensure consistent colors and line styles across all trajectory plots.
+        Returns colors and line styles that should be used consistently.
+        """
+        # Define line styles for different agents
+        line_styles = ['-', '--', '-.', ':', (0, (3, 1, 1, 1)), (0, (5, 1))]
+        
+        # Get colormap for trajectories - use consistent colormap
+        import matplotlib.cm as cm
+        total_trajectories = len(self.results) * n_traj
+        colors = cm.get_cmap("tab20", max(total_trajectories, 20))
+        
+        return colors, line_styles
+
+    def plot_state_trajectories(self, n_traj=5, plot=True, save_dir=None):
+        """
+        Plot individual trajectories of state variables (X and D) for each agent.
+        X and D are plotted in the same subplot with different markers.
+        Each trajectory gets a unique color, different agents use different line styles.
+        
+        Args:
+            n_traj (int): Number of individual trajectories to plot per agent
+            plot (bool): Whether to show the plots interactively
+            save_dir (str): Directory to save the plots, if provided
+        """
+        plt.rcParams.update({'font.size': 14})
+        if not self.results:
+            print("No results to plot.")
+            return
+            
+        # Check if n_traj is valid
+        if n_traj > self.n_sim:
+            raise ValueError(f"n_traj ({n_traj}) cannot be larger than n_simulations ({self.n_sim})")
+            
+        # Get consistent colors and line styles
+        colors, line_styles = self._get_trajectory_colors_and_styles(n_traj)
+            
+        # Create figure with single subplot for both X and D
+        fig, ax = plt.subplots(1, 1, figsize=(12, 8))
+        
+        # Track agent handles for legend
+        agent_handles = []
+        trajectory_idx = 0
+        
+        for agent_idx, (agent_name, data) in enumerate(self.results.items()):
+            timesteps = data['timesteps']
+            results = data['results']
+            linestyle = line_styles[agent_idx % len(line_styles)]
+            
+            # Get state trajectories
+            y_traj = results.get('y_learned', None)
+            if y_traj is None:
+                continue
+                
+            y_traj = np.asarray(y_traj)  # Shape: (N+1, n_sim, state_dim)
+            
+            # Extract X (cumulative position) and D (demand) if available
+            X_traj = y_traj[:, :, 0]  # Cumulative position
+            if y_traj.shape[-1] > 2:
+                D_traj = y_traj[:, :, 2]  # Demand (if available)
+            else:
+                D_traj = None
+            
+            # Plot individual X and D trajectories - each with unique color but consistent across plots
+            for i in range(min(n_traj, X_traj.shape[1])):
+                color = colors(trajectory_idx)
+                alpha = 0.8  # Make trajectories clearly visible
+                
+                # Plot X trajectory (cumulative position)
+                line_label_X = f"{agent_name} X (traj {i+1})"
+                ax.plot(timesteps, X_traj[:, i], color=color, alpha=alpha, 
+                       linestyle=linestyle, linewidth=1.5, label=line_label_X,
+                       marker='o', markersize=3, markevery=len(timesteps)//10)
+                
+                # Plot D trajectory (demand) if available
+                if D_traj is not None:
+                    line_label_D = f"{agent_name} D (traj {i+1})"
+                    ax.plot(timesteps, D_traj[:, i], color=color, alpha=alpha*0.7, 
+                           linestyle=linestyle, linewidth=1.2, label=line_label_D,
+                           marker='s', markersize=2, markevery=len(timesteps)//10)
+                
+                trajectory_idx += 1
+            
+            # Store handle for agent legend (showing line style)
+            agent_handles.append(plt.Line2D([0], [0], color='black', linestyle=linestyle, 
+                                          linewidth=2, label=f"{agent_name} (style)"))
+        
+        # Customize subplot with DeepAgent style
+        ax.set_title(f"State Trajectories $x(t)$ and $d(t)$: {n_traj} individual paths per agent")
+        ax.set_xlabel("Time $t$")
+        ax.set_ylabel("State Values")
+        ax.grid(True)
+        
+        # Create custom legend handles for X and D distinction
+        x_handle = plt.Line2D([0], [0], color='gray', marker='o', markersize=6, 
+                             label='X (position)', linestyle='-', linewidth=2)
+        d_handle = plt.Line2D([0], [0], color='gray', marker='s', markersize=4, 
+                             label='D (demand)', linestyle='-', linewidth=1.5, alpha=0.7)
+        
+        # Three legends: agents, X/D distinction, and individual trajectories
+        leg1 = ax.legend(handles=agent_handles, title="Agents", loc='upper right', fontsize=9)
+        ax.add_artist(leg1)
+        
+        if any('D_traj' in locals() and D_traj is not None for _, data in self.results.items()):
+            leg2 = ax.legend(handles=[x_handle, d_handle], title="Variables", loc='upper left', fontsize=9)
+            ax.add_artist(leg2)
+        
+        ax.legend(loc='center left', bbox_to_anchor=(1, 0.5), fontsize=7, title="Trajectories")
+        
+        plt.tight_layout()
+        if save_dir:
+            plt.savefig(f"{save_dir}/imgs/state_trajectories_n{n_traj}.png", dpi=300, bbox_inches='tight')
+        if plot:
+            plt.show()
+        else:
+            plt.close()
+    
+    def plot_control_trajectories(self, n_traj=5, plot=True, save_dir=None):
+        """
+        Plot individual trajectories of control variables (q) for each agent.
+        Each trajectory gets a unique color (consistent with other plots), different agents use different line styles.
+        
+        Args:
+            n_traj (int): Number of individual trajectories to plot per agent
+            plot (bool): Whether to show the plots interactively
+            save_dir (str): Directory to save the plots, if provided
+        """
+        plt.rcParams.update({'font.size': 14})
+        if not self.results:
+            print("No results to plot.")
+            return
+            
+        # Check if n_traj is valid
+        if n_traj > self.n_sim:
+            raise ValueError(f"n_traj ({n_traj}) cannot be larger than n_simulations ({self.n_sim})")
+            
+        # Get consistent colors and line styles
+        colors, line_styles = self._get_trajectory_colors_and_styles(n_traj)
+            
+        # Create figure with DeepAgent style
+        fig, ax = plt.subplots(1, 1, figsize=(12, 8))
+        
+        # Track agent handles for legend
+        agent_handles = []
+        trajectory_idx = 0
+        
+        for agent_idx, (agent_name, data) in enumerate(self.results.items()):
+            timesteps = data['timesteps']
+            results = data['results']
+            linestyle = line_styles[agent_idx % len(line_styles)]
+            
+            # Get control trajectories
+            q_traj = results.get('q_learned', None)
+            if q_traj is None:
+                continue
+                
+            q_traj = np.asarray(q_traj)  # Shape: (N, n_sim, control_dim)
+            
+            # Use timesteps for controls (exclude last timestep since no control at terminal time)
+            control_times = timesteps[:-1]
+            
+            # Plot individual control trajectories - each with consistent color from other plots
+            for i in range(min(n_traj, q_traj.shape[1])):
+                # Squeeze if control is 1-dimensional
+                if q_traj.shape[-1] == 1:
+                    q_i = q_traj[:, i, 0]
+                else:
+                    q_i = q_traj[:, i, 0]  # Plot first control dimension if multi-dimensional
+                
+                color = colors(trajectory_idx)  # Same color as corresponding trajectory in other plots
+                alpha = 0.8  # Make trajectories clearly visible
+                line_label = f"{agent_name} (traj {i+1})"
+                ax.plot(control_times, q_i, color=color, alpha=alpha, 
+                       linestyle=linestyle, linewidth=1.5, label=line_label)
+                trajectory_idx += 1
+            
+            # Store handle for agent legend (showing line style)
+            agent_handles.append(plt.Line2D([0], [0], color='black', linestyle=linestyle, 
+                                          linewidth=2, label=f"{agent_name} (style)"))
+        
+        # Customize subplot with DeepAgent style
+        ax.set_title(f"Control $q(t)$: {n_traj} individual paths per agent")
+        ax.set_xlabel("Time $t$")
+        ax.set_ylabel("$q(t)$")
+        ax.grid(True)
+        # Two legends: one for agents (line styles), one for individual trajectories
+        leg1 = ax.legend(handles=agent_handles, title="Agents", loc='upper right', fontsize=9)
+        ax.add_artist(leg1)
+        ax.legend(loc='center left', bbox_to_anchor=(1, 0.5), fontsize=8, title="Trajectories")
+        
+        plt.tight_layout()
+        if save_dir:
+            plt.savefig(f"{save_dir}/imgs/control_trajectories_n{n_traj}.png", dpi=300, bbox_inches='tight')
+        if plot:
+            plt.show()
+        else:
+            plt.close()
+    
+    def plot_price_trajectories(self, n_traj=5, plot=True, save_dir=None):
+        """
+        Plot individual trajectories of price (P) for each agent.
+        Each trajectory gets a unique color (consistent with other plots), different agents use different line styles.
+        
+        Args:
+            n_traj (int): Number of individual trajectories to plot per agent
+            plot (bool): Whether to show the plots interactively
+            save_dir (str): Directory to save the plots, if provided
+        """
+        plt.rcParams.update({'font.size': 14})
+        if not self.results:
+            print("No results to plot.")
+            return
+            
+        # Check if n_traj is valid
+        if n_traj > self.n_sim:
+            raise ValueError(f"n_traj ({n_traj}) cannot be larger than n_simulations ({self.n_sim})")
+            
+        # Get consistent colors and line styles
+        colors, line_styles = self._get_trajectory_colors_and_styles(n_traj)
+            
+        # Create figure with DeepAgent style
+        fig, ax = plt.subplots(1, 1, figsize=(12, 8))
+        
+        # Track agent handles for legend
+        agent_handles = []
+        trajectory_idx = 0
+        import matplotlib.cm as cm
+        total_trajectories = len(self.results) * n_traj
+        colors = cm.get_cmap("tab20", max(total_trajectories, 20))
+        
+        # Track agent handles for legend
+        agent_handles = []
+        trajectory_idx = 0
+        
+        for agent_idx, (agent_name, data) in enumerate(self.results.items()):
+            timesteps = data['timesteps']
+            results = data['results']
+            linestyle = line_styles[agent_idx % len(line_styles)]
+            
+            # Get state trajectories to extract price
+            y_traj = results.get('y_learned', None)
+            if y_traj is None:
+                continue
+            
+            y_traj = np.asarray(y_traj)  # Shape: (N+1, n_sim, state_dim)
+            
+            # Extract price (P) - typically the second component of the state
+            if y_traj.shape[-1] > 1:
+                P_traj = y_traj[:, :, 1]  # Price
+            else:
+                print(f"Warning: Price data not available for {agent_name}")
+                continue
+            
+            # Plot individual price trajectories - each with unique color
+            for i in range(min(n_traj, P_traj.shape[1])):
+                color = colors(trajectory_idx)
+                alpha = 0.8  # Make trajectories clearly visible
+                line_label = f"{agent_name} (traj {i+1})"
+                ax.plot(timesteps, P_traj[:, i], color=color, alpha=alpha, 
+                       linestyle=linestyle, linewidth=1.5, label=line_label)
+                trajectory_idx += 1
+            
+            # Store handle for agent legend (showing line style)
+            agent_handles.append(plt.Line2D([0], [0], color='black', linestyle=linestyle, 
+                                          linewidth=2, label=f"{agent_name} (style)"))
+        
+        # Customize subplot with DeepAgent style
+        ax.set_title(f"Price $P(t)$: {n_traj} individual paths per agent")
+        ax.set_xlabel("Time $t$")
+        ax.set_ylabel("$P(t)$")
+        ax.grid(True)
+        # Two legends: one for agents (line styles), one for individual trajectories
+        leg1 = ax.legend(handles=agent_handles, title="Agents", loc='upper right', fontsize=9)
+        ax.add_artist(leg1)
+        ax.legend(loc='center left', bbox_to_anchor=(1, 0.5), fontsize=8, title="Trajectories")
+        
+        plt.tight_layout()
+        if save_dir:
+            plt.savefig(f"{save_dir}/imgs/price_trajectories_n{n_traj}.png", dpi=300, bbox_inches='tight')
+        if plot:
+            plt.show()
+        else:
+            plt.close()
