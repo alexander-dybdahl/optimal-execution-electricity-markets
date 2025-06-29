@@ -332,7 +332,7 @@ class Solver:
                 mode_cost = (bin_edges[max_hist_index] + bin_edges[max_hist_index+1]) / 2
                 ax.axvline(mode_cost, color='green', linestyle='dotted', linewidth=2, label=f'Mode: {mode_cost:.4f}')
 
-            ax.set_title(f'Cost Distribution for {agent_name}')
+            # ax.set_title(f'Cost Distribution for {agent_name}')
             ax.set_xlabel("Cost Objective")
             ax.set_ylabel("Frequency")
             

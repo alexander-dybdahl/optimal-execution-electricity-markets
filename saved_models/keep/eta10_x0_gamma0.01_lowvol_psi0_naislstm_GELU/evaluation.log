@@ -1,0 +1,3 @@
+Using dynamics config from model folder: saved_models/5_eta10_x0_gamma0.01_lowvol_psi0_naislstm_GELU/dynamics_config.json
+Starting evaluation.
+Evaluation completed with seed 42.
