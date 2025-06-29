@@ -1,0 +1,19 @@
+{
+    "device": "cuda",
+    "save_dir": null,
+    "model_dir": "saved_models/eta10_x-50_gamma0.01_lowvol_psi0.5_naislstm_GELU",
+    "dynamics_path": "config/dynamics_configs/full_config.json",
+    "use_model_dynamics": true,
+    "best": false,
+    "verbose": true,
+    "plot": false,
+    "n_traj": 1,
+    "plot_state_trajectories": true,
+    "plot_control_trajectories": true,
+    "plot_price_trajectories": true,
+    "plot_trading_comparison": true,
+    "plot_risk_metrics": true,
+    "plot_controls": true,
+    "n_simulations": 1024,
+    "seed": 42
+}

@@ -12,7 +12,7 @@
     "force_overwrite": false,
     "resume": true,
     "reset_lr": false,
-    "reset_best": true,
+    "reset_best": false,
     "epochs": 100000,
     "K": 50,
     "seed": 42,

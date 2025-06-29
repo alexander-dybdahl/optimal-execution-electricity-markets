@@ -1,0 +1,1 @@
+Model dynamics config not found at saved_models/keep/SP01_eta10_x0_gamma0.01_lowvol_psi0_naislstm_GELU/dynamics_config.json, using default: config/dynamics_configs/full_config.json
