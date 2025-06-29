@@ -33,6 +33,7 @@ def main():
     parser.add_argument("--reset_best", type=str2bool, nargs='?', const=True, default=train_cfg["reset_best"], help="Reset the best loss to initial value")
     parser.add_argument("--epochs", type=int, default=train_cfg["epochs"], help="Number of training epochs")
     parser.add_argument("--K", type=int, default=train_cfg["K"], help="Epochs between evaluations of the model")
+    parser.add_argument("--seed", type=int, default=train_cfg["seed"], help="Seed to train model on (evaluate train error)")
     parser.add_argument("--batch_size", type=int, default=train_cfg["batch_size"], help="Batch size for training")
     parser.add_argument("--save_n", type=int, default=train_cfg["save_n"], help="If 'every' is selected, save every n epochs")
     parser.add_argument("--plot_n", type=int, default=train_cfg["plot_n"], help="Save plot every n epochs if plot_n is not None")
@@ -360,7 +361,8 @@ def main():
         call_model.train_model(
             epochs=args.epochs, 
             K=args.K, 
-            lr=args.lr, 
+            lr=args.lr,
+            seed=args.seed,
             verbose=args.verbose, 
             plot=args.plot_loss, 
             adaptive=args.adaptive, 

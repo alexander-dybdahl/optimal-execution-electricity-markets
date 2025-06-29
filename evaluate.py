@@ -29,6 +29,7 @@ def main():
     parser.add_argument("--plot", type=str2bool, nargs='?', const=True, default=eval_cfg["plot"], help="Plot after training")
     parser.add_argument("--plot_controls", type=str2bool, nargs='?', const=True, default=eval_cfg["plot_controls"], help="Plot controls")
     parser.add_argument("--n_simulations", type=int, default=eval_cfg["n_simulations"], help="Number of simulations to run")
+    parser.add_argument("--seed", type=int, default=eval_cfg["seed"], help="Seed to use for evaluation")
     args = parser.parse_args()
 
     device = torch.device(args.device)
@@ -74,8 +75,7 @@ def main():
         json.dump(dynamics_cfg, f, indent=4)
 
     # Evaluate
-    seed = np.random.randint(0, 1000)
-    solver = Solver(dynamics=dynamics, seed=seed, n_sim=args.n_simulations)
+    solver = Solver(dynamics=dynamics, seed=args.seed, n_sim=args.n_simulations)
     logger.log("Starting evaluation.")
     solver.evaluate_agent(agent=AnalyticalAgent(dynamics=dynamics), agent_name="AnalyticalAgent")
     solver.evaluate_agent(agent=DeepAgent.load_from_checkpoint(dynamics=dynamics, model_cfg=train_cfg, device=device, model_dir=args.model_dir, best=args.best), agent_name="DeepAgent")

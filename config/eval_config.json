@@ -8,5 +8,6 @@
   "verbose": true,
   "plot": false,
   "plot_controls": false,
-  "n_simulations": 10000
+  "n_simulations": 10000,
+  "seed": 42
 }

@@ -856,6 +856,7 @@ class DeepAgent(nn.Module):
         epochs=1000,
         K=50,
         lr=1e-3,
+        seed=None,
         verbose=True,
         plot=True,
         adaptive=True,
@@ -1046,7 +1047,7 @@ class DeepAgent(nn.Module):
             if self.annealing:
                 self.dynamics.anneal(epoch, epochs)
             optimizer.zero_grad()
-            t, dW, _ = self.dynamics.generate_paths(self.batch_size)
+            t, dW, _ = self.dynamics.generate_paths(self.batch_size, seed=seed)
             loss = self(t=t, dW=dW, epoch=epoch)
             loss.backward()
 
