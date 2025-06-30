@@ -45,7 +45,7 @@ def main():
     os.makedirs(save_dir, exist_ok=True)
     os.makedirs(save_dir + "/imgs", exist_ok=True)
 
-    logger = Logger(save_dir=save_dir, is_main=True, verbose=args.verbose, filename="evaluation.log", overwrite=True)
+    logger = Logger(save_dir=save_dir, is_main=True, verbose=args.verbose, filename="evaluation.log", overwrite=False)
 
     if torch.cuda.is_available() and args.device != "cuda":
         logger.log("Warning: CUDA is available but the config file does not set device to cuda.") 

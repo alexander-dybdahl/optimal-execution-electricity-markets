@@ -1,4 +1,3 @@
-import matplotlib.cm as cm
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
@@ -19,17 +18,19 @@ def plot_approx_vs_analytic(results, timesteps, validation=None, plot=True, save
         val_q_loss = validation["q_loss"]
         val_Y_loss = validation["Y_loss"]
 
-    fig, axs = plt.subplots(3, 2, figsize=(14, 10))
-    colors = cm.get_cmap("tab10", approx_q.shape[1])
+    fig, axs = plt.subplots(3, 2, figsize=(18, 12))
+    # Use standard matplotlib color cycle instead of tab10
+    color_cycle = plt.rcParams['axes.prop_cycle'].by_key()['color']
+    colors = lambda i: color_cycle[i % len(color_cycle)]
 
     for i in range(approx_q.shape[1]):
-        axs[0, 0].plot(timesteps[:-1], approx_q[:, i], color=colors(i), alpha=0.6, label=f"Learned $q(t)$" if i == 0 else None)
+        axs[0, 0].plot(timesteps[:-1], approx_q[:, i], color=colors(i), alpha=0.6, label=f"Learned $q^\\theta(t)$" if i == 0 else None)
         if true_q is not None:
             axs[0, 0].plot(timesteps[:-1], true_q[:, i], linestyle="--", color=colors(i), alpha=0.4, label=f"Analytical $\\bar{{q}}(t)$" if i == 0 else None)
     axs[0, 0].set_title("Control $q(t)$: Learned vs Analytical")
     axs[0, 0].set_xlabel("Time $t$")
     axs[0, 0].set_ylabel("$q(t)$")
-    axs[0, 0].grid(True)
+    axs[0, 0].grid(True, linestyle='--')
     axs[0, 0].legend(loc='upper left')
 
     if validation is not None and true_q is not None:
@@ -40,17 +41,17 @@ def plot_approx_vs_analytic(results, timesteps, validation=None, plot=True, save
         axs[0, 1].set_title("Error in Control $q(t)$")
         axs[0, 1].set_xlabel("Time $t$")
         axs[0, 1].set_ylabel("$|q(t) - \\bar{{q}}(t)|^2$")
-        axs[0, 1].grid(True)
+        axs[0, 1].grid(True, linestyle='--')
         axs[0, 1].legend(loc='upper left')
 
     for i in range(Y_vals.shape[1]):
-        axs[1, 0].plot(timesteps, Y_vals[:, i, 0], color=colors(i), alpha=0.6, label=f"Learned $Y(t)$" if i == 0 else None)
+        axs[1, 0].plot(timesteps, Y_vals[:, i, 0], color=colors(i), alpha=0.6, label=f"Learned $Y^\\theta(t)$" if i == 0 else None)
         if true_Y is not None:
             axs[1, 0].plot(timesteps, true_Y[:, i, 0], linestyle="--", color=colors(i), alpha=0.4, label=f"Analytical $\\bar{{Y}}(t)$" if i == 0 else None)
     axs[1, 0].set_title("Cost-to-Go $Y(t)$")
     axs[1, 0].set_xlabel("Time $t$")
     axs[1, 0].set_ylabel("Y(t)")
-    axs[1, 0].grid(True)
+    axs[1, 0].grid(True, linestyle='--')
     axs[1, 0].legend(loc='upper left')
 
     if validation is not None and true_Y is not None:
@@ -61,30 +62,30 @@ def plot_approx_vs_analytic(results, timesteps, validation=None, plot=True, save
         axs[1, 1].set_title("Error in Cost-to-Go $Y(t)$")
         axs[1, 1].set_xlabel("Time $t$")
         axs[1, 1].set_ylabel("$|Y(t) - \\bar{{Y}}(t)|^2$")
-        axs[1, 1].grid(True)
+        axs[1, 1].grid(True, linestyle='--')
         axs[1, 1].legend(loc='upper left')
 
     for i in range(y_vals.shape[1]):
-        axs[2, 0].plot(timesteps, y_vals[:, i, 0], color=colors(i), alpha=0.6, label=f"$x(t)$" if i == 0 else None)
+        axs[2, 0].plot(timesteps, y_vals[:, i, 0], color=colors(i), alpha=0.6, label=f"$X(t)$" if i == 0 else None)
         if true_y is not None:
-            axs[2, 0].plot(timesteps, true_y[:, i, 0], linestyle="--", color=colors(i), alpha=0.4, label=f"$\\bar{{x}}(t)$" if i == 0 else None)
+            axs[2, 0].plot(timesteps, true_y[:, i, 0], linestyle="--", color=colors(i), alpha=0.4, label=f"$\\bar{{X}}(t)$" if i == 0 else None)
         if y_vals.shape[2] > 1:
-            axs[2, 0].plot(timesteps, y_vals[:, i, 2], linestyle="-.", color=colors(i), alpha=0.6, label=f"$d(t)$" if i == 0 else None)
-    axs[2, 0].set_title("States: $x(t)$ and $d(t)$")
+            axs[2, 0].plot(timesteps, y_vals[:, i, 2], linestyle="-.", color=colors(i), alpha=0.6, label=f"$G(t)$" if i == 0 else None)
+    axs[2, 0].set_title("States: $X(t)$ and $G(t)$")
     axs[2, 0].set_xlabel("Time $t$")
-    axs[2, 0].set_ylabel("x(t), d(t)")
-    axs[2, 0].grid(True)
+    axs[2, 0].set_ylabel("X(t), G(t)")
+    axs[2, 0].grid(True, linestyle='--')
     axs[2, 0].legend(loc='upper left')
 
     if y_vals.shape[2] > 1:
         for i in range(y_vals.shape[1]):
-            axs[2, 1].plot(timesteps, y_vals[:, i, 1], color=colors(i), alpha=0.6, label=f"$p(t)$" if i == 0 else None)
+            axs[2, 1].plot(timesteps, y_vals[:, i, 1], color=colors(i), alpha=0.6, label=f"$P(t)$" if i == 0 else None)
             if true_y is not None:
-                axs[2, 1].plot(timesteps, true_y[:, i, 1], linestyle="--", color=colors(i), alpha=0.4, label=f"$\\bar{{p}}(t)$" if i == 0 else None)
-        axs[2, 1].set_title("State: $p(t)$")
+                axs[2, 1].plot(timesteps, true_y[:, i, 1], linestyle="--", color=colors(i), alpha=0.4, label=f"$\\bar{{P}}(t)$" if i == 0 else None)
+        axs[2, 1].set_title("State: $P(t)$")
         axs[2, 1].set_xlabel("Time $t$")
-        axs[2, 1].set_ylabel("p(t)")
-        axs[2, 1].grid(True)
+        axs[2, 1].set_ylabel("P(t)")
+        axs[2, 1].grid(True, linestyle='--')
         axs[2, 1].legend(loc='upper left')
 
     plt.tight_layout()
@@ -118,14 +119,14 @@ def plot_approx_vs_analytic_expectation(results, timesteps, plot=True, save_dir=
 
     fig, axs = plt.subplots(2, 2, figsize=(14, 10))
 
-    axs[0, 0].plot(timesteps[:-1], mean_q, label='Learned Mean', color='blue')
-    axs[0, 0].fill_between(timesteps[:-1], mean_q - std_q, mean_q + std_q, color='blue', alpha=0.3, label='Learned ±1 Std')
+    axs[0, 0].plot(timesteps[:-1], mean_q, label='Learned $q^\\theta$ Mean', color='blue')
+    axs[0, 0].fill_between(timesteps[:-1], mean_q - std_q, mean_q + std_q, color='blue', alpha=0.3, label='Learned $q^\\theta$ ±1 Std')
     axs[0, 0].plot(timesteps[:-1], mean_q_analytical, label='Analytical Mean', color='black', linestyle='--')
     axs[0, 0].fill_between(timesteps[:-1], mean_q_analytical - std_q_analytical, mean_q_analytical + std_q_analytical, color='black', alpha=0.2, label='Analytical ±1 Std')
     axs[0, 0].set_title("Control $q(t)$: Learned vs Analytical")
     axs[0, 0].set_xlabel("Time $t$")
     axs[0, 0].set_ylabel("$q(t)$")
-    axs[0, 0].grid(True)
+    axs[0, 0].grid(True, linestyle='--')
     axs[0, 0].legend(loc='upper left')
 
     diff = (approx_q - true_q) ** 2
@@ -136,17 +137,17 @@ def plot_approx_vs_analytic_expectation(results, timesteps, plot=True, save_dir=
     axs[0, 1].set_title("Error in Control $q(t)$")
     axs[0, 1].set_xlabel("Time $t$")
     axs[0, 1].set_ylabel("$|q(t) - \\bar{{q}}(t)|^2$")
-    axs[0, 1].grid(True)
+    axs[0, 1].grid(True, linestyle='--')
     axs[0, 1].legend(loc='upper left')
 
-    axs[1, 0].plot(timesteps, mean_Y, color='blue', label='Learned Mean')
-    axs[1, 0].fill_between(timesteps, mean_Y - std_Y, mean_Y + std_Y, color='blue', alpha=0.3, label='Learned ±1 Std')
+    axs[1, 0].plot(timesteps, mean_Y, color='blue', label='Learned $Y^\\theta$ Mean')
+    axs[1, 0].fill_between(timesteps, mean_Y - std_Y, mean_Y + std_Y, color='blue', alpha=0.3, label='Learned $Y^\\theta$ ±1 Std')
     axs[1, 0].plot(timesteps, mean_true_Y, color='black', linestyle='--', label='Analytical Mean')
     axs[1, 0].fill_between(timesteps, mean_true_Y - std_true_Y, mean_true_Y + std_true_Y, color='black', alpha=0.2, label='Analytical ±1 Std')
     axs[1, 0].set_title("Cost-to-Go $Y(t)$")
     axs[1, 0].set_xlabel("Time $t$")
     axs[1, 0].set_ylabel("Y(t)")
-    axs[1, 0].grid(True)
+    axs[1, 0].grid(True, linestyle='--')
     axs[1, 0].legend(loc='upper left')
 
     diff_Y = (Y_vals - true_Y) ** 2
@@ -157,7 +158,7 @@ def plot_approx_vs_analytic_expectation(results, timesteps, plot=True, save_dir=
     axs[1, 1].set_title("Error in Cost-to-Go $Y(t)$")
     axs[1, 1].set_xlabel("Time $t$")
     axs[1, 1].set_ylabel("$|Y(t) - \\bar{{Y}}(t)|^2$")
-    axs[1, 1].grid(True)
+    axs[1, 1].grid(True, linestyle='--')
     axs[1, 1].legend(loc='upper left')
 
     plt.tight_layout()
@@ -217,7 +218,7 @@ def plot_terminal_histogram(results, dynamics, plot=True, save_dir=None, num=Non
     plt.figure(figsize=(14, 10))
 
     plt.subplot(2, 1, 1)
-    plt.hist(Y_T_approx, bins=bins, alpha=0.6, label="Approx. $Y_T$", color="blue", density=True)
+    plt.hist(Y_T_approx, bins=bins, alpha=0.6, label="Approx. $Y^\\theta_T$", color="blue", density=True)
     plt.hist(Y_T_true, bins=bins, alpha=0.6, label="Analytical $g(y_T)$", color="green", density=True)
     plt.axvline(np.mean(Y_T_approx), color='blue', linestyle='--', label=f"Mean approx: {np.mean(Y_T_approx):.3f}")
     plt.axvline(np.mean(Y_T_true), color='green', linestyle='--', label=f"Mean true: {np.mean(Y_T_true):.3f}")
@@ -225,11 +226,11 @@ def plot_terminal_histogram(results, dynamics, plot=True, save_dir=None, num=Non
     plt.xlabel("$Y(T)$ / $g(y_T)$")
     plt.ylabel("Density")
     plt.legend()
-    plt.grid(True)
+    plt.grid(True, linestyle='--')
     plt.tight_layout()
 
     plt.subplot(2, 1, 2)
-    plt.hist(q_T_approx, bins=bins, alpha=0.6, label="Approx. $q_T$", color="blue", density=True)
+    plt.hist(q_T_approx, bins=bins, alpha=0.6, label="Approx. $q^\\theta_T$", color="blue", density=True)
     plt.axvline(np.mean(q_T_approx), color='blue', linestyle='--', label=f"Mean approx: {np.mean(q_T_approx):.3f}")
     if dynamics.analytical_known:
         plt.hist(q_T_true, bins=bins, alpha=0.6, label="Analytical $\\bar{{q}}(y_T)$", color="green", density=True)
@@ -238,7 +239,7 @@ def plot_terminal_histogram(results, dynamics, plot=True, save_dir=None, num=Non
     plt.xlabel("$q(T)$ / $\\bar{{q}}(y_T)$")
     plt.ylabel("Density")
     plt.legend()
-    plt.grid(True)
+    plt.grid(True, linestyle='--')
     plt.tight_layout()
 
     if save_dir:

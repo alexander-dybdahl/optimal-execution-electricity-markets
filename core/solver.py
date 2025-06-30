@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 from matplotlib.patches import Patch
 from scipy import stats
+import logging
 
 from utils.simulator import simulate_paths, compute_cost_objective
 
@@ -65,7 +66,7 @@ class Solver:
             return
         
         # Plot q, y, Y as subplots in a single figure
-        fig, axs = plt.subplots(1, 3, figsize=(18, 6))
+        fig, axs = plt.subplots(1, 3, figsize=(24, 8))
         var_ylabels = {'q': '$q(t)$', 'y': '$y(t)$', 'Y': '$Y(t)$'}
         line_styles = {'learned': '-'}
         
@@ -202,7 +203,7 @@ class Solver:
             n_traj = self.n_sim
         
         # Plot q, y, Y as subplots in a single figure
-        fig, axs = plt.subplots(1, 3, figsize=(18, 6))
+        fig, axs = plt.subplots(1, 3, figsize=(24, 8))
         var_ylabels = {'q': '$q(t)$', 'y': '$y(t)$', 'Y': '$Y(t)$'}
         line_styles = {'learned': '-'}
         
@@ -216,7 +217,7 @@ class Solver:
             
             # Create individual plot if requested
             if save_individual and save_dir:
-                fig_individual, ax_individual = plt.subplots(1, 1, figsize=(10, 4))
+                fig_individual, ax_individual = plt.subplots(1, 1, figsize=(12, 6))
                 plt.rcParams.update({'font.size': 18})
             
             # For Y plot, create agent handles only for agents that have Y data
@@ -344,10 +345,9 @@ class Solver:
                 plt.savefig(f"{save_dir}/imgs/trajectories_individual_{var}.png", dpi=300, bbox_inches='tight')
                 plt.close(fig_individual)
 
-        plt.tight_layout()
-        if save_dir:
-            plt.savefig(f"{save_dir}/imgs/trajectories_individual.png", dpi=300, bbox_inches='tight')
+        # Only show the combined plot if plot=True, but don't save it
         if plot:
+            plt.tight_layout()
             plt.show()
         else:
             plt.close()
@@ -368,46 +368,42 @@ class Solver:
         n_agents = len(self.costs)
         if n_agents == 0:
             return
-            
-        fig, axs = plt.subplots(n_agents, 1, figsize=(8, 6 * n_agents), squeeze=False)
 
-        for i, (agent_name, costs) in enumerate(self.costs.items()):
-            ax = axs[i, 0]
-            color = self.colors.get(agent_name, 'gray')
-
-            # Plot histogram
-            ax.hist(costs, bins='auto', color=color, alpha=0.7, label='Cost Distribution')
+        # Create individual plots for each agent
+        for agent_name, costs in self.costs.items():
+            fig, ax = plt.subplots(1, 1, figsize=(10, 8))
 
             # Calculate stats
             mean_cost = np.mean(costs)
+            std_cost = np.std(costs)
+
+            # Plot histogram with uniform color
+            ax.hist(costs, bins='auto', color='steelblue', alpha=0.7, label='Cost Distribution')
 
             # Plot mean line
             ax.axvline(mean_cost, color='red', linestyle='dotted', linewidth=2, label=f'Mean: {mean_cost:.4f}')
 
-            # Calculate and plot mode from histogram
-            hist, bin_edges = np.histogram(costs, bins='auto')
-            if len(hist) > 0:
-                max_hist_index = np.argmax(hist)
-                mode_cost = (bin_edges[max_hist_index] + bin_edges[max_hist_index+1]) / 2
-                ax.axvline(mode_cost, color='green', linestyle='dotted', linewidth=2, label=f'Mode: {mode_cost:.4f}')
-
-            # ax.set_title(f'Cost Distribution for {agent_name}')
             ax.set_xlabel("Cost Objective")
             ax.set_ylabel("Frequency")
             
-            # Create legend
+            # Create legend with std as separate entry
             handles, labels = ax.get_legend_handles_labels()
+            # Add std as text-only legend entry
+            handles.append(plt.Line2D([0], [0], color='none', label=f'Std: {std_cost:.4f}'))
             
             ax.legend(handles=handles, loc="upper left")
             ax.grid(True, linestyle='--', alpha=0.5)
 
-        plt.tight_layout()
-        if save_dir:
-            plt.savefig(f"{save_dir}/imgs/cost_histograms.png", dpi=300, bbox_inches='tight')
-        if plot:
-            plt.show()
-        else:
-            plt.close()
+            plt.tight_layout()
+            
+            # Save individual plot with agent name
+            if save_dir:
+                plt.savefig(f"{save_dir}/imgs/cost_histogram_{agent_name}.png", dpi=300, bbox_inches='tight')
+            
+            if plot:
+                plt.show()
+            else:
+                plt.close()
             
     def calculate_risk_metrics(self, costs, confidence_levels=[0.95, 0.99]):
         """
@@ -981,63 +977,63 @@ class Solver:
     
     def display_risk_metrics(self, agent_name=None):
         """
-        Display risk metrics for one or all agents in a formatted table.
+        Log risk metrics for one or all agents in a formatted table.
         
         Args:
             agent_name (str, optional): Specific agent to display. If None, displays all agents.
         """
         plt.rcParams.update({'font.size': 14})
         if not self.risk_metrics:
-            print("No risk metrics calculated. Run evaluate_agent() first.")
+            logging.warning("No risk metrics calculated. Run evaluate_agent() first.")
             return
             
         if agent_name and agent_name not in self.risk_metrics:
-            print(f"Agent '{agent_name}' not found in risk metrics.")
+            logging.error(f"Agent '{agent_name}' not found in risk metrics.")
             return
             
         agents_to_display = [agent_name] if agent_name else list(self.risk_metrics.keys())
         
-        print("\n" + "="*80)
-        print("RISK METRICS SUMMARY")
-        print("="*80)
+        logging.info("\n" + "="*80)
+        logging.info("RISK METRICS SUMMARY")
+        logging.info("="*80)
         
         for agent in agents_to_display:
             metrics = self.risk_metrics[agent]
-            print(f"\nAgent: {agent}")
-            print("-" * 50)
+            logging.info(f"\nAgent: {agent}")
+            logging.info("-" * 50)
             
             # Basic statistics
-            print("BASIC STATISTICS:")
-            print(f"  Mean:                {metrics['mean']:.6f}")
-            print(f"  Std Deviation:       {metrics['std']:.6f}")
-            print(f"  Minimum:             {metrics['min']:.6f}")
-            print(f"  Maximum:             {metrics['max']:.6f}")
-            print(f"  Skewness:            {metrics['skewness']:.6f}")
-            print(f"  Kurtosis:            {metrics['kurtosis']:.6f}")
+            logging.info("BASIC STATISTICS:")
+            logging.info(f"  Mean:                {metrics['mean']:.6f}")
+            logging.info(f"  Std Deviation:       {metrics['std']:.6f}")
+            logging.info(f"  Minimum:             {metrics['min']:.6f}")
+            logging.info(f"  Maximum:             {metrics['max']:.6f}")
+            logging.info(f"  Skewness:            {metrics['skewness']:.6f}")
+            logging.info(f"  Kurtosis:            {metrics['kurtosis']:.6f}")
             
             # Percentiles
-            print("\nPERCENTILES:")
-            print(f"  10th Percentile:     {metrics['percentile_10']:.6f}")
-            print(f"  25th Percentile:     {metrics['percentile_25']:.6f}")
-            print(f"  50th Percentile:     {metrics['percentile_50']:.6f}")
-            print(f"  75th Percentile:     {metrics['percentile_75']:.6f}")
-            print(f"  90th Percentile:     {metrics['percentile_90']:.6f}")
+            logging.info("\nPERCENTILES:")
+            logging.info(f"  10th Percentile:     {metrics['percentile_10']:.6f}")
+            logging.info(f"  25th Percentile:     {metrics['percentile_25']:.6f}")
+            logging.info(f"  50th Percentile:     {metrics['percentile_50']:.6f}")
+            logging.info(f"  75th Percentile:     {metrics['percentile_75']:.6f}")
+            logging.info(f"  90th Percentile:     {metrics['percentile_90']:.6f}")
             
             # Risk measures
-            print("\nRISK MEASURES:")
-            print(f"  VaR 95%:             {metrics['VaR_95']:.6f}")
-            print(f"  CVaR 95%:            {metrics['CVaR_95']:.6f}")
-            print(f"  VaR 99%:             {metrics['VaR_99']:.6f}")
-            print(f"  CVaR 99%:            {metrics['CVaR_99']:.6f}")
-            print(f"  Semi-deviation:      {metrics['semi_deviation']:.6f}")
-            print(f"  Max Drawdown:        {metrics['max_drawdown']:.6f}")
+            logging.info("\nRISK MEASURES:")
+            logging.info(f"  VaR 95%:             {metrics['VaR_95']:.6f}")
+            logging.info(f"  CVaR 95%:            {metrics['CVaR_95']:.6f}")
+            logging.info(f"  VaR 99%:             {metrics['VaR_99']:.6f}")
+            logging.info(f"  CVaR 99%:            {metrics['CVaR_99']:.6f}")
+            logging.info(f"  Semi-deviation:      {metrics['semi_deviation']:.6f}")
+            logging.info(f"  Max Drawdown:        {metrics['max_drawdown']:.6f}")
             
             # Risk-adjusted ratios
-            print("\nRISK-ADJUSTED RATIOS:")
-            print(f"  Sharpe Ratio:        {metrics['sharpe_ratio']:.6f}")
-            print(f"  Sortino Ratio:       {metrics['sortino_ratio']:.6f}")
+            logging.info("\nRISK-ADJUSTED RATIOS:")
+            logging.info(f"  Sharpe Ratio:        {metrics['sharpe_ratio']:.6f}")
+            logging.info(f"  Sortino Ratio:       {metrics['sortino_ratio']:.6f}")
             
-        print("\n" + "="*80)
+        logging.info("\n" + "="*80)
     
     def plot_risk_metrics(self, plot=True, save_dir=None):
         """
@@ -1218,7 +1214,6 @@ class Solver:
         
         for i, (agent_name, data) in enumerate(self.results.items()):
             ax = axs[i, 0]
-            color = self.colors.get(agent_name, 'gray')
             
             # Get the control values for this agent
             results = data['results']
@@ -1250,26 +1245,27 @@ class Solver:
             q_data = np.concatenate(q_data)
             data_description = f"t={timestep_indices}"
             
-            # Plot histogram with finer bins for better resolution
-            ax.hist(q_data, bins=50, color=color, alpha=0.7)
-            
-            # Calculate and plot mean
+            # Calculate stats
             mean_q = np.mean(q_data)
+            std_q = np.std(q_data)
+            
+            # Plot histogram with uniform color
+            ax.hist(q_data, bins=50, color='steelblue', alpha=0.7, label='Control Distribution')
+            
+            # Plot mean
             ax.axvline(mean_q, color='red', linestyle='dotted', linewidth=2, 
                       label=f'Mean: {mean_q:.4f}')
-            
-            # Calculate and plot mode from histogram
-            hist, bin_edges = np.histogram(q_data, bins=50)
-            if len(hist) > 0:
-                max_hist_index = np.argmax(hist)
-                mode_q = (bin_edges[max_hist_index] + bin_edges[max_hist_index+1]) / 2
-                ax.axvline(mode_q, color='green', linestyle='dotted', linewidth=2, 
-                          label=f'Mode: {mode_q:.4f}')
             
             ax.set_xlabel("Control Value (q)", fontsize=18)
             ax.set_ylabel("Frequency", fontsize=18)
             ax.tick_params(axis='both', which='major', labelsize=16)
-            ax.legend(loc="upper left", fontsize=14)
+            
+            # Create legend with std as separate entry
+            handles, labels = ax.get_legend_handles_labels()
+            # Add std as text-only legend entry
+            handles.append(plt.Line2D([0], [0], color='none', label=f'Std: {std_q:.4f}'))
+            
+            ax.legend(handles=handles, loc="upper left", fontsize=14)
             ax.grid(True, linestyle='--', alpha=0.5)
         
         plt.tight_layout()
@@ -1290,7 +1286,6 @@ class Solver:
         
         for i, (agent_name, data) in enumerate(self.results.items()):
             ax = axs[i, 0]
-            color = self.colors.get(agent_name, 'gray')
             
             # Get the control values for this agent
             results = data['results']
@@ -1307,26 +1302,27 @@ class Solver:
             # Terminal control: use the last timestep control values for all simulations
             q_data = q_values[-1, :, :].flatten()  # Last timestep, all simulations, flatten control dimensions
             
-            # Plot histogram with finer bins for better resolution
-            ax.hist(q_data, bins=50, color=color, alpha=0.7)
-            
-            # Calculate and plot mean
+            # Calculate stats
             mean_q = np.mean(q_data)
+            std_q = np.std(q_data)
+            
+            # Plot histogram with uniform color
+            ax.hist(q_data, bins=50, color='steelblue', alpha=0.7, label='Control Distribution')
+            
+            # Plot mean
             ax.axvline(mean_q, color='red', linestyle='dotted', linewidth=2, 
                       label=f'Mean: {mean_q:.4f}')
-            
-            # Calculate and plot mode from histogram
-            hist, bin_edges = np.histogram(q_data, bins=50)
-            if len(hist) > 0:
-                max_hist_index = np.argmax(hist)
-                mode_q = (bin_edges[max_hist_index] + bin_edges[max_hist_index+1]) / 2
-                ax.axvline(mode_q, color='green', linestyle='dotted', linewidth=2, 
-                          label=f'Mode: {mode_q:.4f}')
             
             ax.set_xlabel("Control Value (q)", fontsize=18)
             ax.set_ylabel("Frequency", fontsize=18)
             ax.tick_params(axis='both', which='major', labelsize=16)
-            ax.legend(loc="upper left", fontsize=14)
+            
+            # Create legend with std as separate entry
+            handles, labels = ax.get_legend_handles_labels()
+            # Add std as text-only legend entry
+            handles.append(plt.Line2D([0], [0], color='none', label=f'Std: {std_q:.4f}'))
+            
+            ax.legend(handles=handles, loc="upper left", fontsize=14)
             ax.grid(True, linestyle='--', alpha=0.5)
         
         plt.tight_layout()
@@ -1344,7 +1340,6 @@ class Solver:
         
         for i, (agent_name, data) in enumerate(self.results.items()):
             ax = axs[i, 0]
-            color = self.colors.get(agent_name, 'gray')
             
             # Get the control values for this agent
             results = data['results']
@@ -1361,26 +1356,27 @@ class Solver:
             # Average control: average across all timesteps for each simulation, then flatten
             q_data = q_values.mean(axis=0).flatten()  # Mean across time, then flatten
             
-            # Plot histogram with finer bins for better resolution
-            ax.hist(q_data, bins=50, color=color, alpha=0.7)
-            
-            # Calculate and plot mean
+            # Calculate stats
             mean_q = np.mean(q_data)
+            std_q = np.std(q_data)
+            
+            # Plot histogram with uniform color
+            ax.hist(q_data, bins=50, color='steelblue', alpha=0.7, label='Control Distribution')
+            
+            # Plot mean
             ax.axvline(mean_q, color='red', linestyle='dotted', linewidth=2, 
                       label=f'Mean: {mean_q:.4f}')
-            
-            # Calculate and plot mode from histogram
-            hist, bin_edges = np.histogram(q_data, bins=50)
-            if len(hist) > 0:
-                max_hist_index = np.argmax(hist)
-                mode_q = (bin_edges[max_hist_index] + bin_edges[max_hist_index+1]) / 2
-                ax.axvline(mode_q, color='green', linestyle='dotted', linewidth=2, 
-                          label=f'Mode: {mode_q:.4f}')
             
             ax.set_xlabel("Control Value (q)", fontsize=18)
             ax.set_ylabel("Frequency", fontsize=18)
             ax.tick_params(axis='both', which='major', labelsize=16)
-            ax.legend(loc="upper left", fontsize=14)
+            
+            # Create legend with std as separate entry
+            handles, labels = ax.get_legend_handles_labels()
+            # Add std as text-only legend entry
+            handles.append(plt.Line2D([0], [0], color='none', label=f'Std: {std_q:.4f}'))
+            
+            ax.legend(handles=handles, loc="upper left", fontsize=14)
             ax.grid(True, linestyle='--', alpha=0.5)
         
         plt.tight_layout()

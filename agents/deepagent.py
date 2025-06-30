@@ -1371,9 +1371,10 @@ class DeepAgent(nn.Module):
                     )
                     timesteps, results = self.simulate_for_plotting(target_n_sim=1000)
                     
-                    # expectation_dir = os.path.join(save_dir, "imgs", "expectation")
-                    # os.makedirs(expectation_dir, exist_ok=True)
-                    # plot_approx_vs_analytic_expectation(results, timesteps, plot=False, save_dir=expectation_dir, num=epoch)
+                    # Create subdirectory for expectation plots
+                    expectation_dir = os.path.join(save_dir, "imgs", "expectation")
+                    os.makedirs(expectation_dir, exist_ok=True)
+                    plot_approx_vs_analytic_expectation(results, timesteps, plot=False, save_dir=expectation_dir, num=epoch)
                     
                     # Create subdirectory for terminal histogram plots
                     terminal_histogram_dir = os.path.join(save_dir, "imgs", "terminal_histograms")
@@ -1426,11 +1427,11 @@ class DeepAgent(nn.Module):
                         plt.figure(figsize=(12, 8))
                         plt.plot(self.validation["q_loss"], label="Validation q Loss")
                         plt.plot(self.validation["Y_loss"], label="Validation Y Loss")
-                        plt.plot(losses, label="Total Loss")
+                        # plt.plot(losses, label="Total Loss")
                         plt.xlabel("Epoch")
                         plt.ylabel("Loss")
                         plt.title("Validation Losses")
-                        plt.yscale("symlog", linthresh=1e-1)  # same symlog scale
+                        plt.yscale("log")  # same symlog scale
                         plt.axhline(0, color='black', linestyle='--', linewidth=1)
                         plt.legend()
                         plt.grid(True, which='both', linestyle='--', alpha=0.4)
