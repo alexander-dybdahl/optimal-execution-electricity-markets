@@ -1001,12 +1001,15 @@ class DeepAgent(nn.Module):
         num_cols += 1  # total loss
         num_cols += len(active_losses)
         num_cols += 5  # lr, mem, time, eta, status
+        if hasattr(self.dynamics, 'eps') and hasattr(self.dynamics, 'eps_schedule'):
+            num_cols += 1  # eps value
         
         max_widths = {
             "epoch": 8,
             "val loss": 10 if self.dynamics.analytical_known else 0,
             "loss": 8,
             "lr": 10,
+            "eps": 10,
             "mem": 12,
             "time": 8,
             "eta": 10,
@@ -1020,6 +1023,7 @@ class DeepAgent(nn.Module):
             + max_widths["loss"]
             + sum(max_widths[name] for name, _ in active_losses)
             + max_widths["lr"]
+            + (max_widths["eps"] if hasattr(self.dynamics, 'eps') and hasattr(self.dynamics, 'eps_schedule') else 0)
             + max_widths["mem"]
             + max_widths["time"]
             + max_widths["eta"]
@@ -1047,6 +1051,10 @@ class DeepAgent(nn.Module):
                 header_parts.append(f"{name:>{max_widths[name]}}")
             header_parts += [
                 f"{'LR':>{max_widths['lr']}}",
+            ]
+            if hasattr(self.dynamics, 'eps') and hasattr(self.dynamics, 'eps_schedule'):
+                header_parts.append(f"{'Eps':>{max_widths['eps']}}")
+            header_parts += [
                 f"{'Memory [MB]':>{max_widths['mem']}}",
                 f"{'Time [s]':>{max_widths['time']}}",
                 f"{'ETA':>{max_widths['eta']}}",
@@ -1102,6 +1110,11 @@ class DeepAgent(nn.Module):
             self.epoch = epoch
             if self.annealing:
                 self.dynamics.anneal(epoch, epochs)
+            
+            # === Eps parameter scheduling ===
+            if hasattr(self.dynamics, 'eps') and hasattr(self.dynamics, 'eps_schedule'):
+                self.dynamics.eps_schedule(epoch, epochs)
+
             optimizer.zero_grad()
             t, dW, _ = self.dynamics.generate_paths(self.batch_size, seed=seed)
             loss = self(t=t, dW=dW, epoch=epoch)
@@ -1333,6 +1346,11 @@ class DeepAgent(nn.Module):
                         row_parts.append(f"{fn():>{max_widths[name]}.2e}")
                     row_parts += [
                         f"{current_lr:>{max_widths['lr']}.2e}",
+                    ]
+                    if hasattr(self.dynamics, 'eps') and hasattr(self.dynamics, 'eps_schedule'):
+                        current_eps = self.dynamics.eps.item() if hasattr(self.dynamics.eps, 'item') else self.dynamics.eps
+                        row_parts.append(f"{current_eps:>{max_widths['eps']}.2e}")
+                    row_parts += [
                         f"{mem_mb:>{max_widths['mem']}.2f}",
                         f"{elapsed:>{max_widths['time']}.2f}",
                         f"{eta_str:>{max_widths['eta']}}",

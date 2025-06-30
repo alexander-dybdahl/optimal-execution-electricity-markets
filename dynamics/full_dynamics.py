@@ -7,6 +7,18 @@ from scipy.interpolate import interp1d
 from dynamics.dynamics import Dynamics
 
 
+class NonAdaptiveEpsScheduler:
+    def __init__(self, eps_init, decay_factor=0.95, update_every=500):
+        self.eps = eps_init
+        self.k_eps = decay_factor
+        self.N_u = update_every
+
+    def step(self, epoch):
+        if (epoch + 1) % self.N_u == 0:
+            self.eps *= self.k_eps
+        return self.eps
+
+
 class FullDynamics(Dynamics):
     def __init__(self, dynamics_cfg, device="cpu"):
         super().__init__(dynamics_cfg=dynamics_cfg, device=device)
@@ -39,15 +51,24 @@ class FullDynamics(Dynamics):
         self.nu = dynamics_cfg["nu"]           # perm impact
         self.nu_end = self.nu                  # perm impact
 
-        self.smooth_control = dynamics_cfg["smooth_control"]  # whether to use smooth control
-        self.eps = torch.tensor(dynamics_cfg["eps"]) # epsilon for smooth control
-
         self.eta = dynamics_cfg["eta"]         # terminal penalty
 
         self.use_exact = dynamics_cfg["use_exact"]  # whether to plot exact solution
         if self.use_exact:
-            self.K_interp = None  # placeholder for K interpolator
-            self.precompute_K_table()  # precompute the K(τ) interpolation
+            self.K_interp = None        # placeholder for K interpolator
+            self.precompute_K_table()   # precompute the K(τ) interpolation
+
+        self.smooth_control = dynamics_cfg["smooth_control"]                # whether to use smooth control
+        self.eps = torch.tensor(dynamics_cfg["eps"], device=self.device)    # epsilon for smooth control
+        self.schedule_epsilon = dynamics_cfg["schedule_epsilon"]            # whether to schedule epsilon
+
+        # Initialize eps scheduler if smooth control is enabled
+        if self.smooth_control and self.schedule_epsilon:
+            self.eps_scheduler = NonAdaptiveEpsScheduler(
+                eps_init=dynamics_cfg["eps"],
+                decay_factor=dynamics_cfg.get("eps_decay_factor", 0.95),
+                update_every=dynamics_cfg.get("eps_update_every", 500)
+            )
 
     def anneal(self, epoch, total_epochs):
         """Linearly anneal psi, gamma, and nu from start to target values."""
@@ -59,6 +80,12 @@ class FullDynamics(Dynamics):
         self.psi = (1 - progress) * self.psi_start + progress * self.psi_end
         self.gamma = (1 - progress) * self.gamma_start + progress * self.gamma_end
         self.nu = (1 - progress) * self.nu_start + progress * self.nu_end
+
+    def eps_schedule(self, epoch, total_epochs):
+        """Update eps parameter using the scheduler."""
+        if self.smooth_control and hasattr(self, 'eps_scheduler'):
+            new_eps = self.eps_scheduler.step(epoch)
+            self.eps = torch.tensor(new_eps, device=self.device)
 
     def generator(self, y, q):
         P = y[:, 1:2]
