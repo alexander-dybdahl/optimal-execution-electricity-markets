@@ -906,8 +906,8 @@ class Solver:
         ax7_traj.set_ylabel('Probability Density')
         ax7_traj.grid(True, alpha=0.3)
         
-        plt.suptitle('Expected Paths vs Individual Trajectories Analysis', 
-                    fontsize=16, fontweight='bold', y=0.98)
+        # plt.suptitle('Expected Paths vs Individual Trajectories Analysis', 
+        #             fontsize=16, fontweight='bold', y=0.98)
         
         if save_dir:
             plt.savefig(f"{save_dir}/imgs/detailed_trading_trajectories.png", 
