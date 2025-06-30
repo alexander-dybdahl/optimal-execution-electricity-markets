@@ -66,8 +66,8 @@ class FullDynamics(Dynamics):
         if self.smooth_control and self.schedule_epsilon:
             self.eps_scheduler = NonAdaptiveEpsScheduler(
                 eps_init=dynamics_cfg["eps"],
-                decay_factor=dynamics_cfg.get("eps_decay_factor", 0.95),
-                update_every=dynamics_cfg.get("eps_update_every", 500)
+                decay_factor=dynamics_cfg["eps_decay_factor"],
+                update_every=dynamics_cfg["eps_update_every"]
             )
 
     def anneal(self, epoch, total_epochs):
