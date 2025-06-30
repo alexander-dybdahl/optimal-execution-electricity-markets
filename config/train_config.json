@@ -12,7 +12,7 @@
   "epochs": 100000,
   "K": 50,
   "seed": null,
-  "batch_size": 1024,
+  "batch_size": 4096,
   "save_n": 50,
   "plot_n": 100,
   "best": false,
@@ -51,7 +51,7 @@
   "lambda_pinn": 0,
   "lambda_reg": 0,
   "lambda_cost": 1e4,
-  "sobol_points": false,
+  "sobol_points": true,
   "use_linear_approx": true,
   "loss_threshold": 1000.0,
   "second_order_taylor": true

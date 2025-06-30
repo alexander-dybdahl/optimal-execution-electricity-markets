@@ -10,11 +10,11 @@
     "plot_individual_trajectories": true,
     "n_traj": 1,
     "plot_control_trajectories": true,
-    "plot_trading_comparison": false,
+    "plot_trading_comparison": true,
     "plot_risk_metrics": true,
     "plot_controls": false,
     "comparison": true,
-    "n_simulations": 16384,
-    "seed": 42,
+    "n_simulations": 10000,
+    "seed": 1,
     "max_batch_size": 4096
 }
