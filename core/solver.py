@@ -1,6 +1,7 @@
 import numpy as np
 import torch
 import matplotlib.pyplot as plt
+import matplotlib.gridspec as gridspec
 import matplotlib.cm as cm
 import logging
 from matplotlib.patches import Patch
@@ -556,42 +557,60 @@ class Solver:
     
     def plot_detailed_trading_trajectories(self, plot=True, save_dir=None):
         """
-        Plot detailed trading trajectories showing:
-        1. Individual trade sizes vs execution prices
-        2. Cumulative position vs time with price overlay
-        3. Trade-by-trade analysis for each agent
+        Create detailed plots showing expected paths vs individual trajectories.
+        
+        This function visualizes each key variable in a row-based layout:
+        - Left column: Expected path (mean ± std across simulations)
+        - Right column: Individual simulation trajectories (up to 10 per agent)
+        
+        Variables shown:
+        1. Cumulative position (X) and generation (D) vs time
+        2. Price evolution (P) vs time  
+        3. Trade sizes (q) vs time
+        4. Execution prices vs time
+        5. Cumulative trading cost vs time
+        6. Terminal cost (only at final time T) and cost distribution
+        
+        The plots provide insight into both the expected behavior and stochastic 
+        variability of each agent's strategy.
         """
         plt.rcParams.update({'font.size': 14})
+        from matplotlib.lines import Line2D
         if not self.results:
             print("No results to plot.")
             return
         
-        # Create a comprehensive figure with multiple subplots
-        fig = plt.figure(figsize=(20, 20))
+        # Create figure with 6 rows and 2 columns
+        fig = plt.figure(figsize=(20, 24))
+        gs = gridspec.GridSpec(6, 2, figure=fig, hspace=0.4, wspace=0.3)
         
-        # Define subplot layout: 5 rows, 2 columns  
-        gs = fig.add_gridspec(5, 2, height_ratios=[1, 1, 1, 1, 1], hspace=0.3, wspace=0.25)
+        # Create subplots - each row shows: Expected (left) vs Individual Trajectories (right)
+        # Row 1: Position & Generation
+        ax1_exp = fig.add_subplot(gs[0, 0])  # Expected position/generation
+        ax1_traj = fig.add_subplot(gs[0, 1])  # Individual trajectories
         
-        # Subplot 1: Trade Size vs Execution Price (scatter plot)
-        ax1 = fig.add_subplot(gs[0, 0])
-        # Subplot 2: Cumulative Position vs Time
-        ax2 = fig.add_subplot(gs[0, 1])
-        # Subplot 3: Price Evolution vs Time
-        ax3 = fig.add_subplot(gs[1, 0])
-        # Subplot 4: Individual Trade Sizes vs Time
-        ax4 = fig.add_subplot(gs[1, 1])
-        # Subplot 5: Execution Price vs Time
-        ax5 = fig.add_subplot(gs[2, 0])
-        # Subplot 6: Trade Value (Trade Size × Price) vs Time
-        ax6 = fig.add_subplot(gs[2, 1])
-        # Subplot 7: Terminal Cost vs Time
-        ax7 = fig.add_subplot(gs[3, 0])
-        # Subplot 8: Cumulative Trading Cost vs Time
-        ax8 = fig.add_subplot(gs[3, 1])
-        # Subplot 9: Total Cost Components vs Time (spans both columns)
-        ax9 = fig.add_subplot(gs[4, :])  # Spans both columns
+        # Row 2: Price Evolution
+        ax2_exp = fig.add_subplot(gs[1, 0])  # Expected price
+        ax2_traj = fig.add_subplot(gs[1, 1])  # Individual price trajectories
+        
+        # Row 3: Trade Sizes
+        ax3_exp = fig.add_subplot(gs[2, 0])  # Expected trade sizes
+        ax3_traj = fig.add_subplot(gs[2, 1])  # Individual trade trajectories
+        
+        # Row 4: Execution Prices
+        ax4_exp = fig.add_subplot(gs[3, 0])  # Expected execution prices
+        ax4_traj = fig.add_subplot(gs[3, 1])  # Individual execution price trajectories
+        
+        # Row 5: Cumulative Trading Cost
+        ax5_exp = fig.add_subplot(gs[4, 0])  # Expected cumulative cost
+        ax5_traj = fig.add_subplot(gs[4, 1])  # Individual cumulative cost trajectories
+        
+        # Row 6: Terminal Cost & Distribution
+        ax6_term = fig.add_subplot(gs[5, 0])  # Terminal cost at T only
+        ax6_hist = fig.add_subplot(gs[5, 1])  # Total cost distribution
         
         agent_handles = []
+        agent_count = 0  # Counter for text box positioning
         
         for agent_name, data in self.results.items():
             timesteps = data['timesteps']
@@ -613,14 +632,10 @@ class Solver:
             P_traj = y_traj[:, :, 1]  # Price
             if y_traj.shape[-1] > 2:
                 D_traj = y_traj[:, :, 2]  # Generation
-                # Calculate position-generation gap (this is what the terminal cost penalizes)
-                gap_traj = D_traj - X_traj  # Positive gap means undersupply, negative means oversupply
             else:
                 D_traj = None
-                gap_traj = None
             
             # Calculate execution prices using the dynamics generator
-            # The generator computes q * execution_price, so we divide by q to get execution_price
             execution_prices = np.zeros_like(q_traj)
             for t in range(q_traj.shape[0]):
                 y_t = torch.from_numpy(y_traj[t, :, :]).to(self.device)
@@ -637,7 +652,7 @@ class Solver:
                 
                 execution_prices[t, :, :] = exec_price_t.detach().cpu().numpy()
             
-            # Calculate means and stds for plotting
+            # Calculate means and stds for expected plots
             q_mean = q_traj.mean(axis=1).squeeze()
             q_std = q_traj.std(axis=1).squeeze()
             X_mean = X_traj.mean(axis=1)
@@ -647,160 +662,210 @@ class Solver:
             exec_price_mean = execution_prices.mean(axis=1).squeeze()
             exec_price_std = execution_prices.std(axis=1).squeeze()
             
-            # Calculate gap statistics if generation is available
-            if gap_traj is not None:
-                gap_mean = gap_traj.mean(axis=1)
-                gap_std = gap_traj.std(axis=1)
-            else:
-                gap_mean = None
-                gap_std = None
-            
-            # Calculate terminal cost at each time step
-            terminal_costs = np.zeros((y_traj.shape[0], y_traj.shape[1]))
-            for t in range(y_traj.shape[0]):
-                y_t = torch.from_numpy(y_traj[t, :, :]).to(self.device)
-                if hasattr(self.dynamics, 'terminal_cost'):
-                    terminal_cost_t = self.dynamics.terminal_cost(y_t)
-                    terminal_costs[t, :] = terminal_cost_t.detach().cpu().numpy().squeeze()
-                else:
-                    # Fallback: assume terminal cost is 0.5 * eta * (D - X)^2
-                    X_t = y_t[:, 0:1]  # Position
-                    if y_t.shape[-1] > 2:
-                        D_t = y_t[:, 2:3]  # Generation
-                        eta = getattr(self.dynamics, 'eta', 1.0)  # Default eta = 1.0
-                        terminal_cost_t = 0.5 * eta * (D_t - X_t)**2
-                        terminal_costs[t, :] = terminal_cost_t.detach().cpu().numpy().squeeze()
-            
-            terminal_cost_mean = terminal_costs.mean(axis=1)
-            terminal_cost_std = terminal_costs.std(axis=1)
-            
             # Trade times (excluding t=0 since no trades happen then)
             trade_times = timesteps[:-1]
             
-            # 1. Trade Size vs Execution Price (scatter plot)
-            ax1.scatter(exec_price_mean[q_mean != 0], q_mean[q_mean != 0], 
-                       color=color, alpha=0.7, s=50, label=agent_name)
+            # Calculate cumulative trading costs
+            dt = self.dynamics.dt
+            trade_values = q_traj.squeeze() * execution_prices.squeeze()
+            cumulative_trade_costs = np.cumsum(np.concatenate([np.zeros((1, q_traj.shape[1])), 
+                                                              trade_values * dt], axis=0), axis=0)
+            cumulative_cost_mean = cumulative_trade_costs.mean(axis=1)
+            cumulative_cost_std = cumulative_trade_costs.std(axis=1)
             
-            # 2. Cumulative Position vs Time (with Generation overlay)
-            ax2.plot(timesteps, X_mean, color=color, linewidth=2, 
-                    linestyle='-', label=f'{agent_name} (Position)')
-            ax2.fill_between(timesteps, X_mean - X_std, X_mean + X_std, 
-                           color=color, alpha=0.2)
+            # Calculate terminal cost only at final time T
+            final_state = y_traj[-1, :, :]  # Final state at time T
+            y_final = torch.from_numpy(final_state).to(self.device)
+            if hasattr(self.dynamics, 'terminal_cost'):
+                terminal_costs_final = self.dynamics.terminal_cost(y_final)
+                terminal_costs_final = terminal_costs_final.detach().cpu().numpy().squeeze()
+                terminal_cost_final_mean = terminal_costs_final.mean()
+                terminal_cost_final_std = terminal_costs_final.std()
+            else:
+                terminal_costs_final = np.zeros(y_final.shape[0])
+                terminal_cost_final_mean = 0.0
+                terminal_cost_final_std = 0.0
             
-            # Also plot generation if available
+            # Number of individual trajectories to plot
+            n_traj_to_plot = min(10, q_traj.shape[1])
+            
+            # === ROW 1: POSITION & GENERATION ===
+            # Left: Expected (mean ± std)
+            ax1_exp.plot(timesteps, X_mean, color=color, linewidth=2, label=f'{agent_name} (Position)')
+            ax1_exp.fill_between(timesteps, X_mean - X_std, X_mean + X_std, 
+                               color=color, alpha=0.2)
+            
             if D_traj is not None:
                 D_mean = D_traj.mean(axis=1)
                 D_std = D_traj.std(axis=1)
-                ax2.plot(timesteps, D_mean, color=color, linewidth=2, 
-                        linestyle='--', label=f'{agent_name} (Generation)')
-                ax2.fill_between(timesteps, D_mean - D_std, D_mean + D_std, 
-                               color=color, alpha=0.1)
+                ax1_exp.plot(timesteps, D_mean, color=color, linewidth=2, 
+                           linestyle='--', label=f'{agent_name} (Generation)')
+                ax1_exp.fill_between(timesteps, D_mean - D_std, D_mean + D_std, 
+                                   color=color, alpha=0.1)
             
-            # 3. Price Evolution vs Time
-            ax3.plot(timesteps, P_mean, color=color, linewidth=2, label=agent_name)
-            ax3.fill_between(timesteps, P_mean - P_std, P_mean + P_std, 
-                           color=color, alpha=0.2)
+            # Right: Individual trajectories
+            for sim_idx in range(n_traj_to_plot):
+                ax1_traj.plot(timesteps, X_traj[:, sim_idx], color=color, 
+                            linewidth=1, alpha=0.6, label=agent_name if sim_idx == 0 else "")
+                if D_traj is not None:
+                    ax1_traj.plot(timesteps, D_traj[:, sim_idx], color=color, 
+                                linewidth=1, alpha=0.6, linestyle='--')
             
-            # 4. Individual Trade Sizes vs Time
-            ax4.plot(trade_times, q_mean, color=color, linewidth=2, 
-                    marker='o', markersize=4, label=agent_name)
-            ax4.fill_between(trade_times, q_mean - q_std, q_mean + q_std, 
-                           color=color, alpha=0.2)
+            # === ROW 2: PRICE EVOLUTION ===
+            # Left: Expected (mean ± std)
+            ax2_exp.plot(timesteps, P_mean, color=color, linewidth=2, label=agent_name)
+            ax2_exp.fill_between(timesteps, P_mean - P_std, P_mean + P_std, 
+                               color=color, alpha=0.2)
             
-            # 5. Execution Price vs Time
-            ax5.plot(trade_times, exec_price_mean, color=color, linewidth=2, 
-                    marker='s', markersize=3, label=agent_name)
-            ax5.fill_between(trade_times, exec_price_mean - exec_price_std, 
-                           exec_price_mean + exec_price_std, color=color, alpha=0.2)
+            # Right: Individual trajectories
+            for sim_idx in range(n_traj_to_plot):
+                ax2_traj.plot(timesteps, P_traj[:, sim_idx], color=color, 
+                            linewidth=1, alpha=0.6, label=agent_name if sim_idx == 0 else "")
             
-            # 6. Trade Value vs Time (instantaneous running cost)
-            trade_values = q_mean * exec_price_mean
-            ax6.plot(trade_times, trade_values, color=color, linewidth=2, 
-                    marker='^', markersize=3, label=agent_name)
+            # === ROW 3: TRADE SIZES ===
+            # Left: Expected (mean ± std)
+            ax3_exp.plot(trade_times, q_mean, color=color, linewidth=2, label=agent_name)
+            ax3_exp.fill_between(trade_times, q_mean - q_std, q_mean + q_std, 
+                               color=color, alpha=0.2)
             
-            # 7. Terminal Cost vs Time
-            ax7.plot(timesteps, terminal_cost_mean, color=color, linewidth=2, 
-                    marker='d', markersize=3, label=agent_name)
-            ax7.fill_between(timesteps, terminal_cost_mean - terminal_cost_std, 
-                           terminal_cost_mean + terminal_cost_std, color=color, alpha=0.2)
+            # Right: Individual trajectories
+            for sim_idx in range(n_traj_to_plot):
+                q_sim = q_traj[:, sim_idx, :].squeeze()
+                ax3_traj.plot(trade_times, q_sim, color=color, linewidth=1, alpha=0.6, 
+                            label=agent_name if sim_idx == 0 else "")
             
-            # 8. Cumulative Trading Cost vs Time (properly scaled with dt)
-            dt = self.dynamics.dt
-            cumulative_trade_value = np.cumsum(np.concatenate([[0], trade_values * dt]))
-            ax8.plot(timesteps, cumulative_trade_value, color=color, linewidth=3, 
-                    label=agent_name)
+            # === ROW 4: EXECUTION PRICES ===
+            # Left: Expected (mean ± std)
+            ax4_exp.plot(trade_times, exec_price_mean, color=color, linewidth=2, label=agent_name)
+            ax4_exp.fill_between(trade_times, exec_price_mean - exec_price_std, 
+                               exec_price_mean + exec_price_std, color=color, alpha=0.2)
             
-            # 9. Total Cost Components vs Time (running cost + terminal cost)
-            total_cost_at_time = cumulative_trade_value + terminal_cost_mean
-            ax9.plot(timesteps, cumulative_trade_value, color=color, linewidth=2, 
-                    linestyle='-', label=f'{agent_name} (Running Cost)')
-            ax9.plot(timesteps, terminal_cost_mean, color=color, linewidth=2, 
-                    linestyle='--', label=f'{agent_name} (Terminal Cost)')
-            ax9.plot(timesteps, total_cost_at_time, color=color, linewidth=3, 
-                    linestyle=':', label=f'{agent_name} (Total Cost)')
+            # Right: Individual trajectories
+            for sim_idx in range(n_traj_to_plot):
+                exec_price_sim = execution_prices[:, sim_idx, :].squeeze()
+                ax4_traj.plot(trade_times, exec_price_sim, color=color, linewidth=1, alpha=0.6,
+                            label=agent_name if sim_idx == 0 else "")
             
-            # Store handle for legend
-            if agent_name not in [h.get_label() for h in agent_handles]:
-                agent_handles.append(plt.Line2D([0], [0], color=color, linewidth=2, label=agent_name))
+            # === ROW 5: CUMULATIVE TRADING COST ===
+            # Left: Expected (mean ± std)
+            ax5_exp.plot(timesteps, cumulative_cost_mean, color=color, linewidth=2, label=agent_name)
+            ax5_exp.fill_between(timesteps, cumulative_cost_mean - cumulative_cost_std, 
+                               cumulative_cost_mean + cumulative_cost_std, color=color, alpha=0.2)
+            
+            # Right: Individual trajectories
+            for sim_idx in range(n_traj_to_plot):
+                ax5_traj.plot(timesteps, cumulative_trade_costs[:, sim_idx], color=color, 
+                            linewidth=1, alpha=0.6, label=agent_name if sim_idx == 0 else "")
+            
+            # === ROW 6: TERMINAL COST AT T & COST DISTRIBUTION ===
+            # Left: Terminal cost at final time T only (as a bar or point)
+            final_time = timesteps[-1]
+            ax6_term.bar(agent_count, terminal_cost_final_mean, yerr=terminal_cost_final_std,
+                        color=color, alpha=0.7, label=agent_name, capsize=5)
+            
+            # Right: Total cost distribution
+            if agent_name in self.costs:
+                costs = self.costs[agent_name]
+                mean_cost = np.mean(costs)
+                std_cost = np.std(costs)
+                
+                # Plot histogram without label (to avoid duplicate)
+                ax6_hist.hist(costs, bins=30, color=color, alpha=0.7, density=True)
+                # Plot mean line with label
+                ax6_hist.axvline(mean_cost, color=color, linestyle='--', linewidth=2, 
+                               label=f'{agent_name} (μ={mean_cost:.4f})')
+                
+                # Add text with statistics, using agent_count for proper spacing
+                ax6_hist.text(0.02, 0.98 - 0.12 * agent_count, 
+                            f'{agent_name}: μ={mean_cost:.4f}, σ={std_cost:.4f}',
+                            transform=ax6_hist.transAxes, verticalalignment='top',
+                            bbox=dict(boxstyle="round,pad=0.3", facecolor=color, alpha=0.3))
+            
+            agent_count += 1
         
         # Customize subplots
-        ax1.set_title('Trade Size vs Execution Price', fontsize=12, fontweight='bold')
-        ax1.set_xlabel('Execution Price')
-        ax1.set_ylabel('Trade Size')
-        ax1.grid(True, alpha=0.3)
-        ax1.legend()
+        # Row 1: Position & Generation
+        ax1_exp.set_title('Expected Position & Generation vs Time', fontsize=12, fontweight='bold')
+        ax1_exp.set_xlabel('Time')
+        ax1_exp.set_ylabel('Quantity')
+        ax1_exp.grid(True, alpha=0.3)
+        ax1_exp.legend()
         
-        ax2.set_title('Position vs Generation vs Time', fontsize=12, fontweight='bold')
-        ax2.set_xlabel('Time')
-        ax2.set_ylabel('Quantity')
-        ax2.grid(True, alpha=0.3)
-        ax2.legend()
+        ax1_traj.set_title('Individual Position & Generation Trajectories', fontsize=12, fontweight='bold')
+        ax1_traj.set_xlabel('Time')
+        ax1_traj.set_ylabel('Quantity')
+        ax1_traj.grid(True, alpha=0.3)
+        ax1_traj.legend()
         
-        ax3.set_title('Price Evolution vs Time', fontsize=12, fontweight='bold')
-        ax3.set_xlabel('Time')
-        ax3.set_ylabel('Price')
-        ax3.grid(True, alpha=0.3)
-        ax3.legend()
+        # Row 2: Price Evolution
+        ax2_exp.set_title('Expected Price Evolution vs Time', fontsize=12, fontweight='bold')
+        ax2_exp.set_xlabel('Time')
+        ax2_exp.set_ylabel('Mid Price P')
+        ax2_exp.grid(True, alpha=0.3)
+        ax2_exp.legend()
         
-        ax4.set_title('Trade Sizes vs Time', fontsize=12, fontweight='bold')
-        ax4.set_xlabel('Time')
-        ax4.set_ylabel('Trade Size')
-        ax4.grid(True, alpha=0.3)
-        ax4.axhline(y=0, color='black', linestyle='--', alpha=0.5)
-        ax4.legend()
+        ax2_traj.set_title('Individual Price Trajectories', fontsize=12, fontweight='bold')
+        ax2_traj.set_xlabel('Time')
+        ax2_traj.set_ylabel('Mid Price P')
+        ax2_traj.grid(True, alpha=0.3)
+        ax2_traj.legend()
         
-        ax5.set_title('Execution Prices vs Time', fontsize=12, fontweight='bold')
-        ax5.set_xlabel('Time')
-        ax5.set_ylabel('Execution Price')
-        ax5.grid(True, alpha=0.3)
-        ax5.legend()
+        # Row 3: Trade Sizes
+        ax3_exp.set_title('Expected Trade Sizes vs Time', fontsize=12, fontweight='bold')
+        ax3_exp.set_xlabel('Time')
+        ax3_exp.set_ylabel('Trade Size q(t)')
+        ax3_exp.grid(True, alpha=0.3)
+        ax3_exp.axhline(y=0, color='black', linestyle='--', alpha=0.5)
+        ax3_exp.legend()
         
-        ax6.set_title('Instantaneous Trading Cost Rate vs Time', fontsize=12, fontweight='bold')
-        ax6.set_xlabel('Time')
-        ax6.set_ylabel('q(t) × execution_price(t)')
-        ax6.grid(True, alpha=0.3)
-        ax6.axhline(y=0, color='black', linestyle='--', alpha=0.5)
-        ax6.legend()
+        ax3_traj.set_title('Individual Trade Size Trajectories', fontsize=12, fontweight='bold')
+        ax3_traj.set_xlabel('Time')
+        ax3_traj.set_ylabel('Trade Size q(t)')
+        ax3_traj.grid(True, alpha=0.3)
+        ax3_traj.axhline(y=0, color='black', linestyle='--', alpha=0.5)
+        ax3_traj.legend()
         
-        ax7.set_title('Terminal Cost vs Time', fontsize=12, fontweight='bold')
-        ax7.set_xlabel('Time')
-        ax7.set_ylabel('Terminal Cost: 0.5η(D-X)²')
-        ax7.grid(True, alpha=0.3)
-        ax7.legend()
+        # Row 4: Execution Prices
+        ax4_exp.set_title('Expected Execution Prices vs Time', fontsize=12, fontweight='bold')
+        ax4_exp.set_xlabel('Time')
+        ax4_exp.set_ylabel('Execution Price P̃')
+        ax4_exp.grid(True, alpha=0.3)
+        ax4_exp.legend()
         
-        ax8.set_title('Cumulative Running Cost vs Time', fontsize=12, fontweight='bold')
-        ax8.set_xlabel('Time')
-        ax8.set_ylabel('∫ q(s) × execution_price(s) ds')
-        ax8.grid(True, alpha=0.3)
-        ax8.legend()
+        ax4_traj.set_title('Individual Execution Price Trajectories', fontsize=12, fontweight='bold')
+        ax4_traj.set_xlabel('Time')
+        ax4_traj.set_ylabel('Execution Price P̃')
+        ax4_traj.grid(True, alpha=0.3)
+        ax4_traj.legend()
         
-        ax9.set_title('Total Cost Components Breakdown vs Time', fontsize=12, fontweight='bold')
-        ax9.set_xlabel('Time')
-        ax9.set_ylabel('Cost')
-        ax9.grid(True, alpha=0.3)
-        ax9.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+        # Row 5: Cumulative Trading Cost
+        ax5_exp.set_title('Expected Cumulative Trading Cost vs Time', fontsize=12, fontweight='bold')
+        ax5_exp.set_xlabel('Time')
+        ax5_exp.set_ylabel('∫ q(s) × P̃(s) ds')
+        ax5_exp.grid(True, alpha=0.3)
+        ax5_exp.legend()
         
-        plt.suptitle('Detailed Trading Trajectories Comparison', fontsize=16, fontweight='bold', y=0.98)
+        ax5_traj.set_title('Individual Cumulative Cost Trajectories', fontsize=12, fontweight='bold')
+        ax5_traj.set_xlabel('Time')
+        ax5_traj.set_ylabel('∫ q(s) × P̃(s) ds')
+        ax5_traj.grid(True, alpha=0.3)
+        ax5_traj.legend()
+        
+        # Row 6: Terminal Cost & Distribution
+        ax6_term.set_title('Terminal Cost at Final Time T', fontsize=12, fontweight='bold')
+        ax6_term.set_ylabel('Terminal Cost: 0.5η(D-X)²')
+        ax6_term.set_xticks(range(agent_count))
+        ax6_term.set_xticklabels([name for name in self.results.keys()])
+        ax6_term.grid(True, alpha=0.3)
+        ax6_term.legend()
+        
+        ax6_hist.set_title('Total Cost Distribution (All Simulations)', fontsize=12, fontweight='bold')
+        ax6_hist.set_xlabel('Total Cost')
+        ax6_hist.set_ylabel('Probability Density')
+        ax6_hist.grid(True, alpha=0.3)
+        
+        plt.suptitle('Expected Paths vs Individual Trajectories Analysis', 
+                    fontsize=16, fontweight='bold', y=0.98)
         
         if save_dir:
             plt.savefig(f"{save_dir}/imgs/detailed_trading_trajectories.png", 
@@ -809,7 +874,7 @@ class Solver:
             plt.show()
         else:
             plt.close()
-
+        
     def plot_trading_heatmap(self, plot=True, save_dir=None):
         """
         Create a heatmap showing trading intensity across time and price levels for each agent
