@@ -568,8 +568,9 @@ class Solver:
         2. Price evolution (P) vs time  
         3. Trade sizes (q) vs time
         4. Execution prices vs time
-        5. Cumulative trading cost vs time
-        6. Terminal cost (only at final time T) and cost distribution
+        5. Individual trade values (q*execution_price) vs time
+        6. Cumulative trading cost vs time
+        7. Terminal cost histograms (distributions at final time T)
         
         The plots provide insight into both the expected behavior and stochastic 
         variability of each agent's strategy.
@@ -580,9 +581,9 @@ class Solver:
             print("No results to plot.")
             return
         
-        # Create figure with 6 rows and 2 columns
-        fig = plt.figure(figsize=(20, 24))
-        gs = gridspec.GridSpec(6, 2, figure=fig, hspace=0.4, wspace=0.3)
+        # Create figure with 7 rows and 2 columns
+        fig = plt.figure(figsize=(20, 28))
+        gs = gridspec.GridSpec(7, 2, figure=fig, hspace=0.4, wspace=0.3)
         
         # Create subplots - each row shows: Expected (left) vs Individual Trajectories (right)
         # Row 1: Position & Generation
@@ -601,13 +602,17 @@ class Solver:
         ax4_exp = fig.add_subplot(gs[3, 0])  # Expected execution prices
         ax4_traj = fig.add_subplot(gs[3, 1])  # Individual execution price trajectories
         
-        # Row 5: Cumulative Trading Cost
-        ax5_exp = fig.add_subplot(gs[4, 0])  # Expected cumulative cost
-        ax5_traj = fig.add_subplot(gs[4, 1])  # Individual cumulative cost trajectories
+        # Row 5: Individual Trade Values
+        ax5_exp = fig.add_subplot(gs[4, 0])  # Expected trade values
+        ax5_traj = fig.add_subplot(gs[4, 1])  # Individual trade value trajectories
         
-        # Row 6: Terminal Cost & Distribution
-        ax6_term = fig.add_subplot(gs[5, 0])  # Terminal cost at T only
-        ax6_hist = fig.add_subplot(gs[5, 1])  # Total cost distribution
+        # Row 6: Cumulative Trading Cost
+        ax6_exp = fig.add_subplot(gs[5, 0])  # Expected cumulative cost
+        ax6_traj = fig.add_subplot(gs[5, 1])  # Individual cumulative cost trajectories
+        
+        # Row 7: Terminal Cost Histograms
+        ax7_exp = fig.add_subplot(gs[6, 0])  # Terminal cost histogram (expected)
+        ax7_traj = fig.add_subplot(gs[6, 1])  # Total cost distribution
         
         agent_handles = []
         agent_count = 0  # Counter for text box positioning
@@ -687,7 +692,7 @@ class Solver:
                 terminal_cost_final_std = 0.0
             
             # Number of individual trajectories to plot
-            n_traj_to_plot = min(10, q_traj.shape[1])
+            n_traj_to_plot = min(2, q_traj.shape[1])
             
             # === ROW 1: POSITION & GENERATION ===
             # Left: Expected (mean ± std)
@@ -746,22 +751,46 @@ class Solver:
                 ax4_traj.plot(trade_times, exec_price_sim, color=color, linewidth=1, alpha=0.6,
                             label=agent_name if sim_idx == 0 else "")
             
-            # === ROW 5: CUMULATIVE TRADING COST ===
+            # === ROW 5: INDIVIDUAL TRADE VALUES (q*execution_price) ===
+            # Calculate means and stds for individual trade values (not cumulative)
+            trade_values_mean = trade_values.mean(axis=1)
+            trade_values_std = trade_values.std(axis=1)
+            
             # Left: Expected (mean ± std)
-            ax5_exp.plot(timesteps, cumulative_cost_mean, color=color, linewidth=2, label=agent_name)
-            ax5_exp.fill_between(timesteps, cumulative_cost_mean - cumulative_cost_std, 
+            ax5_exp.plot(trade_times, trade_values_mean, color=color, linewidth=2, label=agent_name)
+            ax5_exp.fill_between(trade_times, trade_values_mean - trade_values_std, 
+                               trade_values_mean + trade_values_std, color=color, alpha=0.2)
+            
+            # Right: Individual trajectories
+            for sim_idx in range(n_traj_to_plot):
+                trade_values_sim = trade_values[:, sim_idx]
+                ax5_traj.plot(trade_times, trade_values_sim, color=color, linewidth=1, alpha=0.6,
+                            label=agent_name if sim_idx == 0 else "")
+            
+            # === ROW 6: CUMULATIVE TRADING COST ===
+            # Left: Expected (mean ± std)
+            ax6_exp.plot(timesteps, cumulative_cost_mean, color=color, linewidth=2, label=agent_name)
+            ax6_exp.fill_between(timesteps, cumulative_cost_mean - cumulative_cost_std, 
                                cumulative_cost_mean + cumulative_cost_std, color=color, alpha=0.2)
             
             # Right: Individual trajectories
             for sim_idx in range(n_traj_to_plot):
-                ax5_traj.plot(timesteps, cumulative_trade_costs[:, sim_idx], color=color, 
+                ax6_traj.plot(timesteps, cumulative_trade_costs[:, sim_idx], color=color, 
                             linewidth=1, alpha=0.6, label=agent_name if sim_idx == 0 else "")
             
-            # === ROW 6: TERMINAL COST AT T & COST DISTRIBUTION ===
-            # Left: Terminal cost at final time T only (as a bar or point)
-            final_time = timesteps[-1]
-            ax6_term.bar(agent_count, terminal_cost_final_mean, yerr=terminal_cost_final_std,
-                        color=color, alpha=0.7, label=agent_name, capsize=5)
+            # === ROW 7: TERMINAL COST HISTOGRAMS ===
+            # Left: Terminal cost histogram (expected distribution)
+            if hasattr(self.dynamics, 'terminal_cost') and len(terminal_costs_final) > 0:
+                # Plot histogram of terminal costs
+                ax7_exp.hist(terminal_costs_final, bins=30, color=color, alpha=0.7, density=True)
+                # Plot mean line
+                ax7_exp.axvline(terminal_cost_final_mean, color=color, linestyle='--', linewidth=2,
+                              label=f'{agent_name} (μ={terminal_cost_final_mean:.4f})')
+                # Add text with statistics
+                ax7_exp.text(0.02, 0.98 - 0.12 * agent_count, 
+                           f'{agent_name}: μ={terminal_cost_final_mean:.4f}, σ={terminal_cost_final_std:.4f}',
+                           transform=ax7_exp.transAxes, verticalalignment='top',
+                           bbox=dict(boxstyle="round,pad=0.3", facecolor=color, alpha=0.3))
             
             # Right: Total cost distribution
             if agent_name in self.costs:
@@ -770,15 +799,15 @@ class Solver:
                 std_cost = np.std(costs)
                 
                 # Plot histogram without label (to avoid duplicate)
-                ax6_hist.hist(costs, bins=30, color=color, alpha=0.7, density=True)
+                ax7_traj.hist(costs, bins=30, color=color, alpha=0.7, density=True)
                 # Plot mean line with label
-                ax6_hist.axvline(mean_cost, color=color, linestyle='--', linewidth=2, 
+                ax7_traj.axvline(mean_cost, color=color, linestyle='--', linewidth=2, 
                                label=f'{agent_name} (μ={mean_cost:.4f})')
                 
                 # Add text with statistics, using agent_count for proper spacing
-                ax6_hist.text(0.02, 0.98 - 0.12 * agent_count, 
+                ax7_traj.text(0.02, 0.98 - 0.12 * agent_count, 
                             f'{agent_name}: μ={mean_cost:.4f}, σ={std_cost:.4f}',
-                            transform=ax6_hist.transAxes, verticalalignment='top',
+                            transform=ax7_traj.transAxes, verticalalignment='top',
                             bbox=dict(boxstyle="round,pad=0.3", facecolor=color, alpha=0.3))
             
             agent_count += 1
@@ -838,31 +867,44 @@ class Solver:
         ax4_traj.grid(True, alpha=0.3)
         ax4_traj.legend()
         
-        # Row 5: Cumulative Trading Cost
-        ax5_exp.set_title('Expected Cumulative Trading Cost vs Time', fontsize=12, fontweight='bold')
+        # Row 5: Individual Trade Values
+        ax5_exp.set_title('Expected Trade Values vs Time', fontsize=12, fontweight='bold')
         ax5_exp.set_xlabel('Time')
-        ax5_exp.set_ylabel('∫ q(s) × P̃(s) ds')
+        ax5_exp.set_ylabel('Trade Value: q(t) × P̃(t)')
         ax5_exp.grid(True, alpha=0.3)
+        ax5_exp.axhline(y=0, color='black', linestyle='--', alpha=0.5)
         ax5_exp.legend()
         
-        ax5_traj.set_title('Individual Cumulative Cost Trajectories', fontsize=12, fontweight='bold')
+        ax5_traj.set_title('Individual Trade Value Trajectories', fontsize=12, fontweight='bold')
         ax5_traj.set_xlabel('Time')
-        ax5_traj.set_ylabel('∫ q(s) × P̃(s) ds')
+        ax5_traj.set_ylabel('Trade Value: q(t) × P̃(t)')
         ax5_traj.grid(True, alpha=0.3)
+        ax5_traj.axhline(y=0, color='black', linestyle='--', alpha=0.5)
         ax5_traj.legend()
         
-        # Row 6: Terminal Cost & Distribution
-        ax6_term.set_title('Terminal Cost at Final Time T', fontsize=12, fontweight='bold')
-        ax6_term.set_ylabel('Terminal Cost: 0.5η(D-X)²')
-        ax6_term.set_xticks(range(agent_count))
-        ax6_term.set_xticklabels([name for name in self.results.keys()])
-        ax6_term.grid(True, alpha=0.3)
-        ax6_term.legend()
+        # Row 6: Cumulative Trading Cost
+        ax6_exp.set_title('Expected Cumulative Trading Cost vs Time', fontsize=12, fontweight='bold')
+        ax6_exp.set_xlabel('Time')
+        ax6_exp.set_ylabel('∫ q(s) × P̃(s) ds')
+        ax6_exp.grid(True, alpha=0.3)
+        ax6_exp.legend()
         
-        ax6_hist.set_title('Total Cost Distribution (All Simulations)', fontsize=12, fontweight='bold')
-        ax6_hist.set_xlabel('Total Cost')
-        ax6_hist.set_ylabel('Probability Density')
-        ax6_hist.grid(True, alpha=0.3)
+        ax6_traj.set_title('Individual Cumulative Cost Trajectories', fontsize=12, fontweight='bold')
+        ax6_traj.set_xlabel('Time')
+        ax6_traj.set_ylabel('∫ q(s) × P̃(s) ds')
+        ax6_traj.grid(True, alpha=0.3)
+        ax6_traj.legend()
+        
+        # Row 7: Terminal Cost Histograms
+        ax7_exp.set_title('Terminal Cost Distribution at Final Time T', fontsize=12, fontweight='bold')
+        ax7_exp.set_xlabel('Terminal Cost: 0.5η(D-X)²')
+        ax7_exp.set_ylabel('Probability Density')
+        ax7_exp.grid(True, alpha=0.3)
+        
+        ax7_traj.set_title('Total Cost Distribution (All Simulations)', fontsize=12, fontweight='bold')
+        ax7_traj.set_xlabel('Total Cost')
+        ax7_traj.set_ylabel('Probability Density')
+        ax7_traj.grid(True, alpha=0.3)
         
         plt.suptitle('Expected Paths vs Individual Trajectories Analysis', 
                     fontsize=16, fontweight='bold', y=0.98)
