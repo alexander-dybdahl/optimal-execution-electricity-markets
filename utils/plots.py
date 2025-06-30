@@ -1,10 +1,110 @@
 import matplotlib.pyplot as plt
 import numpy as np
+import os
+import pandas as pd
 import torch
 
+# Plot training losses from a CSV file in the model directory
+def plot_training_losses(model_dir, save_dir, plot=True):
+    """
+    Plot training losses from CSV file in the model directory.
+    
+    Args:
+        model_dir (str): Directory containing the training CSV file
+        save_dir (str): Directory to save the plot
+        plot (bool): Whether to show the plot interactively
+    """
+    # Look for CSV files in the model directory
+    csv_files = [f for f in os.listdir(model_dir) if f.endswith('.csv')]
+    
+    if not csv_files:
+        print(f"No CSV files found in {model_dir}")
+        return
+    
+    # Use the first CSV file found (assuming there's one training log)
+    csv_path = os.path.join(model_dir, csv_files[0])
+    print(f"Loading training losses from: {csv_path}")
+    
+    try:
+        # Read the CSV file
+        df = pd.read_csv(csv_path)
+        
+        # Check if required columns exist
+        required_cols = ['Epoch', 'Y_val_loss', 'q_val_loss']
+        if not all(col in df.columns for col in required_cols):
+            print(f"Required columns not found in CSV. Available columns: {list(df.columns)}")
+            return
+        
+        # Calculate other losses sum (excluding Total_loss and cost_loss)
+        other_loss_cols = []
+        for col in df.columns:
+            if col not in ['Epoch', 'Y_val_loss', 'q_val_loss', 'Total_loss', 'cost_loss'] and 'loss' in col.lower():
+                other_loss_cols.append(col)
+        
+        if other_loss_cols:
+            # Sum other losses, handling potential negative values
+            df['Train_losses_sum'] = df[other_loss_cols].sum(axis=1)
+        else:
+            # If no other loss columns, create a zero column
+            df['Train_losses_sum'] = 0
+        
+        # Create the plot
+        plt.figure(figsize=(12, 8))
+        
+        # Plot validation losses
+        plt.plot(df['Epoch'], df['Y_val_loss'], color='#1f77b4', linewidth=2, label='Y Validation Loss')  # Blue
+        plt.plot(df['Epoch'], df['q_val_loss'], color='#ff7f0e', linewidth=2, label='q Validation Loss')  # Orange
+        
+        # Plot other losses sum
+        plt.plot(df['Epoch'], df['Train_losses_sum'], color='#2ca02c', linewidth=2, label='Train Losses')  # Green
+        
+        # If cost_loss exists, plot it separately (can be negative)
+        if 'cost_loss' in df.columns:
+            plt.plot(df['Epoch'], df['cost_loss'], color='#d62728', linewidth=2, label='Cost Loss')  # Red
+        
+        plt.xlabel('Epoch', fontsize=16)
+        plt.ylabel('Loss', fontsize=16)
+        plt.legend(fontsize=14)
+        plt.grid(True, alpha=0.3)
+        plt.tick_params(axis='both', which='major', labelsize=14)
+        
+        # Use log scale if values span multiple orders of magnitude
+        y_values = np.concatenate([df['Y_val_loss'].values, df['q_val_loss'].values, df['Train_losses_sum'].values])
+        if np.max(y_values) / np.min(y_values[y_values > 0]) > 100:
+            plt.yscale('log')
+            plt.ylabel('Loss (log scale)', fontsize=16)
+        
+        plt.tight_layout()
+        
+        # Save the plot
+        if save_dir:
+            os.makedirs(os.path.join(save_dir, "imgs"), exist_ok=True)
+            plt.savefig(os.path.join(save_dir, "imgs", "training_losses.png"), dpi=300, bbox_inches='tight')
+            print(f"Training losses plot saved to: {os.path.join(save_dir, 'imgs', 'training_losses.png')}")
+        
+        if plot:
+            plt.show()
+        else:
+            plt.close()
+            
+        # Print summary statistics
+        print("\nTraining Loss Summary:")
+        print("-" * 40)
+        print(f"Final Y validation loss: {df['Y_val_loss'].iloc[-1]:.6f}")
+        print(f"Final q validation loss: {df['q_val_loss'].iloc[-1]:.6f}")
+        print(f"Final train losses sum: {df['Train_losses_sum'].iloc[-1]:.6f}")
+        if 'cost_loss' in df.columns:
+            print(f"Final cost loss: {df['cost_loss'].iloc[-1]:.6f}")
+        print(f"Epochs trained: {len(df)}")
+        
+        if other_loss_cols:
+            print(f"Other loss components: {', '.join(other_loss_cols)}")
+        
+    except Exception as e:
+        print(f"Error plotting training losses: {e}")
+        print(f"CSV file path: {csv_path}")
 
 # All these plotting functions assume that the results include both learned and analytical results
-# TODO: Make the following plotting function more general by allowing for other number of states and controls
 def plot_approx_vs_analytic(results, timesteps, validation=None, plot=True, save_dir=None, num=None):
 
     approx_q = results["q_learned"]

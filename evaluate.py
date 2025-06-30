@@ -3,7 +3,6 @@ import os
 from argparse import ArgumentParser
 from utils.logger import Logger
 
-import numpy as np
 import torch
 
 from agents.analyticalagent import AnalyticalAgent
@@ -14,7 +13,7 @@ from dynamics import create_dynamics
 from core.solver import Solver
 from utils.load_config import load_config, load_dynamics_config
 from utils.tools import str2bool
-
+from utils.plots import plot_training_losses
 
 def main():
     eval_cfg = load_config(path="config/eval_config.json")
@@ -35,6 +34,7 @@ def main():
     parser.add_argument("--plot_terminal_cost_analysis", type=str2bool, nargs='?', const=True, default=eval_cfg["plot_terminal_cost_analysis"], help="Plot terminal cost analysis")
     parser.add_argument("--plot_risk_metrics", type=str2bool, nargs='?', const=True, default=eval_cfg["plot_risk_metrics"], help="Plot risk metrics")
     parser.add_argument("--plot_controls", type=str2bool, nargs='?', const=True, default=eval_cfg["plot_controls"], help="Plot controls")
+    parser.add_argument("--plot_losses", type=str2bool, nargs='?', const=True, default=eval_cfg.get("plot_losses", False), help="Plot training losses from CSV file")
     parser.add_argument("--comparison", type=str2bool, nargs='?', const=True, default=eval_cfg["comparison"], help="Generate comparison report")
     parser.add_argument("--n_simulations", type=int, default=eval_cfg["n_simulations"], help="Number of simulations to run")
     parser.add_argument("--seed", type=int, default=eval_cfg["seed"], help="Seed to use for evaluation")
@@ -144,6 +144,12 @@ def main():
             best=args.best
         )
         logger.log("Successfully loaded trained model")
+        
+        # Plot training losses if requested
+        if args.plot_losses:
+            logger.log("Plotting training losses from CSV file...")
+            plot_training_losses(args.model_dir, save_dir, plot=args.plot)
+            logger.log("Training losses plot completed")
         
     except Exception as e:
         logger.log(f"Error loading trained model: {e}")
