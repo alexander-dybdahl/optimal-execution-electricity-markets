@@ -1,7 +1,6 @@
 
 import numpy as np
 import torch
-import logging
 
 
 def simulate_paths(dynamics, agent, n_sim, seed=None, y0_single=None, analytical=False):
@@ -141,8 +140,6 @@ def simulate_paths_batched(dynamics, agent, n_sim, max_batch_size, seed=None, co
         # Use seed + batch_idx to replicate distributed training pattern
         # This matches the behavior where rank i uses seed + i
         batch_seed = seed + batch_idx if seed is not None else None
-        
-        logging.info(f"  Processing batch {batch_idx + 1}/{n_batches} (sims {start_idx}-{end_idx-1}) with seed {batch_seed}")
         
         # Simulate this batch
         batch_timesteps, batch_results = simulate_paths(

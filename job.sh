@@ -23,10 +23,13 @@ torchrun \
   --rdzv_endpoint=$MASTER_ADDR:$MASTER_PORT \
   train.py \
   --parallel True \
-  --batch_size 10000 \
+  --batch_size 16384 \
   --resume True \
-  --reset_best False \
-  --save_dir "saved_models/eta10_x0_gamma0.01_lowvol_psi5"
+  --reset_best True \
+  --reset_lr True \
+  --lr 1e-3 \
+  --save_dir "saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1" \
+  --seed 42
 
 # Note: If stopped, remember to kill the job with:
 # pkill -u $USER -f python
