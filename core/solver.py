@@ -769,7 +769,9 @@ class Solver:
             
             # === ROW 6: CUMULATIVE TRADING COST ===
             # Left: Expected (mean ± std)
-            ax6_exp.plot(timesteps, cumulative_cost_mean, color=color, linewidth=2, label=agent_name)
+            final_trading_cost = cumulative_cost_mean[-1]  # Final expected trading cost at time T
+            ax6_exp.plot(timesteps, cumulative_cost_mean, color=color, linewidth=2, 
+                        label=f'{agent_name} (Final: {final_trading_cost:.4f})')
             ax6_exp.fill_between(timesteps, cumulative_cost_mean - cumulative_cost_std, 
                                cumulative_cost_mean + cumulative_cost_std, color=color, alpha=0.2)
             
@@ -787,7 +789,7 @@ class Solver:
                 ax7_exp.axvline(terminal_cost_final_mean, color=color, linestyle='--', linewidth=2,
                               label=f'{agent_name} (μ={terminal_cost_final_mean:.4f})')
                 # Add text with statistics
-                ax7_exp.text(0.02, 0.98 - 0.12 * agent_count, 
+                ax7_exp.text(0.02, 0.98 - 0.15 * agent_count, 
                            f'{agent_name}: μ={terminal_cost_final_mean:.4f}, σ={terminal_cost_final_std:.4f}',
                            transform=ax7_exp.transAxes, verticalalignment='top',
                            bbox=dict(boxstyle="round,pad=0.3", facecolor=color, alpha=0.3))
@@ -805,7 +807,7 @@ class Solver:
                                label=f'{agent_name} (μ={mean_cost:.4f})')
                 
                 # Add text with statistics, using agent_count for proper spacing
-                ax7_traj.text(0.02, 0.98 - 0.12 * agent_count, 
+                ax7_traj.text(0.02, 0.98 - 0.15 * agent_count, 
                             f'{agent_name}: μ={mean_cost:.4f}, σ={std_cost:.4f}',
                             transform=ax7_traj.transAxes, verticalalignment='top',
                             bbox=dict(boxstyle="round,pad=0.3", facecolor=color, alpha=0.3))
