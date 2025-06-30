@@ -31,6 +31,8 @@ def main():
     parser.add_argument("--n_traj", type=int, default=eval_cfg.get("n_traj", 5), help="Number of individual trajectories to plot")
     parser.add_argument("--plot_control_trajectories", type=str2bool, nargs='?', const=True, default=eval_cfg["plot_control_trajectories"], help="Plot control trajectories")
     parser.add_argument("--plot_trading_comparison", type=str2bool, nargs='?', const=True, default=eval_cfg["plot_trading_comparison"], help="Plot trading comparison")
+    parser.add_argument("--plot_trading_heatmap", type=str2bool, nargs='?', const=True, default=eval_cfg["plot_trading_heatmap"], help="Plot trading heatmap comparison")
+    parser.add_argument("--plot_terminal_cost_analysis", type=str2bool, nargs='?', const=True, default=eval_cfg["plot_terminal_cost_analysis"], help="Plot terminal cost analysis")
     parser.add_argument("--plot_risk_metrics", type=str2bool, nargs='?', const=True, default=eval_cfg["plot_risk_metrics"], help="Plot risk metrics")
     parser.add_argument("--plot_controls", type=str2bool, nargs='?', const=True, default=eval_cfg["plot_controls"], help="Plot controls")
     parser.add_argument("--comparison", type=str2bool, nargs='?', const=True, default=eval_cfg["comparison"], help="Generate comparison report")
@@ -165,7 +167,7 @@ def main():
         
         solver.evaluate_agent(agent=AnalyticalAgent(dynamics=dynamics), agent_name="Analytical")
         solver.evaluate_agent(agent=model, agent_name="Approximation")
-        # solver.evaluate_agent(agent=TimeWeightedAgent(dynamics=dynamics), agent_name="TimeWeightedAgent")
+        solver.evaluate_agent(agent=TimeWeightedAgent(dynamics=dynamics), agent_name="TimeWeightedAgent")
         #solver.evaluate_agent(agent=ImmediateAgent(dynamics=dynamics), agent_name="ImmediateAgent")
         
         logger.log(f"Evaluation completed successfully")
@@ -201,9 +203,15 @@ def main():
         
         if args.plot_trading_comparison:
             solver.plot_detailed_trading_trajectories(plot=args.plot, save_dir=save_dir)
-            solver.plot_trading_heatmap(plot=args.plot, save_dir=save_dir)
-            solver.plot_terminal_cost_analysis(plot=args.plot, save_dir=save_dir)
             logger.log("Generated trading comparison plots")
+
+        if args.plot_terminal_cost_analysis:
+            solver.plot_terminal_cost_analysis(plot=args.plot, save_dir=save_dir)
+            logger.log("Generated terminal cost analysis")
+        
+        if args.plot_trading_heatmap:
+            solver.plot_trading_heatmap(plot=args.plot, save_dir=save_dir)
+            logger.log("Generated terminal heatmap plot")
             
         if args.plot_risk_metrics:
             solver.plot_risk_metrics(plot=args.plot, save_dir=save_dir)

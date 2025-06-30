@@ -24,11 +24,11 @@ torchrun \
   train.py \
   --parallel True \
   --batch_size 16384 \
-  --resume True \
+  --resume False \
   --reset_best True \
   --reset_lr True \
   --lr 1e-3 \
-  --save_dir "saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1" \
+  --save_dir "saved_models/eta10_x0_gamma0.01_lowvol_psi0" \
   --seed 42
 
 # Note: If stopped, remember to kill the job with:
