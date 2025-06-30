@@ -903,6 +903,9 @@ class DeepAgent(nn.Module):
         # Store training parameters for later use in plotting
         if seed is not None:
             self.training_seed = seed
+            plot_seed = seed
+        else:
+            plot_seed = 42
         
         # Prepare save directory and logging
         save_path = os.path.join(save_dir, "model")
@@ -1346,9 +1349,9 @@ class DeepAgent(nn.Module):
                     timesteps, results, _ = simulate_paths_batched(
                         dynamics=self.dynamics, 
                         agent=self, 
-                        n_sim=self.n_simulations, 
+                        n_sim=self.n_traj, 
                         max_batch_size=self.batch_size,
-                        seed=seed,
+                        seed=plot_seed,
                         analytical=True
                     )
                     
@@ -1379,9 +1382,9 @@ class DeepAgent(nn.Module):
                     timesteps, results, _ = simulate_paths_batched(
                         dynamics=self.dynamics, 
                         agent=self, 
-                        n_sim=self.n_traj, 
+                        n_sim=self.n_simulations, 
                         max_batch_size=self.batch_size,
-                        seed=seed,
+                        seed=plot_seed,
                         analytical=True
                     )
                     
