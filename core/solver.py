@@ -2,19 +2,20 @@ import numpy as np
 import torch
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
+import logging
 from matplotlib.patches import Patch
 from scipy import stats
-import logging
 
-from utils.simulator import simulate_paths, compute_cost_objective
+from utils.simulator import simulate_paths_batched
 
 
 class Solver:
-    def __init__(self, dynamics, seed, n_sim):
+    def __init__(self, dynamics, seed, n_sim, max_batch_size=10000):
         self.dynamics = dynamics
         self.device = dynamics.device
         self.seed = seed
         self.n_sim = n_sim
+        self.max_batch_size = max_batch_size
         self.results = {}
         self.costs = {}
         self.risk_metrics = {}
@@ -23,29 +24,30 @@ class Solver:
         self._color_idx = 0
 
     def evaluate_agent(self, agent, agent_name):
+        """
+        Evaluate an agent with support for large numbers of simulations via batching.
+        
+        Args:
+            agent: The agent to evaluate
+            agent_name: Name of the agent for storage
+            max_batch_size: Maximum batch size for memory management. If None, uses all simulations in one batch.
+        """
+        logging.info(f"Evaluating agent: {agent_name}")
+        
         # Assign a color if not already assigned
         if agent_name not in self.colors:
             self.colors[agent_name] = self._color_cycle[self._color_idx % len(self._color_cycle)]
             self._color_idx += 1
-        
-        # Run simulation
-        timesteps, results = simulate_paths(
-            dynamics=self.dynamics,
-            agent=agent,
-            n_sim=self.n_sim,
+
+        timesteps, results, costs_numpy = simulate_paths_batched(
+            dynamics=self.dynamics, 
+            agent=agent, 
+            n_sim=self.n_sim, 
+            max_batch_size=self.max_batch_size,
             seed=self.seed,
-            analytical=False
+            cost_objective=True,
         )
-        # Compute cost objective
-        cost_objective = compute_cost_objective(
-            dynamics=self.dynamics,
-            q_traj=torch.from_numpy(results["q_learned"]).to(self.device),
-            y_traj=torch.from_numpy(results["y_learned"]).to(self.device),
-            terminal_cost=True
-        )
-        
-        costs_numpy = cost_objective.detach().cpu().numpy()
-        
+
         self.results[agent_name] = {
             'timesteps': timesteps,
             'results': results

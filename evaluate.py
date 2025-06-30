@@ -33,8 +33,10 @@ def main():
     parser.add_argument("--plot_trading_comparison", type=str2bool, nargs='?', const=True, default=eval_cfg["plot_trading_comparison"], help="Plot trading comparison")
     parser.add_argument("--plot_risk_metrics", type=str2bool, nargs='?', const=True, default=eval_cfg["plot_risk_metrics"], help="Plot risk metrics")
     parser.add_argument("--plot_controls", type=str2bool, nargs='?', const=True, default=eval_cfg["plot_controls"], help="Plot controls")
+    parser.add_argument("--comparison", type=str2bool, nargs='?', const=True, default=eval_cfg["comparison"], help="Generate comparison report")
     parser.add_argument("--n_simulations", type=int, default=eval_cfg["n_simulations"], help="Number of simulations to run")
     parser.add_argument("--seed", type=int, default=eval_cfg["seed"], help="Seed to use for evaluation")
+    parser.add_argument("--max_batch_size", type=int, default=eval_cfg.get("max_batch_size", None), help="Maximum batch size for simulation (if None, uses training batch_size_per_rank)")
     args = parser.parse_args()
 
     device = torch.device(args.device)
@@ -149,8 +151,16 @@ def main():
         raise
 
     try:
+        # Determine max_batch_size - use training batch_size_per_rank if not specified
+        max_batch_size = args.max_batch_size
+        if max_batch_size is None:
+            max_batch_size = train_cfg["batch_size_per_rank"]
+            logger.log(f"Using training batch_size_per_rank as max_batch_size: {max_batch_size}")
+        else:
+            logger.log(f"Using specified max_batch_size: {max_batch_size}")
+
         # Evaluate
-        solver = Solver(dynamics=dynamics, seed=args.seed, n_sim=args.n_simulations)
+        solver = Solver(dynamics=dynamics, seed=args.seed, n_sim=args.n_simulations, max_batch_size=max_batch_size)
         logger.log(f"Starting evaluation with {args.n_simulations} simulations and seed {args.seed}")
         
         solver.evaluate_agent(agent=AnalyticalAgent(dynamics=dynamics), agent_name="Analytical")
@@ -204,8 +214,9 @@ def main():
             solver.plot_control_histograms(plot=args.plot, save_dir=save_dir)
             logger.log("Generated control histograms")
             
-        solver.generate_comparison_report(save_dir=save_dir)
-        logger.log("Generated comparison report")
+        if args.comparison:
+            solver.generate_comparison_report(save_dir=save_dir)
+            logger.log("Generated comparison report")
         
         logger.log(f"All plots and reports saved to: {save_dir}")
         

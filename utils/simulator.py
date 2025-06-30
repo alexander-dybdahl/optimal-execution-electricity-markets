@@ -1,8 +1,10 @@
 
 import numpy as np
 import torch
+import logging
 
-def simulate_paths(dynamics, agent, n_sim=5, seed=42, y0_single=None, analytical=True):
+
+def simulate_paths(dynamics, agent, n_sim, seed=None, y0_single=None, analytical=False):
     t, dW, _ = dynamics.generate_paths(n_sim, seed=seed)
     
     t0 = t[0 , :, :]
@@ -105,3 +107,90 @@ def compute_cost_objective(dynamics, q_traj, y_traj, terminal_cost=True):
     
     terminal_cost = dynamics.terminal_cost(y_traj[-1])  # (batch_size, 1) or (batch_size,)
     return running_cost + terminal_cost
+
+def simulate_paths_batched(dynamics, agent, n_sim, max_batch_size, seed=None, cost_objective=False, analytical=False):
+    """
+    Simulate paths in batches to handle large numbers of simulations.
+    Uses seed + batch_idx pattern to replicate distributed training behavior.
+    Memory-efficient: processes costs per batch but stores all trajectories.
+    
+    Args:
+        dynamics: Dynamics object
+        agent: Agent to simulate
+        n_sim: Total number of simulations
+        max_batch_size: Maximum batch size for memory management
+        seed: Base seed for reproducibility
+        cost_objective: Whether to compute cost objective (True/False)
+        analytical: Whether to compute analytical solutions
+    
+    Returns:
+        timesteps: Time steps array
+        final_results: Dictionary of trajectory results
+        all_costs_concat: Concatenated costs (if cost_objective=True, else None)
+    """
+    n_batches = (n_sim + max_batch_size - 1) // max_batch_size
+    all_results = {}
+    all_costs = [] if cost_objective else None
+    timesteps = None
+    
+    for batch_idx in range(n_batches):
+        start_idx = batch_idx * max_batch_size
+        end_idx = min((batch_idx + 1) * max_batch_size, n_sim)
+        batch_size = end_idx - start_idx
+        
+        # Use seed + batch_idx to replicate distributed training pattern
+        # This matches the behavior where rank i uses seed + i
+        batch_seed = seed + batch_idx if seed is not None else None
+        
+        logging.info(f"  Processing batch {batch_idx + 1}/{n_batches} (sims {start_idx}-{end_idx-1}) with seed {batch_seed}")
+        
+        # Simulate this batch
+        batch_timesteps, batch_results = simulate_paths(
+            dynamics=dynamics,
+            agent=agent,
+            n_sim=batch_size,
+            seed=batch_seed,
+            analytical=analytical
+        )
+        
+        if timesteps is None:
+            timesteps = batch_timesteps
+        
+        # Compute cost objective for this batch if requested
+        if cost_objective:
+            batch_cost_objective = compute_cost_objective(
+                dynamics=dynamics,
+                q_traj=torch.from_numpy(batch_results["q_learned"]).to(dynamics.device),
+                y_traj=torch.from_numpy(batch_results["y_learned"]).to(dynamics.device),
+                terminal_cost=True
+            )
+            
+            # Store costs as numpy array
+            batch_costs_numpy = batch_cost_objective.detach().cpu().numpy()
+            all_costs.append(batch_costs_numpy)
+            
+            # Clear batch tensor to free GPU memory
+            del batch_cost_objective
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+        
+        # Store trajectories - concatenate numpy arrays along simulation dimension (axis 1)
+        for key, value in batch_results.items():
+            if value is not None:
+                if key not in all_results:
+                    all_results[key] = []
+                all_results[key].append(value)
+    
+    # Concatenate all batches for trajectories
+    final_results = {}
+    for key, value_list in all_results.items():
+        if value_list and value_list[0] is not None:
+            # Concatenate along simulation axis (axis 1)
+            final_results[key] = np.concatenate(value_list, axis=1)
+        else:
+            final_results[key] = None
+    
+    # Concatenate all costs if computed
+    all_costs_concat = np.concatenate(all_costs) if cost_objective else None
+    
+    return timesteps, final_results, all_costs_concat

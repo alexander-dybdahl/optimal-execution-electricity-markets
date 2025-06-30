@@ -42,6 +42,7 @@ def main():
     parser.add_argument("--plot", type=str2bool, nargs='?', const=True, default=train_cfg["plot"], help="Plot after training")
     parser.add_argument("--plot_loss", type=str2bool, nargs='?', const=True, default=train_cfg["plot_loss"], help="Plot loss after training")
     parser.add_argument("--n_simulations", type=int, default=train_cfg["n_simulations"], help="Number of simulations to run")
+    parser.add_argument("--n_traj", type=int, default=train_cfg["n_traj"], help="Number of trajectories to show")
     parser.add_argument("--rescale_y0", type=str2bool, nargs='?', const=True, default=train_cfg["rescale_y0"], help="Rescale input in y0_net forward by y0")
     parser.add_argument("--input_bn", type=str2bool, nargs='?', const=True, default=train_cfg["input_bn"], help="Use batch normalization on input")
     parser.add_argument("--affine", type=str2bool, nargs='?', const=True, default=train_cfg["affine"], help="Use affine transformation in batch normalization")

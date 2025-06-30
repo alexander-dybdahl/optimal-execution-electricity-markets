@@ -1,7 +1,7 @@
 {
   "device": "cuda",
   "parallel": false,
-  "save_dir": "saved_models/eta10_x50_gamma0.01_lowvol_psi0.5",
+  "save_dir": null,
   "dynamics_path": "config/dynamics_configs/full_config.json",
   "train": true,
   "save": ["best", "every"],
@@ -19,7 +19,8 @@
   "verbose": true,
   "plot": false,
   "plot_loss": false,
-  "n_simulations": 5,
+  "n_simulations": 10000,
+  "n_traj": 5,
   "rescale_y0": true,
   "input_bn": false,
   "affine": false,
