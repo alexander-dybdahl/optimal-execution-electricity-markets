@@ -1283,12 +1283,15 @@ class DeepAgent(nn.Module):
                         status = self.save_model(save_path + "_best", optimizer, scheduler, epoch, history) + " (best)"
 
                     # === Calculate average time per K epochs and ETA ===
-                    avg_time_per_K = (time.time() - init_time) / (epoch + 1e-8)  # avoid div-by-zero
+                    # Calculate based on epochs actually completed since training started
+                    epochs_completed = epoch - start_epoch + 1
+                    avg_time_per_epoch = (time.time() - init_time) / max(epochs_completed, 1e-8)  # avoid div-by-zero
                     
-                    if epoch == 1:
+                    if epochs_completed <= 1:
                         eta_str = "N/A"
                     else:
-                        eta_seconds = int(avg_time_per_K * (epochs - epoch))
+                        remaining_epochs = epochs - epoch
+                        eta_seconds = int(avg_time_per_epoch * remaining_epochs)
                         eta_minutes_part = eta_seconds // 60
                         eta_seconds_part = eta_seconds % 60
                         eta_str = (
@@ -1299,7 +1302,20 @@ class DeepAgent(nn.Module):
 
                     # === Log training progress ===
                     elapsed = time.time() - start_time
-                    mem_mb = torch.cuda.memory_allocated() / 1e6
+                    
+                    # Get more comprehensive memory usage
+                    if torch.cuda.is_available():
+                        # Get GPU memory usage - reserved is the total memory allocated by PyTorch
+                        mem_mb = torch.cuda.memory_reserved() / 1e6
+                    else:
+                        # Fallback to PyTorch allocated memory or basic fallback
+                        try:
+                            import psutil
+                            process = psutil.Process()
+                            mem_mb = process.memory_info().rss / 1e6
+                        except ImportError:
+                            # If psutil not available, use torch allocated memory as fallback
+                            mem_mb = torch.cuda.memory_allocated() / 1e6 if torch.cuda.is_available() else 0.0
                     current_lr = optimizer.param_groups[0]["lr"]
 
                     row_parts = [
