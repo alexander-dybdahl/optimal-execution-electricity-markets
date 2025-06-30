@@ -14,7 +14,7 @@ from dynamics import create_dynamics
 from core.solver import Solver
 from utils.load_config import load_dynamics_config, load_train_config
 from utils.plots import plot_approx_vs_analytic, plot_approx_vs_analytic_expectation, plot_terminal_histogram 
-from utils.simulator import simulate_paths
+from utils.simulator import simulate_paths_batched
 from utils.tools import str2bool, prompt_overwrite_confirmation
 
 def main():
@@ -378,7 +378,14 @@ def main():
     if is_main:
         call_model = model.module if isinstance(model, DDP) else model
         validation = call_model.validation
-        timesteps, results = simulate_paths(dynamics=dynamics, agent=call_model, n_sim=args.n_simulations, seed=np.random.randint(0, 1000))
+        timesteps, results, costs_numpy = simulate_paths_batched(
+            dynamics=dynamics, 
+            agent=call_model, 
+            n_sim=args.n_simulations, 
+            max_batch_size=self.max_batch_size,
+            seed=self.seed if self.seed is not None else 42,
+            analytical=True,
+        )
         plot_approx_vs_analytic(results=results, timesteps=timesteps, validation=validation, plot=args.plot, save_dir=save_dir)
         plot_approx_vs_analytic_expectation(results=results, timesteps=timesteps, plot=args.plot, save_dir=save_dir)
         plot_terminal_histogram(results=results, dynamics=dynamics, plot=args.plot, save_dir=save_dir)

@@ -374,14 +374,14 @@ class Solver:
 
         # Create individual plots for each agent
         for agent_name, costs in self.costs.items():
-            fig, ax = plt.subplots(1, 1, figsize=(10, 8))
+            fig, ax = plt.subplots(1, 1, figsize=(8, 6))
 
             # Calculate stats
             mean_cost = np.mean(costs)
             std_cost = np.std(costs)
 
             # Plot histogram with uniform color
-            ax.hist(costs, bins='auto', color='steelblue', alpha=0.7, label='Cost Distribution')
+            ax.hist(costs, bins='auto', color='steelblue', alpha=0.7, label=agent_name)
 
             # Plot mean line
             ax.axvline(mean_cost, color='red', linestyle='dotted', linewidth=2, label=f'Mean: {mean_cost:.4f}')
@@ -394,7 +394,7 @@ class Solver:
             # Add std as text-only legend entry
             handles.append(plt.Line2D([0], [0], color='none', label=f'Std: {std_cost:.4f}'))
             
-            ax.legend(handles=handles, loc="upper left")
+            ax.legend(handles=handles, loc="upper right")
             ax.grid(True, linestyle='--', alpha=0.5)
 
             plt.tight_layout()
