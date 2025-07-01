@@ -6,6 +6,7 @@ from utils.logger import Logger
 import torch
 
 from agents.analyticalagent import AnalyticalAgent
+from agents.hybridagent import HybridAgent
 from agents.deepagent import DeepAgent
 from agents.timeweightedagent import TimeWeightedAgent
 from agents.immediateagent import ImmediateAgent
@@ -174,8 +175,9 @@ def main():
         logger.log(f"Starting evaluation with {args.n_simulations} simulations and seed {args.seed}")
         
         solver.evaluate_agent(agent=AnalyticalAgent(dynamics=dynamics), agent_name="Analytical")
-        solver.evaluate_agent(agent=model, agent_name="Approximation")
-        solver.evaluate_agent(agent=TimeWeightedAgent(dynamics=dynamics), agent_name="TimeWeighted")
+        # solver.evaluate_agent(agent=HybridAgent(dynamics=dynamics), agent_name="Hybrid")
+        solver.evaluate_agent(agent=model, agent_name="NN")
+        solver.evaluate_agent(agent=TimeWeightedAgent(dynamics=dynamics), agent_name="TWAP")
         # solver.evaluate_agent(agent=ImmediateAgent(dynamics=dynamics), agent_name="Immediate")
         # solver.evaluate_agent(agent=StartEndAgent(dynamics=dynamics), agent_name="StartEnd")
         # solver.evaluate_agent(agent=KTimesAgent(dynamics=dynamics, K=5), agent_name="KTimes_6")
