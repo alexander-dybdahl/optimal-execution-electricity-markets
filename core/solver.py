@@ -195,7 +195,7 @@ class Solver:
             save_dir (str): Directory to save the plots, if provided
             save_individual (bool): Whether to save each variable in separate plots
         """
-        plt.rcParams.update({'font.size': 18})
+        plt.rcParams.update({'font.size': 26})
         if not self.results:
             print("No results to plot.")
             return
@@ -221,7 +221,7 @@ class Solver:
             # Create individual plot if requested
             if save_individual and save_dir:
                 fig_individual, ax_individual = plt.subplots(1, 1, figsize=(12, 6))
-                plt.rcParams.update({'font.size': 18})
+                plt.rcParams.update({'font.size': 26})
             
             # For Y plot, create agent handles only for agents that have Y data
             if var == 'Y':
@@ -285,6 +285,11 @@ class Solver:
                             for i in range(traj_data.shape[-1]):
                                 # Plot each dimension separately with appropriate style
                                 linestyle = state_styles[i] if i < len(state_styles) else '-'
+                                
+                                # Only plot Position (X) for y variable, skip Price (P) and Generation (G)
+                                if var == 'y' and i > 0:
+                                    continue  # Skip Price (P) and Generation (G) trajectories
+                                
                                 # Plot on main figure
                                 ax.plot(
                                     timesteps[:traj_data.shape[0]],
@@ -306,43 +311,43 @@ class Solver:
                                     )
 
             # Configure main subplot
-            ax.set_xlabel("Time", fontsize=20)
-            ax.set_ylabel(var_ylabels[var], fontsize=20)
-            ax.tick_params(axis='both', which='major', labelsize=16)
+            ax.set_xlabel("Time", fontsize=28)
+            ax.set_ylabel(var_ylabels[var], fontsize=28)
+            ax.tick_params(axis='both', which='major', labelsize=24)
             ax.grid(True, linestyle='--', alpha=0.5)
             if agent_handles:  # Only add legend if there are agents with data
-                ax.legend(handles=agent_handles, loc='upper left', frameon=True, fontsize=16)
+                ax.legend(handles=agent_handles, loc='upper right', frameon=True, fontsize=24)
             
             # Add state component legend for y(t) plot
-            if var == 'y':
-                # Create combined legend showing both agent colors and state line styles
-                state_legend_handles = [
-                    plt.Line2D([0], [0], color='black', linestyle='-', label='Position (X)'),
-                    plt.Line2D([0], [0], color='black', linestyle=':', label='Price (P)'),
-                    plt.Line2D([0], [0], color='black', linestyle=(0, (3, 1, 1, 1)), label='Generation (G)')
-                ]
-                # Position the state legend at bottom left
-                leg2 = ax.legend(handles=state_legend_handles, loc='upper left', frameon=True, fontsize=16)
-                ax.add_artist(leg2)
+            # if var == 'y':
+                # Create legend showing only Position (X) since Price and Generation are commented out
+                # state_legend_handles = [
+                    # plt.Line2D([0], [0], color='black', linestyle='-', label='Position (X)'),
+                    # plt.Line2D([0], [0], color='black', linestyle=':', label='Price (P)'),
+                    # plt.Line2D([0], [0], color='black', linestyle=(0, (3, 1, 1, 1)), label='Generation (G)')
+                # ]
+                # # Position the state legend at bottom left
+                # leg2 = ax.legend(handles=state_legend_handles, loc='upper left', frameon=True, fontsize=16)
+                # ax.add_artist(leg2)
             
             # Configure and save individual plot if requested
             if save_individual and save_dir:
-                ax_individual.set_xlabel("Time", fontsize=20)
-                ax_individual.set_ylabel(var_ylabels[var], fontsize=20)
-                ax_individual.tick_params(axis='both', which='major', labelsize=16)
+                ax_individual.set_xlabel("Time", fontsize=28)
+                ax_individual.set_ylabel(var_ylabels[var], fontsize=28)
+                ax_individual.tick_params(axis='both', which='major', labelsize=24)
                 ax_individual.grid(True, linestyle='--', alpha=0.5)
                 if agent_handles:
-                    ax_individual.legend(handles=agent_handles, loc='upper left', frameon=True, fontsize=16)
+                    ax_individual.legend(handles=agent_handles, loc='upper right', frameon=True, fontsize=24)
                 
                 # Add state component legend for y(t) individual plot
-                if var == 'y':
-                    state_legend_handles = [
-                        plt.Line2D([0], [0], color='black', linestyle='-', label='Position (X)'),
-                        plt.Line2D([0], [0], color='black', linestyle=':', label='Price (P)'),
-                        plt.Line2D([0], [0], color='black', linestyle=(0, (3, 1, 1, 1)), label='Generation (G)')
-                    ]
-                    leg2_individual = ax_individual.legend(handles=state_legend_handles, loc='lower left', frameon=True, fontsize=16)
-                    ax_individual.add_artist(leg2_individual)
+                # if var == 'y':
+                #     state_legend_handles = [
+                #         plt.Line2D([0], [0], color='black', linestyle='-', label='Position (X)'),
+                        # plt.Line2D([0], [0], color='black', linestyle=':', label='Price (P)'),
+                        # plt.Line2D([0], [0], color='black', linestyle=(0, (3, 1, 1, 1)), label='Generation (G)')
+                    # ]
+                    # leg2_individual = ax_individual.legend(handles=state_legend_handles, loc='lower left', frameon=True, fontsize=16)
+                    # ax_individual.add_artist(leg2_individual)
                 
                 plt.tight_layout()
                 plt.savefig(f"{save_dir}/imgs/trajectories_individual_{var}.png", dpi=300, bbox_inches='tight')
@@ -789,9 +794,9 @@ class Solver:
                 ax7_exp.axvline(terminal_cost_final_mean, color=color, linestyle='--', linewidth=2,
                               label=f'{agent_name} (μ={terminal_cost_final_mean:.4f})')
                 # Add text with statistics
-                ax7_exp.text(0.02, 0.98 - 0.15 * agent_count, 
+                ax7_exp.text(0.95, 0.98 - 0.15 * agent_count, 
                            f'{agent_name}: μ={terminal_cost_final_mean:.4f}, σ={terminal_cost_final_std:.4f}',
-                           transform=ax7_exp.transAxes, verticalalignment='top',
+                           transform=ax7_exp.transAxes, verticalalignment='top', horizontalalignment='right',
                            bbox=dict(boxstyle="round,pad=0.3", facecolor=color, alpha=0.3))
             
             # Right: Total cost distribution
@@ -807,9 +812,9 @@ class Solver:
                                label=f'{agent_name} (μ={mean_cost:.4f})')
                 
                 # Add text with statistics, using agent_count for proper spacing
-                ax7_traj.text(0.02, 0.98 - 0.15 * agent_count, 
+                ax7_traj.text(0.95, 0.98 - 0.15 * agent_count, 
                             f'{agent_name}: μ={mean_cost:.4f}, σ={std_cost:.4f}',
-                            transform=ax7_traj.transAxes, verticalalignment='top',
+                            transform=ax7_traj.transAxes, verticalalignment='top', horizontalalignment='right',
                             bbox=dict(boxstyle="round,pad=0.3", facecolor=color, alpha=0.3))
             
             agent_count += 1

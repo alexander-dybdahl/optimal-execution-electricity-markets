@@ -59,20 +59,20 @@ def plot_training_losses(model_dir, save_dir, plot=True):
         plt.plot(df['Epoch'], df['Train_losses_sum'], color='#2ca02c', linewidth=2, label='Train Losses')  # Green
         
         # If cost_loss exists, plot it separately (can be negative)
-        if 'cost_loss' in df.columns:
-            plt.plot(df['Epoch'], df['cost_loss'], color='#d62728', linewidth=2, label='Cost Loss')  # Red
+        # if 'cost_loss' in df.columns:
+        #     plt.plot(df['Epoch'], df['cost_loss'], color='#d62728', linewidth=2, label='Cost Loss')  # Red
         
-        plt.xlabel('Epoch', fontsize=16)
-        plt.ylabel('Loss', fontsize=16)
-        plt.legend(fontsize=14)
+        plt.xlabel('Epoch', fontsize=28)
+        plt.ylabel('Loss', fontsize=28)
+        plt.legend(fontsize=24)
         plt.grid(True, alpha=0.3)
-        plt.tick_params(axis='both', which='major', labelsize=14)
+        plt.tick_params(axis='both', which='major', labelsize=24)
         
         # Use log scale if values span multiple orders of magnitude
         y_values = np.concatenate([df['Y_val_loss'].values, df['q_val_loss'].values, df['Train_losses_sum'].values])
         if np.max(y_values) / np.min(y_values[y_values > 0]) > 100:
             plt.yscale('log')
-            plt.ylabel('Loss (log scale)', fontsize=16)
+            plt.ylabel('Loss (log scale)', fontsize=28)
         
         plt.tight_layout()
         
@@ -135,12 +135,14 @@ def plot_approx_vs_analytic(results, timesteps, validation=None, plot=True, save
 
     if validation is not None and true_q is not None:
         for i in range(approx_q.shape[1]):
-            diff = (approx_q[:, i] - true_q[:, i]) ** 2
-            axs[0, 1].plot(timesteps[:-1], diff, color=colors(i), alpha=0.6, label=f"$|q(t) - \\bar{{q}}(t)|^2 ({val_q_loss[-1]:.2f})$" if i == 0 else None)
+            # Calculate relative error: |q - q_true| / |q_true|, with small epsilon to avoid division by zero
+            eps = 1e-8
+            rel_error = np.abs(approx_q[:, i] - true_q[:, i]) / (np.abs(true_q[:, i]) + eps)
+            axs[0, 1].plot(timesteps[:-1], rel_error, color=colors(i), alpha=0.6, label=f"Rel. Error $q(t)$ ({val_q_loss[-1]:.2f})" if i == 0 else None)
         axs[0, 1].axhline(0, color='red', linestyle='--', linewidth=0.8)
-        axs[0, 1].set_title("Error in Control $q(t)$")
+        axs[0, 1].set_title("Relative Error in Control $q(t)$")
         axs[0, 1].set_xlabel("Time $t$")
-        axs[0, 1].set_ylabel("$|q(t) - \\bar{{q}}(t)|^2$")
+        axs[0, 1].set_ylabel("$|q(t) - \\bar{{q}}(t)| / |\\bar{{q}}(t)|$")
         axs[0, 1].grid(True, linestyle='--')
         axs[0, 1].legend(loc='upper left')
 
@@ -156,12 +158,14 @@ def plot_approx_vs_analytic(results, timesteps, validation=None, plot=True, save
 
     if validation is not None and true_Y is not None:
         for i in range(Y_vals.shape[1]):
-            diff_Y = (Y_vals[:, i, 0] - true_Y[:, i, 0]) ** 2
-            axs[1, 1].plot(timesteps, diff_Y, color=colors(i), alpha=0.6, label=f"$|Y(t) - \\bar{{Y}}(t)|^2$ ({val_Y_loss[-1]:.2f})" if i == 0 else None)
+            # Calculate relative error: |Y - Y_true| / |Y_true|, with small epsilon to avoid division by zero
+            eps = 1e-8
+            rel_error_Y = np.abs(Y_vals[:, i, 0] - true_Y[:, i, 0]) / (np.abs(true_Y[:, i, 0]) + eps)
+            axs[1, 1].plot(timesteps, rel_error_Y, color=colors(i), alpha=0.6, label=f"Rel. Error $Y(t)$ ({val_Y_loss[-1]:.2f})" if i == 0 else None)
         axs[1, 1].axhline(0, color='red', linestyle='--', linewidth=0.8)
-        axs[1, 1].set_title("Error in Cost-to-Go $Y(t)$")
+        axs[1, 1].set_title("Relative Error in Cost-to-Go $Y(t)$")
         axs[1, 1].set_xlabel("Time $t$")
-        axs[1, 1].set_ylabel("$|Y(t) - \\bar{{Y}}(t)|^2$")
+        axs[1, 1].set_ylabel("$|Y(t) - \\bar{{Y}}(t)| / |\\bar{{Y}}(t)|$")
         axs[1, 1].grid(True, linestyle='--')
         axs[1, 1].legend(loc='upper left')
 
@@ -229,14 +233,14 @@ def plot_approx_vs_analytic_expectation(results, timesteps, plot=True, save_dir=
     axs[0, 0].grid(True, linestyle='--')
     axs[0, 0].legend(loc='upper left')
 
-    diff = (approx_q - true_q) ** 2
+    diff = np.abs(approx_q - true_q) / (np.abs(true_q) + 1e-8)  # Relative error with epsilon
     mean_diff = np.mean(diff, axis=1).squeeze()
     std_diff = np.std(diff, axis=1).squeeze()
     axs[0, 1].fill_between(timesteps[:-1], mean_diff - std_diff, mean_diff + std_diff, color='red', alpha=0.4, label='±1 Std Dev')
-    axs[0, 1].plot(timesteps[:-1], mean_diff, color='red', label='Mean Difference')
-    axs[0, 1].set_title("Error in Control $q(t)$")
+    axs[0, 1].plot(timesteps[:-1], mean_diff, color='red', label='Mean Rel. Error')
+    axs[0, 1].set_title("Relative Error in Control $q(t)$")
     axs[0, 1].set_xlabel("Time $t$")
-    axs[0, 1].set_ylabel("$|q(t) - \\bar{{q}}(t)|^2$")
+    axs[0, 1].set_ylabel("$|q(t) - \\bar{{q}}(t)| / |\\bar{{q}}(t)|$")
     axs[0, 1].grid(True, linestyle='--')
     axs[0, 1].legend(loc='upper left')
 
@@ -250,14 +254,14 @@ def plot_approx_vs_analytic_expectation(results, timesteps, plot=True, save_dir=
     axs[1, 0].grid(True, linestyle='--')
     axs[1, 0].legend(loc='upper left')
 
-    diff_Y = (Y_vals - true_Y) ** 2
+    diff_Y = np.abs(Y_vals - true_Y) / (np.abs(true_Y) + 1e-8)  # Relative error with epsilon
     mean_diff_Y = np.mean(diff_Y, axis=1).squeeze()
     std_diff_Y = np.std(diff_Y, axis=1).squeeze()
     axs[1, 1].fill_between(timesteps, mean_diff_Y - std_diff_Y, mean_diff_Y + std_diff_Y, color='red', alpha=0.4, label='±1 Std Dev')
-    axs[1, 1].plot(timesteps, mean_diff_Y, color='red', label='Mean Difference')
-    axs[1, 1].set_title("Error in Cost-to-Go $Y(t)$")
+    axs[1, 1].plot(timesteps, mean_diff_Y, color='red', label='Mean Rel. Error')
+    axs[1, 1].set_title("Relative Error in Cost-to-Go $Y(t)$")
     axs[1, 1].set_xlabel("Time $t$")
-    axs[1, 1].set_ylabel("$|Y(t) - \\bar{{Y}}(t)|^2$")
+    axs[1, 1].set_ylabel("$|Y(t) - \\bar{{Y}}(t)| / |\\bar{{Y}}(t)|$")
     axs[1, 1].grid(True, linestyle='--')
     axs[1, 1].legend(loc='upper left')
 
