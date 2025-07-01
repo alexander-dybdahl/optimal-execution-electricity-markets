@@ -1,0 +1,5146 @@
+Using dynamics config from model folder: saved_models/eta10_x0_gamma0.01_lowvol_psi0_naislstm_GELU/dynamics_config.json
+Starting evaluation.
+Evaluation completed with seed 42.
+Using dynamics config from model folder: saved_models/eta10_x0_gamma0.01_lowvol_psi5_naislstm_GELU/dynamics_config.json
+Starting evaluation.
+Using specified max_batch_size: 10000
+Using dynamics config from model folder: saved_models/eta10_x0_gamma0.01_lowvol_psi5_naislstm_GELU/dynamics_config.json
+Starting evaluation.
+Using specified max_batch_size: 10000
+Using dynamics config from model folder: saved_models/eta10_x0_gamma0.01_lowvol_psi5_naislstm_GELU/dynamics_config.json
+Starting evaluation.
+Using specified max_batch_size: 10000
+  Processing batch 1/3 (sims 0-9999) with seed 42
+  Processing batch 2/3 (sims 10000-19999) with seed 43
+  Processing batch 3/3 (sims 20000-29999) with seed 44
+  Processing batch 1/3 (sims 0-9999) with seed 42
+  Processing batch 2/3 (sims 10000-19999) with seed 43
+  Processing batch 3/3 (sims 20000-29999) with seed 44
+  Processing batch 1/3 (sims 0-9999) with seed 42
+  Processing batch 2/3 (sims 10000-19999) with seed 43
+  Processing batch 3/3 (sims 20000-29999) with seed 44
+Evaluation completed with seed 42.
+
+================================================================================
+RISK METRICS SUMMARY
+================================================================================
+
+Agent: AnalyticalAgent
+--------------------------------------------------
+BASIC STATISTICS:
+  Mean:                -90.035957
+  Std Deviation:       3279.539795
+  Minimum:             -14329.916016
+  Maximum:             13218.130859
+  Skewness:            -0.077537
+  Kurtosis:            0.095052
+
+PERCENTILES:
+  10th Percentile:     -4284.709473
+  25th Percentile:     -2274.833496
+  50th Percentile:     -51.867645
+  75th Percentile:     2126.287109
+  90th Percentile:     4057.011230
+
+RISK MEASURES:
+  VaR 95%:             5241.776367
+  CVaR 95%:            6581.996094
+  VaR 99%:             7407.352539
+  CVaR 99%:            8535.303711
+  Semi-deviation:      3229.382080
+  Max Drawdown:        27165.517578
+
+RISK-ADJUSTED RATIOS:
+  Sharpe Ratio:        -0.027454
+  Sortino Ratio:       -0.027880
+
+Agent: DeepAgent
+--------------------------------------------------
+BASIC STATISTICS:
+  Mean:                -12.430030
+  Std Deviation:       3250.961914
+  Minimum:             -13866.418945
+  Maximum:             13620.511719
+  Skewness:            0.032833
+  Kurtosis:            0.149368
+
+PERCENTILES:
+  10th Percentile:     -4103.048828
+  25th Percentile:     -2149.254150
+  50th Percentile:     -63.892548
+  75th Percentile:     2118.265625
+  90th Percentile:     4167.245117
+
+RISK MEASURES:
+  VaR 95%:             5440.557617
+  CVaR 95%:            6827.634766
+  VaR 99%:             7678.502930
+  CVaR 99%:            8913.950195
+  Semi-deviation:      3292.872559
+  Max Drawdown:        27380.945312
+
+RISK-ADJUSTED RATIOS:
+  Sharpe Ratio:        -0.003823
+  Sortino Ratio:       -0.003775
+
+Agent: TimeWeightedAgent
+--------------------------------------------------
+BASIC STATISTICS:
+  Mean:                241.002228
+  Std Deviation:       3279.392090
+  Minimum:             -13918.185547
+  Maximum:             12931.541992
+  Skewness:            -0.075167
+  Kurtosis:            0.085460
+
+PERCENTILES:
+  10th Percentile:     -3934.728271
+  25th Percentile:     -1934.061035
+  50th Percentile:     277.426117
+  75th Percentile:     2452.369141
+  90th Percentile:     4375.566406
+
+RISK MEASURES:
+  VaR 95%:             5552.944336
+  CVaR 95%:            6914.405273
+  VaR 99%:             7735.993164
+  CVaR 99%:            8853.821289
+  Semi-deviation:      3233.781006
+  Max Drawdown:        26849.726562
+
+RISK-ADJUSTED RATIOS:
+  Sharpe Ratio:        0.073490
+  Sortino Ratio:       0.074526
+
+================================================================================
+Using dynamics config from model folder: saved_models/eta10_x0_gamma0.01_lowvol_psi5_naislstm_GELU/dynamics_config.json
+Starting evaluation.
+Using specified max_batch_size: 10000
+  Processing batch 1/3 (sims 0-9999) with seed 42
+  Processing batch 2/3 (sims 10000-19999) with seed 43
+  Processing batch 3/3 (sims 20000-29999) with seed 44
+  Processing batch 1/3 (sims 0-9999) with seed 42
+  Processing batch 2/3 (sims 10000-19999) with seed 43
+  Processing batch 3/3 (sims 20000-29999) with seed 44
+  Processing batch 1/3 (sims 0-9999) with seed 42
+  Processing batch 2/3 (sims 10000-19999) with seed 43
+  Processing batch 3/3 (sims 20000-29999) with seed 44
+Evaluation completed with seed 42.
+
+================================================================================
+RISK METRICS SUMMARY
+================================================================================
+
+Agent: AnalyticalAgent
+--------------------------------------------------
+BASIC STATISTICS:
+  Mean:                -90.035957
+  Std Deviation:       3279.539795
+  Minimum:             -14329.916016
+  Maximum:             13218.130859
+  Skewness:            -0.077537
+  Kurtosis:            0.095052
+
+PERCENTILES:
+  10th Percentile:     -4284.709473
+  25th Percentile:     -2274.833496
+  50th Percentile:     -51.867645
+  75th Percentile:     2126.287109
+  90th Percentile:     4057.011230
+
+RISK MEASURES:
+  VaR 95%:             5241.776367
+  CVaR 95%:            6581.996094
+  VaR 99%:             7407.352539
+  CVaR 99%:            8535.303711
+  Semi-deviation:      3229.382080
+  Max Drawdown:        27165.517578
+
+RISK-ADJUSTED RATIOS:
+  Sharpe Ratio:        -0.027454
+  Sortino Ratio:       -0.027880
+
+Agent: DeepAgent
+--------------------------------------------------
+BASIC STATISTICS:
+  Mean:                -12.430030
+  Std Deviation:       3250.961914
+  Minimum:             -13866.418945
+  Maximum:             13620.511719
+  Skewness:            0.032833
+  Kurtosis:            0.149368
+
+PERCENTILES:
+  10th Percentile:     -4103.048828
+  25th Percentile:     -2149.254150
+  50th Percentile:     -63.892548
+  75th Percentile:     2118.265625
+  90th Percentile:     4167.245117
+
+RISK MEASURES:
+  VaR 95%:             5440.557617
+  CVaR 95%:            6827.634766
+  VaR 99%:             7678.502930
+  CVaR 99%:            8913.950195
+  Semi-deviation:      3292.872559
+  Max Drawdown:        27380.945312
+
+RISK-ADJUSTED RATIOS:
+  Sharpe Ratio:        -0.003823
+  Sortino Ratio:       -0.003775
+
+Agent: TimeWeightedAgent
+--------------------------------------------------
+BASIC STATISTICS:
+  Mean:                241.002228
+  Std Deviation:       3279.392090
+  Minimum:             -13918.185547
+  Maximum:             12931.541992
+  Skewness:            -0.075167
+  Kurtosis:            0.085460
+
+PERCENTILES:
+  10th Percentile:     -3934.728271
+  25th Percentile:     -1934.061035
+  50th Percentile:     277.426117
+  75th Percentile:     2452.369141
+  90th Percentile:     4375.566406
+
+RISK MEASURES:
+  VaR 95%:             5552.944336
+  CVaR 95%:            6914.405273
+  VaR 99%:             7735.993164
+  CVaR 99%:            8853.821289
+  Semi-deviation:      3233.781006
+  Max Drawdown:        26849.726562
+
+RISK-ADJUSTED RATIOS:
+  Sharpe Ratio:        0.073490
+  Sortino Ratio:       0.074526
+
+================================================================================
+Using dynamics config from model folder: saved_models/eta10_x0_gamma0.01_lowvol_psi5_naislstm_GELU/dynamics_config.json
+Starting evaluation.
+Using specified max_batch_size: 10000
+  Processing batch 1/10 (sims 0-9999) with seed 42
+  Processing batch 2/10 (sims 10000-19999) with seed 43
+  Processing batch 3/10 (sims 20000-29999) with seed 44
+  Processing batch 4/10 (sims 30000-39999) with seed 45
+  Processing batch 5/10 (sims 40000-49999) with seed 46
+  Processing batch 6/10 (sims 50000-59999) with seed 47
+  Processing batch 7/10 (sims 60000-69999) with seed 48
+  Processing batch 8/10 (sims 70000-79999) with seed 49
+  Processing batch 9/10 (sims 80000-89999) with seed 50
+  Processing batch 10/10 (sims 90000-99999) with seed 51
+  Processing batch 1/10 (sims 0-9999) with seed 42
+  Processing batch 2/10 (sims 10000-19999) with seed 43
+  Processing batch 3/10 (sims 20000-29999) with seed 44
+  Processing batch 4/10 (sims 30000-39999) with seed 45
+  Processing batch 5/10 (sims 40000-49999) with seed 46
+  Processing batch 6/10 (sims 50000-59999) with seed 47
+  Processing batch 7/10 (sims 60000-69999) with seed 48
+  Processing batch 8/10 (sims 70000-79999) with seed 49
+  Processing batch 9/10 (sims 80000-89999) with seed 50
+  Processing batch 10/10 (sims 90000-99999) with seed 51
+  Processing batch 1/10 (sims 0-9999) with seed 42
+  Processing batch 2/10 (sims 10000-19999) with seed 43
+  Processing batch 3/10 (sims 20000-29999) with seed 44
+  Processing batch 4/10 (sims 30000-39999) with seed 45
+  Processing batch 5/10 (sims 40000-49999) with seed 46
+  Processing batch 6/10 (sims 50000-59999) with seed 47
+  Processing batch 7/10 (sims 60000-69999) with seed 48
+  Processing batch 8/10 (sims 70000-79999) with seed 49
+  Processing batch 9/10 (sims 80000-89999) with seed 50
+  Processing batch 10/10 (sims 90000-99999) with seed 51
+Evaluation completed with seed 42.
+
+================================================================================
+RISK METRICS SUMMARY
+================================================================================
+
+Agent: AnalyticalAgent
+--------------------------------------------------
+BASIC STATISTICS:
+  Mean:                -96.841049
+  Std Deviation:       3295.028320
+  Minimum:             -15950.102539
+  Maximum:             13218.130859
+  Skewness:            -0.072720
+  Kurtosis:            0.099092
+
+PERCENTILES:
+  10th Percentile:     -4303.479492
+  25th Percentile:     -2283.617432
+  50th Percentile:     -71.145157
+  75th Percentile:     2134.660400
+  90th Percentile:     4088.374023
+
+RISK MEASURES:
+  VaR 95%:             5264.365723
+  CVaR 95%:            6607.250977
+  VaR 99%:             7448.737305
+  CVaR 99%:            8550.813477
+  Semi-deviation:      3256.116699
+  Max Drawdown:        29151.695312
+
+RISK-ADJUSTED RATIOS:
+  Sharpe Ratio:        -0.029390
+  Sortino Ratio:       -0.029741
+
+Agent: DeepAgent
+--------------------------------------------------
+BASIC STATISTICS:
+  Mean:                -17.436266
+  Std Deviation:       3266.517822
+  Minimum:             -14103.837891
+  Maximum:             14130.505859
+  Skewness:            0.035754
+  Kurtosis:            0.148803
+
+PERCENTILES:
+  10th Percentile:     -4133.774902
+  25th Percentile:     -2164.914551
+  50th Percentile:     -87.603516
+  75th Percentile:     2126.650146
+  90th Percentile:     4190.756348
+
+RISK MEASURES:
+  VaR 95%:             5437.438477
+  CVaR 95%:            6855.063965
+  VaR 99%:             7751.833496
+  CVaR 99%:            8911.041992
+  Semi-deviation:      3317.705566
+  Max Drawdown:        28234.343750
+
+RISK-ADJUSTED RATIOS:
+  Sharpe Ratio:        -0.005338
+  Sortino Ratio:       -0.005256
+
+Agent: TimeWeightedAgent
+--------------------------------------------------
+BASIC STATISTICS:
+  Mean:                231.660614
+  Std Deviation:       3295.024414
+  Minimum:             -15869.009766
+  Maximum:             13118.648438
+  Skewness:            -0.071866
+  Kurtosis:            0.095519
+
+PERCENTILES:
+  10th Percentile:     -3972.810059
+  25th Percentile:     -1948.992554
+  50th Percentile:     252.276886
+  75th Percentile:     2461.653564
+  90th Percentile:     4418.869629
+
+RISK MEASURES:
+  VaR 95%:             5586.361328
+  CVaR 95%:            6934.724609
+  VaR 99%:             7778.162109
+  CVaR 99%:            8876.363281
+  Semi-deviation:      3259.099854
+  Max Drawdown:        28979.373047
+
+RISK-ADJUSTED RATIOS:
+  Sharpe Ratio:        0.070306
+  Sortino Ratio:       0.071081
+
+================================================================================
+Using dynamics config from model folder: saved_models/eta10_x0_gamma0.01_lowvol_psi5_naislstm_GELU/dynamics_config.json
+Starting evaluation.
+Using specified max_batch_size: 10000
+  Processing batch 1/10 (sims 0-9999) with seed 42
+  Processing batch 2/10 (sims 10000-19999) with seed 43
+  Processing batch 3/10 (sims 20000-29999) with seed 44
+  Processing batch 4/10 (sims 30000-39999) with seed 45
+  Processing batch 5/10 (sims 40000-49999) with seed 46
+  Processing batch 6/10 (sims 50000-59999) with seed 47
+  Processing batch 7/10 (sims 60000-69999) with seed 48
+  Processing batch 8/10 (sims 70000-79999) with seed 49
+  Processing batch 9/10 (sims 80000-89999) with seed 50
+  Processing batch 10/10 (sims 90000-99999) with seed 51
+  Processing batch 1/10 (sims 0-9999) with seed 42
+  Processing batch 2/10 (sims 10000-19999) with seed 43
+  Processing batch 3/10 (sims 20000-29999) with seed 44
+  Processing batch 4/10 (sims 30000-39999) with seed 45
+  Processing batch 5/10 (sims 40000-49999) with seed 46
+  Processing batch 6/10 (sims 50000-59999) with seed 47
+  Processing batch 7/10 (sims 60000-69999) with seed 48
+  Processing batch 8/10 (sims 70000-79999) with seed 49
+  Processing batch 9/10 (sims 80000-89999) with seed 50
+  Processing batch 10/10 (sims 90000-99999) with seed 51
+  Processing batch 1/10 (sims 0-9999) with seed 42
+  Processing batch 2/10 (sims 10000-19999) with seed 43
+  Processing batch 3/10 (sims 20000-29999) with seed 44
+  Processing batch 4/10 (sims 30000-39999) with seed 45
+  Processing batch 5/10 (sims 40000-49999) with seed 46
+  Processing batch 6/10 (sims 50000-59999) with seed 47
+  Processing batch 7/10 (sims 60000-69999) with seed 48
+  Processing batch 8/10 (sims 70000-79999) with seed 49
+  Processing batch 9/10 (sims 80000-89999) with seed 50
+  Processing batch 10/10 (sims 90000-99999) with seed 51
+Evaluation completed with seed 42.
+
+================================================================================
+RISK METRICS SUMMARY
+================================================================================
+
+Agent: AnalyticalAgent
+--------------------------------------------------
+BASIC STATISTICS:
+  Mean:                -96.841049
+  Std Deviation:       3295.028320
+  Minimum:             -15950.102539
+  Maximum:             13218.130859
+  Skewness:            -0.072720
+  Kurtosis:            0.099092
+
+PERCENTILES:
+  10th Percentile:     -4303.479492
+  25th Percentile:     -2283.617432
+  50th Percentile:     -71.145157
+  75th Percentile:     2134.660400
+  90th Percentile:     4088.374023
+
+RISK MEASURES:
+  VaR 95%:             5264.365723
+  CVaR 95%:            6607.250977
+  VaR 99%:             7448.737305
+  CVaR 99%:            8550.813477
+  Semi-deviation:      3256.116699
+  Max Drawdown:        29151.695312
+
+RISK-ADJUSTED RATIOS:
+  Sharpe Ratio:        -0.029390
+  Sortino Ratio:       -0.029741
+
+Agent: DeepAgent
+--------------------------------------------------
+BASIC STATISTICS:
+  Mean:                -16.280453
+  Std Deviation:       3262.185059
+  Minimum:             -14079.136719
+  Maximum:             14930.781250
+  Skewness:            0.047225
+  Kurtosis:            0.160490
+
+PERCENTILES:
+  10th Percentile:     -4114.973633
+  25th Percentile:     -2166.350586
+  50th Percentile:     -97.380356
+  75th Percentile:     2121.030518
+  90th Percentile:     4187.874512
+
+RISK MEASURES:
+  VaR 95%:             5435.223633
+  CVaR 95%:            6866.225586
+  VaR 99%:             7765.138184
+  CVaR 99%:            8951.278320
+  Semi-deviation:      3322.501221
+  Max Drawdown:        28814.441406
+
+RISK-ADJUSTED RATIOS:
+  Sharpe Ratio:        -0.004991
+  Sortino Ratio:       -0.004900
+
+Agent: TimeWeightedAgent
+--------------------------------------------------
+BASIC STATISTICS:
+  Mean:                231.660614
+  Std Deviation:       3295.024414
+  Minimum:             -15869.009766
+  Maximum:             13118.648438
+  Skewness:            -0.071866
+  Kurtosis:            0.095519
+
+PERCENTILES:
+  10th Percentile:     -3972.810059
+  25th Percentile:     -1948.992554
+  50th Percentile:     252.276886
+  75th Percentile:     2461.653564
+  90th Percentile:     4418.869629
+
+RISK MEASURES:
+  VaR 95%:             5586.361328
+  CVaR 95%:            6934.724609
+  VaR 99%:             7778.162109
+  CVaR 99%:            8876.363281
+  Semi-deviation:      3259.099854
+  Max Drawdown:        28979.373047
+
+RISK-ADJUSTED RATIOS:
+  Sharpe Ratio:        0.070306
+  Sortino Ratio:       0.071081
+
+================================================================================
+Using dynamics config from model folder: saved_models/eta10_x0_gamma0.01_lowvol_psi5_naislstm_GELU/dynamics_config.json
+Starting evaluation.
+Using specified max_batch_size: 10000
+  Processing batch 1/50 (sims 0-9999) with seed 42
+  Processing batch 2/50 (sims 10000-19999) with seed 43
+  Processing batch 3/50 (sims 20000-29999) with seed 44
+  Processing batch 4/50 (sims 30000-39999) with seed 45
+  Processing batch 5/50 (sims 40000-49999) with seed 46
+  Processing batch 6/50 (sims 50000-59999) with seed 47
+  Processing batch 7/50 (sims 60000-69999) with seed 48
+  Processing batch 8/50 (sims 70000-79999) with seed 49
+  Processing batch 9/50 (sims 80000-89999) with seed 50
+  Processing batch 10/50 (sims 90000-99999) with seed 51
+  Processing batch 11/50 (sims 100000-109999) with seed 52
+  Processing batch 12/50 (sims 110000-119999) with seed 53
+  Processing batch 13/50 (sims 120000-129999) with seed 54
+  Processing batch 14/50 (sims 130000-139999) with seed 55
+  Processing batch 15/50 (sims 140000-149999) with seed 56
+  Processing batch 16/50 (sims 150000-159999) with seed 57
+  Processing batch 17/50 (sims 160000-169999) with seed 58
+  Processing batch 18/50 (sims 170000-179999) with seed 59
+  Processing batch 19/50 (sims 180000-189999) with seed 60
+  Processing batch 20/50 (sims 190000-199999) with seed 61
+  Processing batch 21/50 (sims 200000-209999) with seed 62
+  Processing batch 22/50 (sims 210000-219999) with seed 63
+  Processing batch 23/50 (sims 220000-229999) with seed 64
+  Processing batch 24/50 (sims 230000-239999) with seed 65
+  Processing batch 25/50 (sims 240000-249999) with seed 66
+  Processing batch 26/50 (sims 250000-259999) with seed 67
+  Processing batch 27/50 (sims 260000-269999) with seed 68
+  Processing batch 28/50 (sims 270000-279999) with seed 69
+  Processing batch 29/50 (sims 280000-289999) with seed 70
+  Processing batch 30/50 (sims 290000-299999) with seed 71
+  Processing batch 31/50 (sims 300000-309999) with seed 72
+  Processing batch 32/50 (sims 310000-319999) with seed 73
+  Processing batch 33/50 (sims 320000-329999) with seed 74
+  Processing batch 34/50 (sims 330000-339999) with seed 75
+  Processing batch 35/50 (sims 340000-349999) with seed 76
+  Processing batch 36/50 (sims 350000-359999) with seed 77
+  Processing batch 37/50 (sims 360000-369999) with seed 78
+  Processing batch 38/50 (sims 370000-379999) with seed 79
+  Processing batch 39/50 (sims 380000-389999) with seed 80
+  Processing batch 40/50 (sims 390000-399999) with seed 81
+  Processing batch 41/50 (sims 400000-409999) with seed 82
+  Processing batch 42/50 (sims 410000-419999) with seed 83
+  Processing batch 43/50 (sims 420000-429999) with seed 84
+  Processing batch 44/50 (sims 430000-439999) with seed 85
+  Processing batch 45/50 (sims 440000-449999) with seed 86
+  Processing batch 46/50 (sims 450000-459999) with seed 87
+  Processing batch 47/50 (sims 460000-469999) with seed 88
+  Processing batch 48/50 (sims 470000-479999) with seed 89
+  Processing batch 49/50 (sims 480000-489999) with seed 90
+  Processing batch 50/50 (sims 490000-499999) with seed 91
+  Processing batch 1/50 (sims 0-9999) with seed 42
+  Processing batch 2/50 (sims 10000-19999) with seed 43
+  Processing batch 3/50 (sims 20000-29999) with seed 44
+  Processing batch 4/50 (sims 30000-39999) with seed 45
+  Processing batch 5/50 (sims 40000-49999) with seed 46
+  Processing batch 6/50 (sims 50000-59999) with seed 47
+  Processing batch 7/50 (sims 60000-69999) with seed 48
+  Processing batch 8/50 (sims 70000-79999) with seed 49
+  Processing batch 9/50 (sims 80000-89999) with seed 50
+  Processing batch 10/50 (sims 90000-99999) with seed 51
+  Processing batch 11/50 (sims 100000-109999) with seed 52
+  Processing batch 12/50 (sims 110000-119999) with seed 53
+  Processing batch 13/50 (sims 120000-129999) with seed 54
+  Processing batch 14/50 (sims 130000-139999) with seed 55
+  Processing batch 15/50 (sims 140000-149999) with seed 56
+  Processing batch 16/50 (sims 150000-159999) with seed 57
+  Processing batch 17/50 (sims 160000-169999) with seed 58
+  Processing batch 18/50 (sims 170000-179999) with seed 59
+  Processing batch 19/50 (sims 180000-189999) with seed 60
+  Processing batch 20/50 (sims 190000-199999) with seed 61
+  Processing batch 21/50 (sims 200000-209999) with seed 62
+  Processing batch 22/50 (sims 210000-219999) with seed 63
+  Processing batch 23/50 (sims 220000-229999) with seed 64
+  Processing batch 24/50 (sims 230000-239999) with seed 65
+  Processing batch 25/50 (sims 240000-249999) with seed 66
+  Processing batch 26/50 (sims 250000-259999) with seed 67
+  Processing batch 27/50 (sims 260000-269999) with seed 68
+  Processing batch 28/50 (sims 270000-279999) with seed 69
+  Processing batch 29/50 (sims 280000-289999) with seed 70
+  Processing batch 30/50 (sims 290000-299999) with seed 71
+  Processing batch 31/50 (sims 300000-309999) with seed 72
+  Processing batch 32/50 (sims 310000-319999) with seed 73
+  Processing batch 33/50 (sims 320000-329999) with seed 74
+  Processing batch 34/50 (sims 330000-339999) with seed 75
+  Processing batch 35/50 (sims 340000-349999) with seed 76
+  Processing batch 36/50 (sims 350000-359999) with seed 77
+  Processing batch 37/50 (sims 360000-369999) with seed 78
+  Processing batch 38/50 (sims 370000-379999) with seed 79
+  Processing batch 39/50 (sims 380000-389999) with seed 80
+  Processing batch 40/50 (sims 390000-399999) with seed 81
+  Processing batch 41/50 (sims 400000-409999) with seed 82
+  Processing batch 42/50 (sims 410000-419999) with seed 83
+  Processing batch 43/50 (sims 420000-429999) with seed 84
+  Processing batch 44/50 (sims 430000-439999) with seed 85
+  Processing batch 45/50 (sims 440000-449999) with seed 86
+  Processing batch 46/50 (sims 450000-459999) with seed 87
+  Processing batch 47/50 (sims 460000-469999) with seed 88
+  Processing batch 48/50 (sims 470000-479999) with seed 89
+  Processing batch 49/50 (sims 480000-489999) with seed 90
+  Processing batch 50/50 (sims 490000-499999) with seed 91
+  Processing batch 1/50 (sims 0-9999) with seed 42
+  Processing batch 2/50 (sims 10000-19999) with seed 43
+  Processing batch 3/50 (sims 20000-29999) with seed 44
+  Processing batch 4/50 (sims 30000-39999) with seed 45
+  Processing batch 5/50 (sims 40000-49999) with seed 46
+  Processing batch 6/50 (sims 50000-59999) with seed 47
+  Processing batch 7/50 (sims 60000-69999) with seed 48
+  Processing batch 8/50 (sims 70000-79999) with seed 49
+  Processing batch 9/50 (sims 80000-89999) with seed 50
+  Processing batch 10/50 (sims 90000-99999) with seed 51
+  Processing batch 11/50 (sims 100000-109999) with seed 52
+  Processing batch 12/50 (sims 110000-119999) with seed 53
+  Processing batch 13/50 (sims 120000-129999) with seed 54
+  Processing batch 14/50 (sims 130000-139999) with seed 55
+  Processing batch 15/50 (sims 140000-149999) with seed 56
+  Processing batch 16/50 (sims 150000-159999) with seed 57
+  Processing batch 17/50 (sims 160000-169999) with seed 58
+  Processing batch 18/50 (sims 170000-179999) with seed 59
+  Processing batch 19/50 (sims 180000-189999) with seed 60
+  Processing batch 20/50 (sims 190000-199999) with seed 61
+  Processing batch 21/50 (sims 200000-209999) with seed 62
+  Processing batch 22/50 (sims 210000-219999) with seed 63
+  Processing batch 23/50 (sims 220000-229999) with seed 64
+  Processing batch 24/50 (sims 230000-239999) with seed 65
+  Processing batch 25/50 (sims 240000-249999) with seed 66
+  Processing batch 26/50 (sims 250000-259999) with seed 67
+  Processing batch 27/50 (sims 260000-269999) with seed 68
+  Processing batch 28/50 (sims 270000-279999) with seed 69
+  Processing batch 29/50 (sims 280000-289999) with seed 70
+  Processing batch 30/50 (sims 290000-299999) with seed 71
+  Processing batch 31/50 (sims 300000-309999) with seed 72
+  Processing batch 32/50 (sims 310000-319999) with seed 73
+  Processing batch 33/50 (sims 320000-329999) with seed 74
+  Processing batch 34/50 (sims 330000-339999) with seed 75
+  Processing batch 35/50 (sims 340000-349999) with seed 76
+  Processing batch 36/50 (sims 350000-359999) with seed 77
+  Processing batch 37/50 (sims 360000-369999) with seed 78
+  Processing batch 38/50 (sims 370000-379999) with seed 79
+  Processing batch 39/50 (sims 380000-389999) with seed 80
+  Processing batch 40/50 (sims 390000-399999) with seed 81
+  Processing batch 41/50 (sims 400000-409999) with seed 82
+  Processing batch 42/50 (sims 410000-419999) with seed 83
+  Processing batch 43/50 (sims 420000-429999) with seed 84
+  Processing batch 44/50 (sims 430000-439999) with seed 85
+  Processing batch 45/50 (sims 440000-449999) with seed 86
+  Processing batch 46/50 (sims 450000-459999) with seed 87
+  Processing batch 47/50 (sims 460000-469999) with seed 88
+  Processing batch 48/50 (sims 470000-479999) with seed 89
+  Processing batch 49/50 (sims 480000-489999) with seed 90
+  Processing batch 50/50 (sims 490000-499999) with seed 91
+Evaluation completed with seed 42.
+
+================================================================================
+RISK METRICS SUMMARY
+================================================================================
+
+Agent: AnalyticalAgent
+--------------------------------------------------
+BASIC STATISTICS:
+  Mean:                -77.112747
+  Std Deviation:       3288.739502
+  Minimum:             -17923.591797
+  Maximum:             14838.285156
+  Skewness:            -0.078366
+  Kurtosis:            0.083115
+
+PERCENTILES:
+  10th Percentile:     -4286.735840
+  25th Percentile:     -2259.728271
+  50th Percentile:     -42.830414
+  75th Percentile:     2148.452393
+  90th Percentile:     4100.916504
+
+RISK MEASURES:
+  VaR 95%:             5262.565430
+  CVaR 95%:            6599.589355
+  VaR 99%:             7456.029297
+  CVaR 99%:            8514.314453
+  Semi-deviation:      3242.490479
+  Max Drawdown:        32761.876953
+
+RISK-ADJUSTED RATIOS:
+  Sharpe Ratio:        -0.023448
+  Sortino Ratio:       -0.023782
+
+Agent: DeepAgent
+--------------------------------------------------
+BASIC STATISTICS:
+  Mean:                1.868615
+  Std Deviation:       3255.332764
+  Minimum:             -16685.246094
+  Maximum:             15888.645508
+  Skewness:            0.035463
+  Kurtosis:            0.138978
+
+PERCENTILES:
+  10th Percentile:     -4090.192139
+  25th Percentile:     -2148.150146
+  50th Percentile:     -64.283875
+  75th Percentile:     2140.084473
+  90th Percentile:     4201.643066
+
+RISK MEASURES:
+  VaR 95%:             5425.318359
+  CVaR 95%:            6841.888184
+  VaR 99%:             7732.694824
+  CVaR 99%:            8887.368164
+  Semi-deviation:      3304.076172
+  Max Drawdown:        32274.382812
+
+RISK-ADJUSTED RATIOS:
+  Sharpe Ratio:        0.000574
+  Sortino Ratio:       0.000566
+
+Agent: TimeWeightedAgent
+--------------------------------------------------
+BASIC STATISTICS:
+  Mean:                250.734253
+  Std Deviation:       3289.391357
+  Minimum:             -17184.943359
+  Maximum:             15751.086914
+  Skewness:            -0.077274
+  Kurtosis:            0.073181
+
+PERCENTILES:
+  10th Percentile:     -3957.509521
+  25th Percentile:     -1933.867676
+  50th Percentile:     285.750397
+  75th Percentile:     2477.832275
+  90th Percentile:     4428.991699
+
+RISK MEASURES:
+  VaR 95%:             5591.075195
+  CVaR 95%:            6924.305176
+  VaR 99%:             7765.592773
+  CVaR 99%:            8828.733398
+  Semi-deviation:      3243.541016
+  Max Drawdown:        32936.031250
+
+RISK-ADJUSTED RATIOS:
+  Sharpe Ratio:        0.076225
+  Sortino Ratio:       0.077303
+
+================================================================================
+Using dynamics config from model folder: saved_models/eta10_x0_gamma0.01_lowvol_psi5_naislstm_GELU/dynamics_config.json
+Starting evaluation.
+Using specified max_batch_size: 10000
+  Processing batch 1/10 (sims 0-9999) with seed 42
+  Processing batch 2/10 (sims 10000-19999) with seed 43
+  Processing batch 3/10 (sims 20000-29999) with seed 44
+  Processing batch 4/10 (sims 30000-39999) with seed 45
+  Processing batch 5/10 (sims 40000-49999) with seed 46
+  Processing batch 6/10 (sims 50000-59999) with seed 47
+  Processing batch 7/10 (sims 60000-69999) with seed 48
+  Processing batch 8/10 (sims 70000-79999) with seed 49
+  Processing batch 9/10 (sims 80000-89999) with seed 50
+  Processing batch 10/10 (sims 90000-99999) with seed 51
+  Processing batch 1/10 (sims 0-9999) with seed 42
+  Processing batch 2/10 (sims 10000-19999) with seed 43
+  Processing batch 3/10 (sims 20000-29999) with seed 44
+  Processing batch 4/10 (sims 30000-39999) with seed 45
+  Processing batch 5/10 (sims 40000-49999) with seed 46
+  Processing batch 6/10 (sims 50000-59999) with seed 47
+  Processing batch 7/10 (sims 60000-69999) with seed 48
+  Processing batch 8/10 (sims 70000-79999) with seed 49
+  Processing batch 9/10 (sims 80000-89999) with seed 50
+  Processing batch 10/10 (sims 90000-99999) with seed 51
+  Processing batch 1/10 (sims 0-9999) with seed 42
+  Processing batch 2/10 (sims 10000-19999) with seed 43
+  Processing batch 3/10 (sims 20000-29999) with seed 44
+  Processing batch 4/10 (sims 30000-39999) with seed 45
+  Processing batch 5/10 (sims 40000-49999) with seed 46
+  Processing batch 6/10 (sims 50000-59999) with seed 47
+  Processing batch 7/10 (sims 60000-69999) with seed 48
+  Processing batch 8/10 (sims 70000-79999) with seed 49
+  Processing batch 9/10 (sims 80000-89999) with seed 50
+  Processing batch 10/10 (sims 90000-99999) with seed 51
+Evaluation completed with seed 42.
+
+================================================================================
+RISK METRICS SUMMARY
+================================================================================
+
+Agent: AnalyticalAgent
+--------------------------------------------------
+BASIC STATISTICS:
+  Mean:                -96.841049
+  Std Deviation:       3295.028320
+  Minimum:             -15950.102539
+  Maximum:             13218.130859
+  Skewness:            -0.072720
+  Kurtosis:            0.099092
+
+PERCENTILES:
+  10th Percentile:     -4303.479492
+  25th Percentile:     -2283.617432
+  50th Percentile:     -71.145157
+  75th Percentile:     2134.660400
+  90th Percentile:     4088.374023
+
+RISK MEASURES:
+  VaR 95%:             5264.365723
+  CVaR 95%:            6607.250977
+  VaR 99%:             7448.737305
+  CVaR 99%:            8550.813477
+  Semi-deviation:      3256.116699
+  Max Drawdown:        29151.695312
+
+RISK-ADJUSTED RATIOS:
+  Sharpe Ratio:        -0.029390
+  Sortino Ratio:       -0.029741
+
+Agent: DeepAgent
+--------------------------------------------------
+BASIC STATISTICS:
+  Mean:                -18.015743
+  Std Deviation:       3264.781738
+  Minimum:             -14146.990234
+  Maximum:             14056.379883
+  Skewness:            0.045084
+  Kurtosis:            0.161218
+
+PERCENTILES:
+  10th Percentile:     -4115.663086
+  25th Percentile:     -2164.778564
+  50th Percentile:     -98.338829
+  75th Percentile:     2119.554688
+  90th Percentile:     4191.877441
+
+RISK MEASURES:
+  VaR 95%:             5437.462891
+  CVaR 95%:            6869.383789
+  VaR 99%:             7777.133301
+  CVaR 99%:            8950.840820
+  Semi-deviation:      3325.078369
+  Max Drawdown:        28203.371094
+
+RISK-ADJUSTED RATIOS:
+  Sharpe Ratio:        -0.005518
+  Sortino Ratio:       -0.005418
+
+Agent: TimeWeightedAgent
+--------------------------------------------------
+BASIC STATISTICS:
+  Mean:                231.660614
+  Std Deviation:       3295.024414
+  Minimum:             -15869.009766
+  Maximum:             13118.648438
+  Skewness:            -0.071866
+  Kurtosis:            0.095519
+
+PERCENTILES:
+  10th Percentile:     -3972.810059
+  25th Percentile:     -1948.992554
+  50th Percentile:     252.276886
+  75th Percentile:     2461.653564
+  90th Percentile:     4418.869629
+
+RISK MEASURES:
+  VaR 95%:             5586.361328
+  CVaR 95%:            6934.724609
+  VaR 99%:             7778.162109
+  CVaR 99%:            8876.363281
+  Semi-deviation:      3259.099854
+  Max Drawdown:        28979.373047
+
+RISK-ADJUSTED RATIOS:
+  Sharpe Ratio:        0.070306
+  Sortino Ratio:       0.071081
+
+================================================================================
+Using dynamics config from model folder: saved_models/eta10_x0_gamma0.01_lowvol_psi5_naislstm_GELU/dynamics_config.json
+Starting evaluation.
+Using specified max_batch_size: 10000
+Evaluating agent: AnalyticalAgent
+  Processing batch 1/5 (sims 0-9999) with seed 42
+  Processing batch 2/5 (sims 10000-19999) with seed 43
+  Processing batch 3/5 (sims 20000-29999) with seed 44
+  Processing batch 4/5 (sims 30000-39999) with seed 45
+  Processing batch 5/5 (sims 40000-49999) with seed 46
+Evaluating agent: DeepAgent
+  Processing batch 1/5 (sims 0-9999) with seed 42
+  Processing batch 2/5 (sims 10000-19999) with seed 43
+  Processing batch 3/5 (sims 20000-29999) with seed 44
+  Processing batch 4/5 (sims 30000-39999) with seed 45
+  Processing batch 5/5 (sims 40000-49999) with seed 46
+Evaluating agent: TimeWeightedAgent
+  Processing batch 1/5 (sims 0-9999) with seed 42
+  Processing batch 2/5 (sims 10000-19999) with seed 43
+  Processing batch 3/5 (sims 20000-29999) with seed 44
+  Processing batch 4/5 (sims 30000-39999) with seed 45
+  Processing batch 5/5 (sims 40000-49999) with seed 46
+Evaluation completed with seed 42.
+
+================================================================================
+RISK METRICS SUMMARY
+================================================================================
+
+Agent: AnalyticalAgent
+--------------------------------------------------
+BASIC STATISTICS:
+  Mean:                -107.969543
+  Std Deviation:       3284.367920
+  Minimum:             -15950.102539
+  Maximum:             13218.130859
+  Skewness:            -0.077615
+  Kurtosis:            0.114320
+
+PERCENTILES:
+  10th Percentile:     -4304.584473
+  25th Percentile:     -2289.208496
+  50th Percentile:     -73.501007
+  75th Percentile:     2116.254150
+  90th Percentile:     4060.773438
+
+RISK MEASURES:
+  VaR 95%:             5205.992188
+  CVaR 95%:            6564.280762
+  VaR 99%:             7393.516602
+  CVaR 99%:            8556.560547
+  Semi-deviation:      3236.560303
+  Max Drawdown:        28965.921875
+
+RISK-ADJUSTED RATIOS:
+  Sharpe Ratio:        -0.032874
+  Sortino Ratio:       -0.033359
+
+Agent: DeepAgent
+--------------------------------------------------
+BASIC STATISTICS:
+  Mean:                -29.668356
+  Std Deviation:       3253.601074
+  Minimum:             -14146.990234
+  Maximum:             13902.088867
+  Skewness:            0.041163
+  Kurtosis:            0.179727
+
+PERCENTILES:
+  10th Percentile:     -4112.443359
+  25th Percentile:     -2166.781982
+  50th Percentile:     -99.177277
+  75th Percentile:     2104.169922
+  90th Percentile:     4162.016113
+
+RISK MEASURES:
+  VaR 95%:             5396.626465
+  CVaR 95%:            6822.905762
+  VaR 99%:             7677.904785
+  CVaR 99%:            8969.290039
+  Semi-deviation:      3307.375732
+  Max Drawdown:        27841.453125
+
+RISK-ADJUSTED RATIOS:
+  Sharpe Ratio:        -0.009119
+  Sortino Ratio:       -0.008970
+
+Agent: TimeWeightedAgent
+--------------------------------------------------
+BASIC STATISTICS:
+  Mean:                221.531815
+  Std Deviation:       3285.651611
+  Minimum:             -15869.009766
+  Maximum:             13118.648438
+  Skewness:            -0.075515
+  Kurtosis:            0.111928
+
+PERCENTILES:
+  10th Percentile:     -3962.894043
+  25th Percentile:     -1952.963745
+  50th Percentile:     252.611511
+  75th Percentile:     2446.870361
+  90th Percentile:     4386.463867
+
+RISK MEASURES:
+  VaR 95%:             5529.552734
+  CVaR 95%:            6899.753418
+  VaR 99%:             7738.286621
+  CVaR 99%:            8883.425781
+  Semi-deviation:      3241.659912
+  Max Drawdown:        28979.373047
+
+RISK-ADJUSTED RATIOS:
+  Sharpe Ratio:        0.067424
+  Sortino Ratio:       0.068339
+
+================================================================================
+Using dynamics config from model folder: saved_models/eta10_x0_gamma0.01_lowvol_psi5_naislstm_GELU/dynamics_config.json
+------------------------------------------------------------
+DYNAMICS CONFIGURATION:
+------------------------------------------------------------
+dynamics: FullDynamics
+T: 1.0
+N: 144
+dim: 3
+dim_W: 2
+y0: [0.0, 80.0, 0.0]
+mu_P: 0.0
+mu_D: 0.0
+time_dep_vol: True
+use_exact: True
+low_vol: False
+sigma_P0: 10
+sigma_P1: 20
+alpha_P: 120.0
+beta_P: 40.0
+sigma_D0: 30.0
+sigma_D1: 50.0
+alpha_D: 1600.0
+beta_D: 900.0
+rho: -0.6
+psi: 5.0
+gamma: 0.01
+nu: 0.042
+eta: 10
+smooth_control: True
+eps: 0.1
+analytical_known: True
+dt: 0.006944444444444444
+------------------------------------------------------------
+Error creating dynamics: 'schedule_epsilon'
+Using dynamics config from model folder: saved_models/eta10_x0_gamma0.01_lowvol_psi5_naislstm_GELU/dynamics_config.json
+------------------------------------------------------------
+DYNAMICS CONFIGURATION:
+------------------------------------------------------------
+dynamics: FullDynamics
+T: 1.0
+N: 144
+dim: 3
+dim_W: 2
+y0: [0.0, 80.0, 0.0]
+mu_P: 0.0
+mu_D: 0.0
+time_dep_vol: True
+use_exact: True
+low_vol: False
+sigma_P0: 10
+sigma_P1: 20
+alpha_P: 120.0
+beta_P: 40.0
+sigma_D0: 30.0
+sigma_D1: 50.0
+alpha_D: 1600.0
+beta_D: 900.0
+rho: -0.6
+psi: 5.0
+gamma: 0.01
+nu: 0.042
+eta: 10
+smooth_control: True
+eps: 0.1
+schedule_epsilon: False
+analytical_known: True
+dt: 0.006944444444444444
+------------------------------------------------------------
+Loaded training config from: saved_models/eta10_x0_gamma0.01_lowvol_psi5_naislstm_GELU/train_config.json
+Saved configuration files to: saved_models/eta10_x0_gamma0.01_lowvol_psi5_naislstm_GELU
+Loading trained model from: saved_models/eta10_x0_gamma0.01_lowvol_psi5_naislstm_GELU
+Using latest model checkpoint
+Error loading trained model: 'n_traj'
+Make sure the model directory contains the required checkpoint files:
+  - model.pth
+  - train_config.json
+Using dynamics config from model folder: saved_models/eta10_x0_gamma0.01_lowvol_psi5_naislstm_GELU/dynamics_config.json
+------------------------------------------------------------
+DYNAMICS CONFIGURATION:
+------------------------------------------------------------
+dynamics: FullDynamics
+T: 1.0
+N: 144
+dim: 3
+dim_W: 2
+y0: [0.0, 80.0, 0.0]
+mu_P: 0.0
+mu_D: 0.0
+time_dep_vol: True
+use_exact: True
+low_vol: False
+sigma_P0: 10
+sigma_P1: 20
+alpha_P: 120.0
+beta_P: 40.0
+sigma_D0: 30.0
+sigma_D1: 50.0
+alpha_D: 1600.0
+beta_D: 900.0
+rho: -0.6
+psi: 5.0
+gamma: 0.01
+nu: 0.042
+eta: 10
+smooth_control: True
+eps: 0.1
+schedule_epsilon: False
+analytical_known: True
+dt: 0.006944444444444444
+------------------------------------------------------------
+Loaded training config from: saved_models/eta10_x0_gamma0.01_lowvol_psi5_naislstm_GELU/train_config.json
+Saved configuration files to: saved_models/eta10_x0_gamma0.01_lowvol_psi5_naislstm_GELU
+Loading trained model from: saved_models/eta10_x0_gamma0.01_lowvol_psi5_naislstm_GELU
+Using latest model checkpoint
+Successfully loaded trained model
+Using specified max_batch_size: 10000
+Starting evaluation with 50000 simulations and seed 42
+Evaluating agent: Analytical
+  Processing batch 1/5 (sims 0-9999) with seed 42
+  Processing batch 2/5 (sims 10000-19999) with seed 43
+  Processing batch 3/5 (sims 20000-29999) with seed 44
+  Processing batch 4/5 (sims 30000-39999) with seed 45
+  Processing batch 5/5 (sims 40000-49999) with seed 46
+Evaluating agent: Approximation
+  Processing batch 1/5 (sims 0-9999) with seed 42
+  Processing batch 2/5 (sims 10000-19999) with seed 43
+  Processing batch 3/5 (sims 20000-29999) with seed 44
+  Processing batch 4/5 (sims 30000-39999) with seed 45
+  Processing batch 5/5 (sims 40000-49999) with seed 46
+Evaluation completed successfully
+
+================================================================================
+RISK METRICS SUMMARY
+================================================================================
+
+Agent: Analytical
+--------------------------------------------------
+BASIC STATISTICS:
+  Mean:                -107.969543
+  Std Deviation:       3284.367920
+  Minimum:             -15950.102539
+  Maximum:             13218.130859
+  Skewness:            -0.077615
+  Kurtosis:            0.114320
+
+PERCENTILES:
+  10th Percentile:     -4304.584473
+  25th Percentile:     -2289.208496
+  50th Percentile:     -73.501007
+  75th Percentile:     2116.254150
+  90th Percentile:     4060.773438
+
+RISK MEASURES:
+  VaR 95%:             5205.992188
+  CVaR 95%:            6564.280762
+  VaR 99%:             7393.516602
+  CVaR 99%:            8556.560547
+  Semi-deviation:      3236.560303
+  Max Drawdown:        28965.921875
+
+RISK-ADJUSTED RATIOS:
+  Sharpe Ratio:        -0.032874
+  Sortino Ratio:       -0.033359
+
+Agent: Approximation
+--------------------------------------------------
+BASIC STATISTICS:
+  Mean:                -31.709009
+  Std Deviation:       3250.622803
+  Minimum:             -14135.654297
+  Maximum:             13828.276367
+  Skewness:            0.044617
+  Kurtosis:            0.172751
+
+PERCENTILES:
+  10th Percentile:     -4107.784180
+  25th Percentile:     -2171.854980
+  50th Percentile:     -113.748283
+  75th Percentile:     2109.155762
+  90th Percentile:     4167.834961
+
+RISK MEASURES:
+  VaR 95%:             5406.726562
+  CVaR 95%:            6815.671387
+  VaR 99%:             7673.703125
+  CVaR 99%:            8933.486328
+  Semi-deviation:      3312.219971
+  Max Drawdown:        27751.693359
+
+RISK-ADJUSTED RATIOS:
+  Sharpe Ratio:        -0.009755
+  Sortino Ratio:       -0.009573
+
+================================================================================
+Risk metrics displayed successfully
+Starting plot generation...
+Generated expectation trajectories plot
+Generated individual trajectories plot (1 trajectories)
+Generated cost histograms
+Error during plot generation: 'Namespace' object has no attribute 'compare'
+Using dynamics config from model folder: saved_models/eta10_x0_gamma0.01_lowvol_psi5_naislstm_GELU/dynamics_config.json
+------------------------------------------------------------
+DYNAMICS CONFIGURATION:
+------------------------------------------------------------
+dynamics: FullDynamics
+T: 1.0
+N: 144
+dim: 3
+dim_W: 2
+y0: [0.0, 80.0, 0.0]
+mu_P: 0.0
+mu_D: 0.0
+time_dep_vol: True
+use_exact: True
+low_vol: False
+sigma_P0: 10
+sigma_P1: 20
+alpha_P: 120.0
+beta_P: 40.0
+sigma_D0: 30.0
+sigma_D1: 50.0
+alpha_D: 1600.0
+beta_D: 900.0
+rho: -0.6
+psi: 5.0
+gamma: 0.01
+nu: 0.042
+eta: 10
+smooth_control: True
+eps: 0.1
+schedule_epsilon: False
+analytical_known: True
+dt: 0.006944444444444444
+------------------------------------------------------------
+Loaded training config from: saved_models/eta10_x0_gamma0.01_lowvol_psi5_naislstm_GELU/train_config.json
+Saved configuration files to: saved_models/eta10_x0_gamma0.01_lowvol_psi5_naislstm_GELU
+Loading trained model from: saved_models/eta10_x0_gamma0.01_lowvol_psi5_naislstm_GELU
+Using latest model checkpoint
+Successfully loaded trained model
+Using specified max_batch_size: 10000
+Starting evaluation with 50000 simulations and seed 42
+Evaluating agent: Analytical
+  Processing batch 1/5 (sims 0-9999) with seed 42
+  Processing batch 2/5 (sims 10000-19999) with seed 43
+  Processing batch 3/5 (sims 20000-29999) with seed 44
+  Processing batch 4/5 (sims 30000-39999) with seed 45
+  Processing batch 5/5 (sims 40000-49999) with seed 46
+Evaluating agent: Approximation
+  Processing batch 1/5 (sims 0-9999) with seed 42
+  Processing batch 2/5 (sims 10000-19999) with seed 43
+  Processing batch 3/5 (sims 20000-29999) with seed 44
+  Processing batch 4/5 (sims 30000-39999) with seed 45
+  Processing batch 5/5 (sims 40000-49999) with seed 46
+Evaluation completed successfully
+
+================================================================================
+RISK METRICS SUMMARY
+================================================================================
+
+Agent: Analytical
+--------------------------------------------------
+BASIC STATISTICS:
+  Mean:                -107.969543
+  Std Deviation:       3284.367920
+  Minimum:             -15950.102539
+  Maximum:             13218.130859
+  Skewness:            -0.077615
+  Kurtosis:            0.114320
+
+PERCENTILES:
+  10th Percentile:     -4304.584473
+  25th Percentile:     -2289.208496
+  50th Percentile:     -73.501007
+  75th Percentile:     2116.254150
+  90th Percentile:     4060.773438
+
+RISK MEASURES:
+  VaR 95%:             5205.992188
+  CVaR 95%:            6564.280762
+  VaR 99%:             7393.516602
+  CVaR 99%:            8556.560547
+  Semi-deviation:      3236.560303
+  Max Drawdown:        28965.921875
+
+RISK-ADJUSTED RATIOS:
+  Sharpe Ratio:        -0.032874
+  Sortino Ratio:       -0.033359
+
+Agent: Approximation
+--------------------------------------------------
+BASIC STATISTICS:
+  Mean:                -31.709009
+  Std Deviation:       3250.622803
+  Minimum:             -14135.654297
+  Maximum:             13828.276367
+  Skewness:            0.044617
+  Kurtosis:            0.172751
+
+PERCENTILES:
+  10th Percentile:     -4107.784180
+  25th Percentile:     -2171.854980
+  50th Percentile:     -113.748283
+  75th Percentile:     2109.155762
+  90th Percentile:     4167.834961
+
+RISK MEASURES:
+  VaR 95%:             5406.726562
+  CVaR 95%:            6815.671387
+  VaR 99%:             7673.703125
+  CVaR 99%:            8933.486328
+  Semi-deviation:      3312.219971
+  Max Drawdown:        27751.693359
+
+RISK-ADJUSTED RATIOS:
+  Sharpe Ratio:        -0.009755
+  Sortino Ratio:       -0.009573
+
+================================================================================
+Risk metrics displayed successfully
+Starting plot generation...
+Generated expectation trajectories plot
+Generated individual trajectories plot (1 trajectories)
+Generated cost histograms
+All plots and reports saved to: saved_models/eta10_x0_gamma0.01_lowvol_psi5_naislstm_GELU
+Using dynamics config from model folder: saved_models/eta10_x0_gamma0.01_lowvol_psi5_naislstm_GELU/dynamics_config.json
+------------------------------------------------------------
+DYNAMICS CONFIGURATION:
+------------------------------------------------------------
+dynamics: FullDynamics
+T: 1.0
+N: 144
+dim: 3
+dim_W: 2
+y0: [0.0, 80.0, 0.0]
+mu_P: 0.0
+mu_D: 0.0
+time_dep_vol: True
+use_exact: True
+low_vol: False
+sigma_P0: 10
+sigma_P1: 20
+alpha_P: 120.0
+beta_P: 40.0
+sigma_D0: 30.0
+sigma_D1: 50.0
+alpha_D: 1600.0
+beta_D: 900.0
+rho: -0.6
+psi: 5.0
+gamma: 0.01
+nu: 0.042
+eta: 10
+smooth_control: True
+eps: 0.1
+schedule_epsilon: False
+analytical_known: True
+dt: 0.006944444444444444
+------------------------------------------------------------
+Loaded training config from: saved_models/eta10_x0_gamma0.01_lowvol_psi5_naislstm_GELU/train_config.json
+Saved configuration files to: saved_models/eta10_x0_gamma0.01_lowvol_psi5_naislstm_GELU
+Loading trained model from: saved_models/eta10_x0_gamma0.01_lowvol_psi5_naislstm_GELU
+Using latest model checkpoint
+Successfully loaded trained model
+Using specified max_batch_size: 10000
+Starting evaluation with 50000 simulations and seed 42
+Evaluating agent: Analytical
+  Processing batch 1/5 (sims 0-9999) with seed 42
+  Processing batch 2/5 (sims 10000-19999) with seed 43
+  Processing batch 3/5 (sims 20000-29999) with seed 44
+  Processing batch 4/5 (sims 30000-39999) with seed 45
+  Processing batch 5/5 (sims 40000-49999) with seed 46
+Evaluating agent: Approximation
+  Processing batch 1/5 (sims 0-9999) with seed 42
+  Processing batch 2/5 (sims 10000-19999) with seed 43
+  Processing batch 3/5 (sims 20000-29999) with seed 44
+  Processing batch 4/5 (sims 30000-39999) with seed 45
+  Processing batch 5/5 (sims 40000-49999) with seed 46
+Evaluation completed successfully
+
+================================================================================
+RISK METRICS SUMMARY
+================================================================================
+
+Agent: Analytical
+--------------------------------------------------
+BASIC STATISTICS:
+  Mean:                -107.969543
+  Std Deviation:       3284.367920
+  Minimum:             -15950.102539
+  Maximum:             13218.130859
+  Skewness:            -0.077615
+  Kurtosis:            0.114320
+
+PERCENTILES:
+  10th Percentile:     -4304.584473
+  25th Percentile:     -2289.208496
+  50th Percentile:     -73.501007
+  75th Percentile:     2116.254150
+  90th Percentile:     4060.773438
+
+RISK MEASURES:
+  VaR 95%:             5205.992188
+  CVaR 95%:            6564.280762
+  VaR 99%:             7393.516602
+  CVaR 99%:            8556.560547
+  Semi-deviation:      3236.560303
+  Max Drawdown:        28965.921875
+
+RISK-ADJUSTED RATIOS:
+  Sharpe Ratio:        -0.032874
+  Sortino Ratio:       -0.033359
+
+Agent: Approximation
+--------------------------------------------------
+BASIC STATISTICS:
+  Mean:                -32.080200
+  Std Deviation:       3250.863770
+  Minimum:             -14078.066406
+  Maximum:             13862.212891
+  Skewness:            0.044413
+  Kurtosis:            0.172000
+
+PERCENTILES:
+  10th Percentile:     -4107.479492
+  25th Percentile:     -2170.818115
+  50th Percentile:     -114.476074
+  75th Percentile:     2107.306152
+  90th Percentile:     4169.001465
+
+RISK MEASURES:
+  VaR 95%:             5410.671387
+  CVaR 95%:            6815.617676
+  VaR 99%:             7664.619141
+  CVaR 99%:            8930.031250
+  Semi-deviation:      3312.123291
+  Max Drawdown:        27677.128906
+
+RISK-ADJUSTED RATIOS:
+  Sharpe Ratio:        -0.009868
+  Sortino Ratio:       -0.009686
+
+================================================================================
+Risk metrics displayed successfully
+Starting plot generation...
+Generated expectation trajectories plot
+Generated individual trajectories plot (1 trajectories)
+Generated cost histograms
+All plots and reports saved to: saved_models/eta10_x0_gamma0.01_lowvol_psi5_naislstm_GELU
+Using dynamics config from model folder: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU/dynamics_config.json
+------------------------------------------------------------
+DYNAMICS CONFIGURATION:
+------------------------------------------------------------
+dynamics: FullDynamics
+T: 1.0
+N: 144
+dim: 3
+dim_W: 2
+y0: [0.0, 80.0, 0.0]
+mu_P: 0.0
+mu_D: 0.0
+time_dep_vol: True
+use_exact: True
+low_vol: False
+sigma_P0: 10
+sigma_P1: 20
+alpha_P: 120.0
+beta_P: 40.0
+sigma_D0: 30.0
+sigma_D1: 50.0
+alpha_D: 1600.0
+beta_D: 900.0
+rho: -0.6
+psi: 5.0
+gamma: 0.01
+nu: 0.042
+eta: 10
+smooth_control: True
+eps: 1.0
+schedule_epsilon: True
+eps_decay_factor: 0.95
+eps_update_every: 1000
+analytical_known: True
+dt: 0.006944444444444444
+------------------------------------------------------------
+Loaded training config from: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU/train_config.json
+Saved configuration files to: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU
+Loading trained model from: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU
+Using best model checkpoint
+Successfully loaded trained model
+Using specified max_batch_size: 4096
+Starting evaluation with 16384 simulations and seed 42
+Evaluating agent: Analytical
+Evaluating agent: Approximation
+Evaluation completed successfully
+
+================================================================================
+RISK METRICS SUMMARY
+================================================================================
+
+Agent: Analytical
+--------------------------------------------------
+BASIC STATISTICS:
+  Mean:                -93.421799
+  Std Deviation:       3285.910889
+  Minimum:             -15308.383789
+  Maximum:             12286.353516
+  Skewness:            -0.064070
+  Kurtosis:            0.071952
+
+PERCENTILES:
+  10th Percentile:     -4298.110352
+  25th Percentile:     -2293.822754
+  50th Percentile:     -75.777222
+  75th Percentile:     2109.193115
+  90th Percentile:     4085.233643
+
+RISK MEASURES:
+  VaR 95%:             5260.371582
+  CVaR 95%:            6607.467285
+  VaR 99%:             7514.234863
+  CVaR 99%:            8496.675781
+  Semi-deviation:      3253.765137
+  Max Drawdown:        27242.718750
+
+RISK-ADJUSTED RATIOS:
+  Sharpe Ratio:        -0.028431
+  Sortino Ratio:       -0.028712
+
+Agent: Approximation
+--------------------------------------------------
+BASIC STATISTICS:
+  Mean:                -52.307899
+  Std Deviation:       3248.255615
+  Minimum:             -14493.867188
+  Maximum:             12588.055664
+  Skewness:            0.008460
+  Kurtosis:            0.106880
+
+PERCENTILES:
+  10th Percentile:     -4142.885742
+  25th Percentile:     -2214.031250
+  50th Percentile:     -104.870239
+  75th Percentile:     2090.841309
+  90th Percentile:     4127.582520
+
+RISK MEASURES:
+  VaR 95%:             5337.625488
+  CVaR 95%:            6723.722168
+  VaR 99%:             7651.676758
+  CVaR 99%:            8678.034180
+  Semi-deviation:      3280.152832
+  Max Drawdown:        26810.439453
+
+RISK-ADJUSTED RATIOS:
+  Sharpe Ratio:        -0.016103
+  Sortino Ratio:       -0.015947
+
+================================================================================
+Risk metrics displayed successfully
+Starting plot generation...
+Generated expectation trajectories plot
+Generated individual trajectories plot (1 trajectories)
+Generated cost histograms
+All plots and reports saved to: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU
+Using dynamics config from model folder: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU/dynamics_config.json
+------------------------------------------------------------
+DYNAMICS CONFIGURATION:
+------------------------------------------------------------
+dynamics: FullDynamics
+T: 1.0
+N: 144
+dim: 3
+dim_W: 2
+y0: [0.0, 80.0, 0.0]
+mu_P: 0.0
+mu_D: 0.0
+time_dep_vol: True
+use_exact: True
+low_vol: False
+sigma_P0: 10
+sigma_P1: 20
+alpha_P: 120.0
+beta_P: 40.0
+sigma_D0: 30.0
+sigma_D1: 50.0
+alpha_D: 1600.0
+beta_D: 900.0
+rho: -0.6
+psi: 5.0
+gamma: 0.01
+nu: 0.042
+eta: 10
+smooth_control: True
+eps: 1.0
+schedule_epsilon: True
+eps_decay_factor: 0.95
+eps_update_every: 1000
+analytical_known: True
+dt: 0.006944444444444444
+------------------------------------------------------------
+Loaded training config from: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU/train_config.json
+Saved configuration files to: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU
+Loading trained model from: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU
+Using best model checkpoint
+Successfully loaded trained model
+Using specified max_batch_size: 4096
+Starting evaluation with 16384 simulations and seed 42
+Evaluating agent: Analytical
+Evaluating agent: Approximation
+Evaluation completed successfully
+
+================================================================================
+RISK METRICS SUMMARY
+================================================================================
+
+Agent: Analytical
+--------------------------------------------------
+BASIC STATISTICS:
+  Mean:                -93.421799
+  Std Deviation:       3285.910889
+  Minimum:             -15308.383789
+  Maximum:             12286.353516
+  Skewness:            -0.064070
+  Kurtosis:            0.071952
+
+PERCENTILES:
+  10th Percentile:     -4298.110352
+  25th Percentile:     -2293.822754
+  50th Percentile:     -75.777222
+  75th Percentile:     2109.193115
+  90th Percentile:     4085.233643
+
+RISK MEASURES:
+  VaR 95%:             5260.371582
+  CVaR 95%:            6607.467285
+  VaR 99%:             7514.234863
+  CVaR 99%:            8496.675781
+  Semi-deviation:      3253.765137
+  Max Drawdown:        27242.718750
+
+RISK-ADJUSTED RATIOS:
+  Sharpe Ratio:        -0.028431
+  Sortino Ratio:       -0.028712
+
+Agent: Approximation
+--------------------------------------------------
+BASIC STATISTICS:
+  Mean:                -52.307899
+  Std Deviation:       3248.255615
+  Minimum:             -14493.867188
+  Maximum:             12588.055664
+  Skewness:            0.008460
+  Kurtosis:            0.106880
+
+PERCENTILES:
+  10th Percentile:     -4142.885742
+  25th Percentile:     -2214.031250
+  50th Percentile:     -104.870239
+  75th Percentile:     2090.841309
+  90th Percentile:     4127.582520
+
+RISK MEASURES:
+  VaR 95%:             5337.625488
+  CVaR 95%:            6723.722168
+  VaR 99%:             7651.676758
+  CVaR 99%:            8678.034180
+  Semi-deviation:      3280.152832
+  Max Drawdown:        26810.439453
+
+RISK-ADJUSTED RATIOS:
+  Sharpe Ratio:        -0.016103
+  Sortino Ratio:       -0.015947
+
+================================================================================
+Risk metrics displayed successfully
+Starting plot generation...
+Generated expectation trajectories plot
+Generated individual trajectories plot (1 trajectories)
+Generated cost histograms
+All plots and reports saved to: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU
+Using dynamics config from model folder: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU/dynamics_config.json
+------------------------------------------------------------
+DYNAMICS CONFIGURATION:
+------------------------------------------------------------
+dynamics: FullDynamics
+T: 1.0
+N: 144
+dim: 3
+dim_W: 2
+y0: [0.0, 80.0, 0.0]
+mu_P: 0.0
+mu_D: 0.0
+time_dep_vol: True
+use_exact: True
+low_vol: False
+sigma_P0: 10
+sigma_P1: 20
+alpha_P: 120.0
+beta_P: 40.0
+sigma_D0: 30.0
+sigma_D1: 50.0
+alpha_D: 1600.0
+beta_D: 900.0
+rho: -0.6
+psi: 5.0
+gamma: 0.01
+nu: 0.042
+eta: 10
+smooth_control: True
+eps: 1.0
+schedule_epsilon: True
+eps_decay_factor: 0.95
+eps_update_every: 1000
+analytical_known: True
+dt: 0.006944444444444444
+------------------------------------------------------------
+Loaded training config from: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU/train_config.json
+Saved configuration files to: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU
+Loading trained model from: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU
+Using best model checkpoint
+Successfully loaded trained model
+Using specified max_batch_size: 4096
+Starting evaluation with 16384 simulations and seed 16
+Evaluating agent: Analytical
+Evaluating agent: Approximation
+Evaluation completed successfully
+
+================================================================================
+RISK METRICS SUMMARY
+================================================================================
+
+Agent: Analytical
+--------------------------------------------------
+BASIC STATISTICS:
+  Mean:                -19.089016
+  Std Deviation:       3262.612549
+  Minimum:             -14371.964844
+  Maximum:             12485.041016
+  Skewness:            -0.058055
+  Kurtosis:            0.067468
+
+PERCENTILES:
+  10th Percentile:     -4202.904297
+  25th Percentile:     -2199.346680
+  50th Percentile:     -16.817505
+  75th Percentile:     2178.812988
+  90th Percentile:     4158.737305
+
+RISK MEASURES:
+  VaR 95%:             5308.225586
+  CVaR 95%:            6635.685547
+  VaR 99%:             7518.039551
+  CVaR 99%:            8459.992188
+  Semi-deviation:      3241.397949
+  Max Drawdown:        24870.882812
+
+RISK-ADJUSTED RATIOS:
+  Sharpe Ratio:        -0.005851
+  Sortino Ratio:       -0.005889
+
+Agent: Approximation
+--------------------------------------------------
+BASIC STATISTICS:
+  Mean:                21.416477
+  Std Deviation:       3228.607178
+  Minimum:             -13879.908203
+  Maximum:             12635.352539
+  Skewness:            0.018992
+  Kurtosis:            0.110188
+
+PERCENTILES:
+  10th Percentile:     -4040.029053
+  25th Percentile:     -2129.267090
+  50th Percentile:     -43.929199
+  75th Percentile:     2157.690918
+  90th Percentile:     4199.317383
+
+RISK MEASURES:
+  VaR 95%:             5390.830078
+  CVaR 95%:            6761.980469
+  VaR 99%:             7662.629395
+  CVaR 99%:            8694.388672
+  Semi-deviation:      3274.630371
+  Max Drawdown:        24836.107422
+
+RISK-ADJUSTED RATIOS:
+  Sharpe Ratio:        0.006633
+  Sortino Ratio:       0.006540
+
+================================================================================
+Risk metrics displayed successfully
+Starting plot generation...
+Generated expectation trajectories plot
+Generated individual trajectories plot (1 trajectories)
+Generated cost histograms
+All plots and reports saved to: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU
+Using dynamics config from model folder: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU/dynamics_config.json
+------------------------------------------------------------
+DYNAMICS CONFIGURATION:
+------------------------------------------------------------
+dynamics: FullDynamics
+T: 1.0
+N: 144
+dim: 3
+dim_W: 2
+y0: [0.0, 80.0, 0.0]
+mu_P: 0.0
+mu_D: 0.0
+time_dep_vol: True
+use_exact: True
+low_vol: False
+sigma_P0: 10
+sigma_P1: 20
+alpha_P: 120.0
+beta_P: 40.0
+sigma_D0: 30.0
+sigma_D1: 50.0
+alpha_D: 1600.0
+beta_D: 900.0
+rho: -0.6
+psi: 5.0
+gamma: 0.01
+nu: 0.042
+eta: 10
+smooth_control: True
+eps: 1.0
+schedule_epsilon: True
+eps_decay_factor: 0.95
+eps_update_every: 1000
+analytical_known: True
+dt: 0.006944444444444444
+------------------------------------------------------------
+Loaded training config from: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU/train_config.json
+Saved configuration files to: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU
+Loading trained model from: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU
+Using best model checkpoint
+Successfully loaded trained model
+Using specified max_batch_size: 4096
+Starting evaluation with 16384 simulations and seed 16
+Evaluating agent: Analytical
+Evaluating agent: Approximation
+Evaluation completed successfully
+
+================================================================================
+RISK METRICS SUMMARY
+================================================================================
+
+Agent: Analytical
+--------------------------------------------------
+BASIC STATISTICS:
+  Mean:                -19.089016
+  Std Deviation:       3262.612549
+  Minimum:             -14371.964844
+  Maximum:             12485.041016
+  Skewness:            -0.058055
+  Kurtosis:            0.067468
+
+PERCENTILES:
+  10th Percentile:     -4202.904297
+  25th Percentile:     -2199.346680
+  50th Percentile:     -16.817505
+  75th Percentile:     2178.812988
+  90th Percentile:     4158.737305
+
+RISK MEASURES:
+  VaR 95%:             5308.225586
+  CVaR 95%:            6635.685547
+  VaR 99%:             7518.039551
+  CVaR 99%:            8459.992188
+  Semi-deviation:      3241.397949
+  Max Drawdown:        24870.882812
+
+RISK-ADJUSTED RATIOS:
+  Sharpe Ratio:        -0.005851
+  Sortino Ratio:       -0.005889
+
+Agent: Approximation
+--------------------------------------------------
+BASIC STATISTICS:
+  Mean:                21.416477
+  Std Deviation:       3228.607178
+  Minimum:             -13879.908203
+  Maximum:             12635.352539
+  Skewness:            0.018992
+  Kurtosis:            0.110188
+
+PERCENTILES:
+  10th Percentile:     -4040.029053
+  25th Percentile:     -2129.267090
+  50th Percentile:     -43.929199
+  75th Percentile:     2157.690918
+  90th Percentile:     4199.317383
+
+RISK MEASURES:
+  VaR 95%:             5390.830078
+  CVaR 95%:            6761.980469
+  VaR 99%:             7662.629395
+  CVaR 99%:            8694.388672
+  Semi-deviation:      3274.630371
+  Max Drawdown:        24836.107422
+
+RISK-ADJUSTED RATIOS:
+  Sharpe Ratio:        0.006633
+  Sortino Ratio:       0.006540
+
+================================================================================
+Risk metrics displayed successfully
+Starting plot generation...
+Generated expectation trajectories plot
+Generated individual trajectories plot (1 trajectories)
+Generated cost histograms
+Generated trading comparison plots
+Generated risk metrics plots
+Generated control histograms
+Generated comparison report
+All plots and reports saved to: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU
+Using dynamics config from model folder: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU/dynamics_config.json
+------------------------------------------------------------
+DYNAMICS CONFIGURATION:
+------------------------------------------------------------
+dynamics: FullDynamics
+T: 1.0
+N: 144
+dim: 3
+dim_W: 2
+y0: [0.0, 80.0, 0.0]
+mu_P: 0.0
+mu_D: 0.0
+time_dep_vol: True
+use_exact: True
+low_vol: False
+sigma_P0: 10
+sigma_P1: 20
+alpha_P: 120.0
+beta_P: 40.0
+sigma_D0: 30.0
+sigma_D1: 50.0
+alpha_D: 1600.0
+beta_D: 900.0
+rho: -0.6
+psi: 5.0
+gamma: 0.01
+nu: 0.042
+eta: 10
+smooth_control: True
+eps: 1.0
+schedule_epsilon: True
+eps_decay_factor: 0.95
+eps_update_every: 1000
+analytical_known: True
+dt: 0.006944444444444444
+------------------------------------------------------------
+Loaded training config from: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU/train_config.json
+Saved configuration files to: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU
+Loading trained model from: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU
+Using best model checkpoint
+Successfully loaded trained model
+Using specified max_batch_size: 4096
+Starting evaluation with 16384 simulations and seed 16
+Evaluating agent: Analytical
+Evaluating agent: Approximation
+Evaluation completed successfully
+
+================================================================================
+RISK METRICS SUMMARY
+================================================================================
+
+Agent: Analytical
+--------------------------------------------------
+BASIC STATISTICS:
+  Mean:                -19.089016
+  Std Deviation:       3262.612549
+  Minimum:             -14371.964844
+  Maximum:             12485.041016
+  Skewness:            -0.058055
+  Kurtosis:            0.067468
+
+PERCENTILES:
+  10th Percentile:     -4202.904297
+  25th Percentile:     -2199.346680
+  50th Percentile:     -16.817505
+  75th Percentile:     2178.812988
+  90th Percentile:     4158.737305
+
+RISK MEASURES:
+  VaR 95%:             5308.225586
+  CVaR 95%:            6635.685547
+  VaR 99%:             7518.039551
+  CVaR 99%:            8459.992188
+  Semi-deviation:      3241.397949
+  Max Drawdown:        24870.882812
+
+RISK-ADJUSTED RATIOS:
+  Sharpe Ratio:        -0.005851
+  Sortino Ratio:       -0.005889
+
+Agent: Approximation
+--------------------------------------------------
+BASIC STATISTICS:
+  Mean:                3.598564
+  Std Deviation:       3237.014404
+  Minimum:             -13917.963867
+  Maximum:             12600.458984
+  Skewness:            0.019759
+  Kurtosis:            0.106827
+
+PERCENTILES:
+  10th Percentile:     -4072.697021
+  25th Percentile:     -2159.135010
+  50th Percentile:     -62.393066
+  75th Percentile:     2142.828125
+  90th Percentile:     4197.544922
+
+RISK MEASURES:
+  VaR 95%:             5377.353027
+  CVaR 95%:            6762.176270
+  VaR 99%:             7660.214844
+  CVaR 99%:            8699.373047
+  Semi-deviation:      3280.401123
+  Max Drawdown:        25109.605469
+
+RISK-ADJUSTED RATIOS:
+  Sharpe Ratio:        0.001112
+  Sortino Ratio:       0.001097
+
+================================================================================
+Risk metrics displayed successfully
+Starting plot generation...
+Generated expectation trajectories plot
+Generated individual trajectories plot (1 trajectories)
+Generated cost histograms
+Generated trading comparison plots
+Generated risk metrics plots
+Generated comparison report
+All plots and reports saved to: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU
+Using dynamics config from model folder: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU/dynamics_config.json
+------------------------------------------------------------
+DYNAMICS CONFIGURATION:
+------------------------------------------------------------
+dynamics: FullDynamics
+T: 1.0
+N: 144
+dim: 3
+dim_W: 2
+y0: [0.0, 80.0, 0.0]
+mu_P: 0.0
+mu_D: 0.0
+time_dep_vol: True
+use_exact: True
+low_vol: False
+sigma_P0: 10
+sigma_P1: 20
+alpha_P: 120.0
+beta_P: 40.0
+sigma_D0: 30.0
+sigma_D1: 50.0
+alpha_D: 1600.0
+beta_D: 900.0
+rho: -0.6
+psi: 5.0
+gamma: 0.01
+nu: 0.042
+eta: 10
+smooth_control: True
+eps: 1.0
+schedule_epsilon: True
+eps_decay_factor: 0.95
+eps_update_every: 1000
+analytical_known: True
+dt: 0.006944444444444444
+------------------------------------------------------------
+Loaded training config from: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU/train_config.json
+Saved configuration files to: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU
+Loading trained model from: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU
+Using best model checkpoint
+Successfully loaded trained model
+Using specified max_batch_size: 4096
+Starting evaluation with 16384 simulations and seed 16
+Evaluating agent: Analytical
+Evaluating agent: Approximation
+Evaluation completed successfully
+
+================================================================================
+RISK METRICS SUMMARY
+================================================================================
+
+Agent: Analytical
+--------------------------------------------------
+BASIC STATISTICS:
+  Mean:                -19.089016
+  Std Deviation:       3262.612549
+  Minimum:             -14371.964844
+  Maximum:             12485.041016
+  Skewness:            -0.058055
+  Kurtosis:            0.067468
+
+PERCENTILES:
+  10th Percentile:     -4202.904297
+  25th Percentile:     -2199.346680
+  50th Percentile:     -16.817505
+  75th Percentile:     2178.812988
+  90th Percentile:     4158.737305
+
+RISK MEASURES:
+  VaR 95%:             5308.225586
+  CVaR 95%:            6635.685547
+  VaR 99%:             7518.039551
+  CVaR 99%:            8459.992188
+  Semi-deviation:      3241.397949
+  Max Drawdown:        24870.882812
+
+RISK-ADJUSTED RATIOS:
+  Sharpe Ratio:        -0.005851
+  Sortino Ratio:       -0.005889
+
+Agent: Approximation
+--------------------------------------------------
+BASIC STATISTICS:
+  Mean:                0.052732
+  Std Deviation:       3239.695068
+  Minimum:             -13934.910156
+  Maximum:             12596.445312
+  Skewness:            0.018692
+  Kurtosis:            0.105607
+
+PERCENTILES:
+  10th Percentile:     -4075.084473
+  25th Percentile:     -2163.650879
+  50th Percentile:     -62.904099
+  75th Percentile:     2142.669922
+  90th Percentile:     4199.959473
+
+RISK MEASURES:
+  VaR 95%:             5377.863770
+  CVaR 95%:            6760.845215
+  VaR 99%:             7662.214844
+  CVaR 99%:            8697.370117
+  Semi-deviation:      3282.750732
+  Max Drawdown:        25155.841797
+
+RISK-ADJUSTED RATIOS:
+  Sharpe Ratio:        0.000016
+  Sortino Ratio:       0.000016
+
+================================================================================
+Risk metrics displayed successfully
+Starting plot generation...
+Generated expectation trajectories plot
+Generated individual trajectories plot (1 trajectories)
+Generated cost histograms
+Using dynamics config from model folder: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU/dynamics_config.json
+------------------------------------------------------------
+DYNAMICS CONFIGURATION:
+------------------------------------------------------------
+dynamics: FullDynamics
+T: 1.0
+N: 144
+dim: 3
+dim_W: 2
+y0: [0.0, 80.0, 0.0]
+mu_P: 0.0
+mu_D: 0.0
+time_dep_vol: True
+use_exact: True
+low_vol: False
+sigma_P0: 10
+sigma_P1: 20
+alpha_P: 120.0
+beta_P: 40.0
+sigma_D0: 30.0
+sigma_D1: 50.0
+alpha_D: 1600.0
+beta_D: 900.0
+rho: -0.6
+psi: 5.0
+gamma: 0.01
+nu: 0.042
+eta: 10
+smooth_control: True
+eps: 1.0
+schedule_epsilon: True
+eps_decay_factor: 0.95
+eps_update_every: 1000
+analytical_known: True
+dt: 0.006944444444444444
+------------------------------------------------------------
+Loaded training config from: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU/train_config.json
+Saved configuration files to: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU
+Loading trained model from: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU
+Using best model checkpoint
+Successfully loaded trained model
+Using specified max_batch_size: 4096
+Starting evaluation with 16384 simulations and seed 16
+Evaluating agent: Analytical
+Evaluating agent: Approximation
+Evaluation completed successfully
+
+================================================================================
+RISK METRICS SUMMARY
+================================================================================
+
+Agent: Analytical
+--------------------------------------------------
+BASIC STATISTICS:
+  Mean:                -19.089016
+  Std Deviation:       3262.612549
+  Minimum:             -14371.964844
+  Maximum:             12485.041016
+  Skewness:            -0.058055
+  Kurtosis:            0.067468
+
+PERCENTILES:
+  10th Percentile:     -4202.904297
+  25th Percentile:     -2199.346680
+  50th Percentile:     -16.817505
+  75th Percentile:     2178.812988
+  90th Percentile:     4158.737305
+
+RISK MEASURES:
+  VaR 95%:             5308.225586
+  CVaR 95%:            6635.685547
+  VaR 99%:             7518.039551
+  CVaR 99%:            8459.992188
+  Semi-deviation:      3241.397949
+  Max Drawdown:        24870.882812
+
+RISK-ADJUSTED RATIOS:
+  Sharpe Ratio:        -0.005851
+  Sortino Ratio:       -0.005889
+
+Agent: Approximation
+--------------------------------------------------
+BASIC STATISTICS:
+  Mean:                0.052732
+  Std Deviation:       3239.695068
+  Minimum:             -13934.910156
+  Maximum:             12596.445312
+  Skewness:            0.018692
+  Kurtosis:            0.105607
+
+PERCENTILES:
+  10th Percentile:     -4075.084473
+  25th Percentile:     -2163.650879
+  50th Percentile:     -62.904099
+  75th Percentile:     2142.669922
+  90th Percentile:     4199.959473
+
+RISK MEASURES:
+  VaR 95%:             5377.863770
+  CVaR 95%:            6760.845215
+  VaR 99%:             7662.214844
+  CVaR 99%:            8697.370117
+  Semi-deviation:      3282.750732
+  Max Drawdown:        25155.841797
+
+RISK-ADJUSTED RATIOS:
+  Sharpe Ratio:        0.000016
+  Sortino Ratio:       0.000016
+
+================================================================================
+Risk metrics displayed successfully
+Starting plot generation...
+Generated expectation trajectories plot
+Generated individual trajectories plot (1 trajectories)
+Generated cost histograms
+Generated risk metrics plots
+Generated comparison report
+All plots and reports saved to: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU
+Using dynamics config from model folder: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU/dynamics_config.json
+------------------------------------------------------------
+DYNAMICS CONFIGURATION:
+------------------------------------------------------------
+dynamics: FullDynamics
+T: 1.0
+N: 144
+dim: 3
+dim_W: 2
+y0: [0.0, 80.0, 0.0]
+mu_P: 0.0
+mu_D: 0.0
+time_dep_vol: True
+use_exact: True
+low_vol: False
+sigma_P0: 10
+sigma_P1: 20
+alpha_P: 120.0
+beta_P: 40.0
+sigma_D0: 30.0
+sigma_D1: 50.0
+alpha_D: 1600.0
+beta_D: 900.0
+rho: -0.6
+psi: 5.0
+gamma: 0.01
+nu: 0.042
+eta: 10
+smooth_control: True
+eps: 1.0
+schedule_epsilon: True
+eps_decay_factor: 0.95
+eps_update_every: 1000
+analytical_known: True
+dt: 0.006944444444444444
+------------------------------------------------------------
+Loaded training config from: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU/train_config.json
+Saved configuration files to: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU
+Loading trained model from: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU
+Using best model checkpoint
+Successfully loaded trained model
+Using specified max_batch_size: 4096
+Starting evaluation with 16384 simulations and seed 16
+Evaluating agent: Analytical
+Evaluating agent: Approximation
+Evaluation completed successfully
+
+================================================================================
+RISK METRICS SUMMARY
+================================================================================
+
+Agent: Analytical
+--------------------------------------------------
+BASIC STATISTICS:
+  Mean:                -19.089016
+  Std Deviation:       3262.612549
+  Minimum:             -14371.964844
+  Maximum:             12485.041016
+  Skewness:            -0.058055
+  Kurtosis:            0.067468
+
+PERCENTILES:
+  10th Percentile:     -4202.904297
+  25th Percentile:     -2199.346680
+  50th Percentile:     -16.817505
+  75th Percentile:     2178.812988
+  90th Percentile:     4158.737305
+
+RISK MEASURES:
+  VaR 95%:             5308.225586
+  CVaR 95%:            6635.685547
+  VaR 99%:             7518.039551
+  CVaR 99%:            8459.992188
+  Semi-deviation:      3241.397949
+  Max Drawdown:        24870.882812
+
+RISK-ADJUSTED RATIOS:
+  Sharpe Ratio:        -0.005851
+  Sortino Ratio:       -0.005889
+
+Agent: Approximation
+--------------------------------------------------
+BASIC STATISTICS:
+  Mean:                0.052732
+  Std Deviation:       3239.695068
+  Minimum:             -13934.910156
+  Maximum:             12596.445312
+  Skewness:            0.018692
+  Kurtosis:            0.105607
+
+PERCENTILES:
+  10th Percentile:     -4075.084473
+  25th Percentile:     -2163.650879
+  50th Percentile:     -62.904099
+  75th Percentile:     2142.669922
+  90th Percentile:     4199.959473
+
+RISK MEASURES:
+  VaR 95%:             5377.863770
+  CVaR 95%:            6760.845215
+  VaR 99%:             7662.214844
+  CVaR 99%:            8697.370117
+  Semi-deviation:      3282.750732
+  Max Drawdown:        25155.841797
+
+RISK-ADJUSTED RATIOS:
+  Sharpe Ratio:        0.000016
+  Sortino Ratio:       0.000016
+
+================================================================================
+Risk metrics displayed successfully
+Starting plot generation...
+Generated expectation trajectories plot
+Generated individual trajectories plot (1 trajectories)
+Generated cost histograms
+Generated risk metrics plots
+Generated comparison report
+All plots and reports saved to: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU
+Using dynamics config from model folder: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU/dynamics_config.json
+------------------------------------------------------------
+DYNAMICS CONFIGURATION:
+------------------------------------------------------------
+dynamics: FullDynamics
+T: 1.0
+N: 144
+dim: 3
+dim_W: 2
+y0: [0.0, 80.0, 0.0]
+mu_P: 0.0
+mu_D: 0.0
+time_dep_vol: True
+use_exact: True
+low_vol: False
+sigma_P0: 10
+sigma_P1: 20
+alpha_P: 120.0
+beta_P: 40.0
+sigma_D0: 30.0
+sigma_D1: 50.0
+alpha_D: 1600.0
+beta_D: 900.0
+rho: -0.6
+psi: 5.0
+gamma: 0.01
+nu: 0.042
+eta: 10
+smooth_control: True
+eps: 1.0
+schedule_epsilon: True
+eps_decay_factor: 0.95
+eps_update_every: 1000
+analytical_known: True
+dt: 0.006944444444444444
+------------------------------------------------------------
+Loaded training config from: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU/train_config.json
+Saved configuration files to: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU
+Loading trained model from: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU
+Using best model checkpoint
+Successfully loaded trained model
+Using specified max_batch_size: 4096
+Starting evaluation with 16384 simulations and seed 42
+Evaluating agent: Analytical
+Evaluating agent: Approximation
+Evaluation completed successfully
+
+================================================================================
+RISK METRICS SUMMARY
+================================================================================
+
+Agent: Analytical
+--------------------------------------------------
+BASIC STATISTICS:
+  Mean:                -93.421799
+  Std Deviation:       3285.910889
+  Minimum:             -15308.383789
+  Maximum:             12286.353516
+  Skewness:            -0.064070
+  Kurtosis:            0.071952
+
+PERCENTILES:
+  10th Percentile:     -4298.110352
+  25th Percentile:     -2293.822754
+  50th Percentile:     -75.777222
+  75th Percentile:     2109.193115
+  90th Percentile:     4085.233643
+
+RISK MEASURES:
+  VaR 95%:             5260.371582
+  CVaR 95%:            6607.467285
+  VaR 99%:             7514.234863
+  CVaR 99%:            8496.675781
+  Semi-deviation:      3253.765137
+  Max Drawdown:        27242.718750
+
+RISK-ADJUSTED RATIOS:
+  Sharpe Ratio:        -0.028431
+  Sortino Ratio:       -0.028712
+
+Agent: Approximation
+--------------------------------------------------
+BASIC STATISTICS:
+  Mean:                -74.618378
+  Std Deviation:       3259.930908
+  Minimum:             -14521.937500
+  Maximum:             12495.593750
+  Skewness:            0.008083
+  Kurtosis:            0.102144
+
+PERCENTILES:
+  10th Percentile:     -4169.240234
+  25th Percentile:     -2250.623291
+  50th Percentile:     -118.961670
+  75th Percentile:     2073.086914
+  90th Percentile:     4121.682129
+
+RISK MEASURES:
+  VaR 95%:             5328.168457
+  CVaR 95%:            6723.184082
+  VaR 99%:             7658.919434
+  CVaR 99%:            8685.473633
+  Semi-deviation:      3287.597656
+  Max Drawdown:        26850.746094
+
+RISK-ADJUSTED RATIOS:
+  Sharpe Ratio:        -0.022890
+  Sortino Ratio:       -0.022697
+
+================================================================================
+Risk metrics displayed successfully
+Starting plot generation...
+Generated expectation trajectories plot
+Generated individual trajectories plot (1 trajectories)
+Generated cost histograms
+Generated risk metrics plots
+Generated comparison report
+All plots and reports saved to: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU
+Using dynamics config from model folder: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU/dynamics_config.json
+------------------------------------------------------------
+DYNAMICS CONFIGURATION:
+------------------------------------------------------------
+dynamics: FullDynamics
+T: 1.0
+N: 144
+dim: 3
+dim_W: 2
+y0: [0.0, 80.0, 0.0]
+mu_P: 0.0
+mu_D: 0.0
+time_dep_vol: True
+use_exact: True
+low_vol: False
+sigma_P0: 10
+sigma_P1: 20
+alpha_P: 120.0
+beta_P: 40.0
+sigma_D0: 30.0
+sigma_D1: 50.0
+alpha_D: 1600.0
+beta_D: 900.0
+rho: -0.6
+psi: 5.0
+gamma: 0.01
+nu: 0.042
+eta: 10
+smooth_control: True
+eps: 1.0
+schedule_epsilon: True
+eps_decay_factor: 0.95
+eps_update_every: 1000
+analytical_known: True
+dt: 0.006944444444444444
+------------------------------------------------------------
+Loaded training config from: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU/train_config.json
+Saved configuration files to: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU
+Loading trained model from: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU
+Using best model checkpoint
+Successfully loaded trained model
+Using specified max_batch_size: 4096
+Starting evaluation with 100000 simulations and seed 1
+Evaluating agent: Analytical
+Evaluating agent: Approximation
+Evaluation completed successfully
+
+================================================================================
+RISK METRICS SUMMARY
+================================================================================
+
+Agent: Analytical
+--------------------------------------------------
+BASIC STATISTICS:
+  Mean:                -55.203026
+  Std Deviation:       3273.020508
+  Minimum:             -15694.800781
+  Maximum:             13587.115234
+  Skewness:            -0.074050
+  Kurtosis:            0.081773
+
+PERCENTILES:
+  10th Percentile:     -4264.435059
+  25th Percentile:     -2218.758789
+  50th Percentile:     -26.046417
+  75th Percentile:     2150.522949
+  90th Percentile:     4110.707520
+
+RISK MEASURES:
+  VaR 95%:             5285.762695
+  CVaR 95%:            6592.635254
+  VaR 99%:             7414.225098
+  CVaR 99%:            8490.788086
+  Semi-deviation:      3230.592285
+  Max Drawdown:        28179.841797
+
+RISK-ADJUSTED RATIOS:
+  Sharpe Ratio:        -0.016866
+  Sortino Ratio:       -0.017088
+
+Agent: Approximation
+--------------------------------------------------
+BASIC STATISTICS:
+  Mean:                -48.074699
+  Std Deviation:       3255.586182
+  Minimum:             -15369.421875
+  Maximum:             14145.457031
+  Skewness:            -0.005150
+  Kurtosis:            0.118723
+
+PERCENTILES:
+  10th Percentile:     -4176.653809
+  25th Percentile:     -2186.315186
+  50th Percentile:     -78.729630
+  75th Percentile:     2112.608643
+  90th Percentile:     4144.394043
+
+RISK MEASURES:
+  VaR 95%:             5346.291992
+  CVaR 95%:            6704.953125
+  VaR 99%:             7557.805664
+  CVaR 99%:            8695.910156
+  Semi-deviation:      3273.216553
+  Max Drawdown:        27959.113281
+
+RISK-ADJUSTED RATIOS:
+  Sharpe Ratio:        -0.014767
+  Sortino Ratio:       -0.014687
+
+================================================================================
+Risk metrics displayed successfully
+Starting plot generation...
+Generated expectation trajectories plot
+Generated individual trajectories plot (1 trajectories)
+Generated cost histograms
+Generated risk metrics plots
+Generated comparison report
+All plots and reports saved to: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU
+Using dynamics config from model folder: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU/dynamics_config.json
+------------------------------------------------------------
+DYNAMICS CONFIGURATION:
+------------------------------------------------------------
+dynamics: FullDynamics
+T: 1.0
+N: 144
+dim: 3
+dim_W: 2
+y0: [0.0, 80.0, 0.0]
+mu_P: 0.0
+mu_D: 0.0
+time_dep_vol: True
+use_exact: True
+low_vol: False
+sigma_P0: 10
+sigma_P1: 20
+alpha_P: 120.0
+beta_P: 40.0
+sigma_D0: 30.0
+sigma_D1: 50.0
+alpha_D: 1600.0
+beta_D: 900.0
+rho: -0.6
+psi: 5.0
+gamma: 0.01
+nu: 0.042
+eta: 10
+smooth_control: True
+eps: 1.0
+schedule_epsilon: True
+eps_decay_factor: 0.95
+eps_update_every: 1000
+analytical_known: True
+dt: 0.006944444444444444
+------------------------------------------------------------
+Loaded training config from: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU/train_config.json
+Saved configuration files to: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU
+Loading trained model from: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU
+Using best model checkpoint
+Successfully loaded trained model
+Using specified max_batch_size: 4096
+Starting evaluation with 100000 simulations and seed 1
+Evaluating agent: Analytical
+Evaluating agent: Approximation
+Evaluation completed successfully
+
+================================================================================
+RISK METRICS SUMMARY
+================================================================================
+
+Agent: Analytical
+--------------------------------------------------
+BASIC STATISTICS:
+  Mean:                -55.203026
+  Std Deviation:       3273.020508
+  Minimum:             -15694.800781
+  Maximum:             13587.115234
+  Skewness:            -0.074050
+  Kurtosis:            0.081773
+
+PERCENTILES:
+  10th Percentile:     -4264.435059
+  25th Percentile:     -2218.758789
+  50th Percentile:     -26.046417
+  75th Percentile:     2150.522949
+  90th Percentile:     4110.707520
+
+RISK MEASURES:
+  VaR 95%:             5285.762695
+  CVaR 95%:            6592.635254
+  VaR 99%:             7414.225098
+  CVaR 99%:            8490.788086
+  Semi-deviation:      3230.592285
+  Max Drawdown:        28179.841797
+
+RISK-ADJUSTED RATIOS:
+  Sharpe Ratio:        -0.016866
+  Sortino Ratio:       -0.017088
+
+Agent: Approximation
+--------------------------------------------------
+BASIC STATISTICS:
+  Mean:                -53.600246
+  Std Deviation:       3259.290527
+  Minimum:             -15356.953125
+  Maximum:             14166.681641
+  Skewness:            -0.007201
+  Kurtosis:            0.124452
+
+PERCENTILES:
+  10th Percentile:     -4190.818359
+  25th Percentile:     -2190.016602
+  50th Percentile:     -89.284149
+  75th Percentile:     2111.642578
+  90th Percentile:     4144.434082
+
+RISK MEASURES:
+  VaR 95%:             5342.441895
+  CVaR 95%:            6704.798828
+  VaR 99%:             7555.734863
+  CVaR 99%:            8701.120117
+  Semi-deviation:      3278.295166
+  Max Drawdown:        29090.710938
+
+RISK-ADJUSTED RATIOS:
+  Sharpe Ratio:        -0.016445
+  Sortino Ratio:       -0.016350
+
+================================================================================
+Risk metrics displayed successfully
+Starting plot generation...
+Generated expectation trajectories plot
+Generated individual trajectories plot (1 trajectories)
+Generated cost histograms
+Generated risk metrics plots
+Generated comparison report
+All plots and reports saved to: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU
+Using dynamics config from model folder: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU/dynamics_config.json
+------------------------------------------------------------
+DYNAMICS CONFIGURATION:
+------------------------------------------------------------
+dynamics: FullDynamics
+T: 1.0
+N: 144
+dim: 3
+dim_W: 2
+y0: [0.0, 80.0, 0.0]
+mu_P: 0.0
+mu_D: 0.0
+time_dep_vol: True
+use_exact: True
+low_vol: False
+sigma_P0: 10
+sigma_P1: 20
+alpha_P: 120.0
+beta_P: 40.0
+sigma_D0: 30.0
+sigma_D1: 50.0
+alpha_D: 1600.0
+beta_D: 900.0
+rho: -0.6
+psi: 5.0
+gamma: 0.01
+nu: 0.042
+eta: 10
+smooth_control: True
+eps: 1.0
+schedule_epsilon: True
+eps_decay_factor: 0.95
+eps_update_every: 1000
+analytical_known: True
+dt: 0.006944444444444444
+------------------------------------------------------------
+Loaded training config from: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU/train_config.json
+Saved configuration files to: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU
+Loading trained model from: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU
+Using best model checkpoint
+Successfully loaded trained model
+Using specified max_batch_size: 4096
+Starting evaluation with 10000 simulations and seed 1
+Evaluating agent: Analytical
+  Processing batch 1/3 (sims 0-4095) with seed 1
+  Processing batch 2/3 (sims 4096-8191) with seed 2
+  Processing batch 3/3 (sims 8192-9999) with seed 3
+Evaluating agent: Approximation
+  Processing batch 1/3 (sims 0-4095) with seed 1
+  Processing batch 2/3 (sims 4096-8191) with seed 2
+  Processing batch 3/3 (sims 8192-9999) with seed 3
+Evaluation completed successfully
+
+================================================================================
+RISK METRICS SUMMARY
+================================================================================
+
+Agent: Analytical
+--------------------------------------------------
+BASIC STATISTICS:
+  Mean:                -56.226688
+  Std Deviation:       3283.616211
+  Minimum:             -12477.111328
+  Maximum:             11223.585938
+  Skewness:            -0.093729
+  Kurtosis:            0.047640
+
+PERCENTILES:
+  10th Percentile:     -4268.364746
+  25th Percentile:     -2200.556885
+  50th Percentile:     -19.157881
+  75th Percentile:     2158.329102
+  90th Percentile:     4120.716797
+
+RISK MEASURES:
+  VaR 95%:             5302.723145
+  CVaR 95%:            6593.160156
+  VaR 99%:             7448.621094
+  CVaR 99%:            8338.136719
+  Semi-deviation:      3228.443359
+  Max Drawdown:        23409.906250
+
+RISK-ADJUSTED RATIOS:
+  Sharpe Ratio:        -0.017123
+  Sortino Ratio:       -0.017416
+
+Agent: Approximation
+--------------------------------------------------
+BASIC STATISTICS:
+  Mean:                -53.424786
+  Std Deviation:       3271.791260
+  Minimum:             -12438.308594
+  Maximum:             13476.697266
+  Skewness:            -0.023099
+  Kurtosis:            0.103864
+
+PERCENTILES:
+  10th Percentile:     -4170.576660
+  25th Percentile:     -2174.224121
+  50th Percentile:     -84.126610
+  75th Percentile:     2128.612549
+  90th Percentile:     4159.964355
+
+RISK MEASURES:
+  VaR 95%:             5335.140137
+  CVaR 95%:            6720.377930
+  VaR 99%:             7611.882812
+  CVaR 99%:            8595.848633
+  Semi-deviation:      3282.466064
+  Max Drawdown:        25914.585938
+
+RISK-ADJUSTED RATIOS:
+  Sharpe Ratio:        -0.016329
+  Sortino Ratio:       -0.016276
+
+================================================================================
+Risk metrics displayed successfully
+Starting plot generation...
+Generated expectation trajectories plot
+Generated individual trajectories plot (1 trajectories)
+Generated cost histograms
+Generated trading comparison plots
+All plots and reports saved to: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU
+Using dynamics config from model folder: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU/dynamics_config.json
+------------------------------------------------------------
+DYNAMICS CONFIGURATION:
+------------------------------------------------------------
+dynamics: FullDynamics
+T: 1.0
+N: 144
+dim: 3
+dim_W: 2
+y0: [0.0, 80.0, 0.0]
+mu_P: 0.0
+mu_D: 0.0
+time_dep_vol: True
+use_exact: True
+low_vol: False
+sigma_P0: 10
+sigma_P1: 20
+alpha_P: 120.0
+beta_P: 40.0
+sigma_D0: 30.0
+sigma_D1: 50.0
+alpha_D: 1600.0
+beta_D: 900.0
+rho: -0.6
+psi: 5.0
+gamma: 0.01
+nu: 0.042
+eta: 10
+smooth_control: True
+eps: 1.0
+schedule_epsilon: True
+eps_decay_factor: 0.95
+eps_update_every: 1000
+analytical_known: True
+dt: 0.006944444444444444
+------------------------------------------------------------
+Loaded training config from: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU/train_config.json
+Saved configuration files to: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU
+Loading trained model from: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU
+Using best model checkpoint
+Successfully loaded trained model
+Using specified max_batch_size: 4096
+Starting evaluation with 100000 simulations and seed 1
+Evaluating agent: Analytical
+  Processing batch 1/25 (sims 0-4095) with seed 1
+  Processing batch 2/25 (sims 4096-8191) with seed 2
+  Processing batch 3/25 (sims 8192-12287) with seed 3
+  Processing batch 4/25 (sims 12288-16383) with seed 4
+  Processing batch 5/25 (sims 16384-20479) with seed 5
+  Processing batch 6/25 (sims 20480-24575) with seed 6
+  Processing batch 7/25 (sims 24576-28671) with seed 7
+  Processing batch 8/25 (sims 28672-32767) with seed 8
+  Processing batch 9/25 (sims 32768-36863) with seed 9
+  Processing batch 10/25 (sims 36864-40959) with seed 10
+  Processing batch 11/25 (sims 40960-45055) with seed 11
+  Processing batch 12/25 (sims 45056-49151) with seed 12
+  Processing batch 13/25 (sims 49152-53247) with seed 13
+  Processing batch 14/25 (sims 53248-57343) with seed 14
+  Processing batch 15/25 (sims 57344-61439) with seed 15
+  Processing batch 16/25 (sims 61440-65535) with seed 16
+  Processing batch 17/25 (sims 65536-69631) with seed 17
+  Processing batch 18/25 (sims 69632-73727) with seed 18
+  Processing batch 19/25 (sims 73728-77823) with seed 19
+  Processing batch 20/25 (sims 77824-81919) with seed 20
+  Processing batch 21/25 (sims 81920-86015) with seed 21
+  Processing batch 22/25 (sims 86016-90111) with seed 22
+  Processing batch 23/25 (sims 90112-94207) with seed 23
+  Processing batch 24/25 (sims 94208-98303) with seed 24
+  Processing batch 25/25 (sims 98304-99999) with seed 25
+Evaluating agent: Approximation
+  Processing batch 1/25 (sims 0-4095) with seed 1
+  Processing batch 2/25 (sims 4096-8191) with seed 2
+  Processing batch 3/25 (sims 8192-12287) with seed 3
+  Processing batch 4/25 (sims 12288-16383) with seed 4
+  Processing batch 5/25 (sims 16384-20479) with seed 5
+  Processing batch 6/25 (sims 20480-24575) with seed 6
+  Processing batch 7/25 (sims 24576-28671) with seed 7
+  Processing batch 8/25 (sims 28672-32767) with seed 8
+  Processing batch 9/25 (sims 32768-36863) with seed 9
+  Processing batch 10/25 (sims 36864-40959) with seed 10
+  Processing batch 11/25 (sims 40960-45055) with seed 11
+  Processing batch 12/25 (sims 45056-49151) with seed 12
+  Processing batch 13/25 (sims 49152-53247) with seed 13
+  Processing batch 14/25 (sims 53248-57343) with seed 14
+  Processing batch 15/25 (sims 57344-61439) with seed 15
+  Processing batch 16/25 (sims 61440-65535) with seed 16
+  Processing batch 17/25 (sims 65536-69631) with seed 17
+  Processing batch 18/25 (sims 69632-73727) with seed 18
+  Processing batch 19/25 (sims 73728-77823) with seed 19
+  Processing batch 20/25 (sims 77824-81919) with seed 20
+  Processing batch 21/25 (sims 81920-86015) with seed 21
+  Processing batch 22/25 (sims 86016-90111) with seed 22
+  Processing batch 23/25 (sims 90112-94207) with seed 23
+  Processing batch 24/25 (sims 94208-98303) with seed 24
+  Processing batch 25/25 (sims 98304-99999) with seed 25
+Evaluating agent: TimeWeightedAgent
+  Processing batch 1/25 (sims 0-4095) with seed 1
+  Processing batch 2/25 (sims 4096-8191) with seed 2
+  Processing batch 3/25 (sims 8192-12287) with seed 3
+  Processing batch 4/25 (sims 12288-16383) with seed 4
+  Processing batch 5/25 (sims 16384-20479) with seed 5
+  Processing batch 6/25 (sims 20480-24575) with seed 6
+  Processing batch 7/25 (sims 24576-28671) with seed 7
+  Processing batch 8/25 (sims 28672-32767) with seed 8
+  Processing batch 9/25 (sims 32768-36863) with seed 9
+  Processing batch 10/25 (sims 36864-40959) with seed 10
+  Processing batch 11/25 (sims 40960-45055) with seed 11
+  Processing batch 12/25 (sims 45056-49151) with seed 12
+  Processing batch 13/25 (sims 49152-53247) with seed 13
+  Processing batch 14/25 (sims 53248-57343) with seed 14
+  Processing batch 15/25 (sims 57344-61439) with seed 15
+  Processing batch 16/25 (sims 61440-65535) with seed 16
+  Processing batch 17/25 (sims 65536-69631) with seed 17
+  Processing batch 18/25 (sims 69632-73727) with seed 18
+  Processing batch 19/25 (sims 73728-77823) with seed 19
+  Processing batch 20/25 (sims 77824-81919) with seed 20
+  Processing batch 21/25 (sims 81920-86015) with seed 21
+  Processing batch 22/25 (sims 86016-90111) with seed 22
+  Processing batch 23/25 (sims 90112-94207) with seed 23
+  Processing batch 24/25 (sims 94208-98303) with seed 24
+  Processing batch 25/25 (sims 98304-99999) with seed 25
+Evaluation completed successfully
+
+================================================================================
+RISK METRICS SUMMARY
+================================================================================
+
+Agent: Analytical
+--------------------------------------------------
+BASIC STATISTICS:
+  Mean:                -55.203026
+  Std Deviation:       3273.020508
+  Minimum:             -15694.800781
+  Maximum:             13587.115234
+  Skewness:            -0.074050
+  Kurtosis:            0.081773
+
+PERCENTILES:
+  10th Percentile:     -4264.435059
+  25th Percentile:     -2218.758789
+  50th Percentile:     -26.046417
+  75th Percentile:     2150.522949
+  90th Percentile:     4110.707520
+
+RISK MEASURES:
+  VaR 95%:             5285.762695
+  CVaR 95%:            6592.635254
+  VaR 99%:             7414.225098
+  CVaR 99%:            8490.788086
+  Semi-deviation:      3230.592285
+  Max Drawdown:        28179.841797
+
+RISK-ADJUSTED RATIOS:
+  Sharpe Ratio:        -0.016866
+  Sortino Ratio:       -0.017088
+
+Agent: Approximation
+--------------------------------------------------
+BASIC STATISTICS:
+  Mean:                -56.934109
+  Std Deviation:       3260.591553
+  Minimum:             -15386.549805
+  Maximum:             14151.588867
+  Skewness:            -0.008251
+  Kurtosis:            0.119355
+
+PERCENTILES:
+  10th Percentile:     -4197.387207
+  25th Percentile:     -2194.836914
+  50th Percentile:     -90.560059
+  75th Percentile:     2110.975342
+  90th Percentile:     4141.433594
+
+RISK MEASURES:
+  VaR 95%:             5342.319824
+  CVaR 95%:            6702.015625
+  VaR 99%:             7546.579590
+  CVaR 99%:            8690.012695
+  Semi-deviation:      3278.973877
+  Max Drawdown:        27980.652344
+
+RISK-ADJUSTED RATIOS:
+  Sharpe Ratio:        -0.017461
+  Sortino Ratio:       -0.017363
+
+Agent: TimeWeightedAgent
+--------------------------------------------------
+BASIC STATISTICS:
+  Mean:                274.921753
+  Std Deviation:       3273.496338
+  Minimum:             -15169.697266
+  Maximum:             14014.091797
+  Skewness:            -0.071774
+  Kurtosis:            0.074435
+
+PERCENTILES:
+  10th Percentile:     -3937.209229
+  25th Percentile:     -1888.332031
+  50th Percentile:     304.806366
+  75th Percentile:     2476.875977
+  90th Percentile:     4447.214355
+
+RISK MEASURES:
+  VaR 95%:             5615.470703
+  CVaR 95%:            6928.070312
+  VaR 99%:             7767.738281
+  CVaR 99%:            8823.592773
+  Semi-deviation:      3233.295898
+  Max Drawdown:        28338.339844
+
+RISK-ADJUSTED RATIOS:
+  Sharpe Ratio:        0.083984
+  Sortino Ratio:       0.085028
+
+================================================================================
+Risk metrics displayed successfully
+Starting plot generation...
+Generated expectation trajectories plot
+Generated individual trajectories plot (1 trajectories)
+Generated cost histograms
+Using dynamics config from model folder: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU/dynamics_config.json
+------------------------------------------------------------
+DYNAMICS CONFIGURATION:
+------------------------------------------------------------
+dynamics: FullDynamics
+T: 1.0
+N: 144
+dim: 3
+dim_W: 2
+y0: [0.0, 80.0, 0.0]
+mu_P: 0.0
+mu_D: 0.0
+time_dep_vol: True
+use_exact: True
+low_vol: False
+sigma_P0: 10
+sigma_P1: 20
+alpha_P: 120.0
+beta_P: 40.0
+sigma_D0: 30.0
+sigma_D1: 50.0
+alpha_D: 1600.0
+beta_D: 900.0
+rho: -0.6
+psi: 5.0
+gamma: 0.01
+nu: 0.042
+eta: 10
+smooth_control: True
+eps: 1.0
+schedule_epsilon: True
+eps_decay_factor: 0.95
+eps_update_every: 1000
+analytical_known: True
+dt: 0.006944444444444444
+------------------------------------------------------------
+Loaded training config from: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU/train_config.json
+Saved configuration files to: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU
+Loading trained model from: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU
+Using best model checkpoint
+Successfully loaded trained model
+Using specified max_batch_size: 4096
+Starting evaluation with 10000 simulations and seed 1
+Evaluating agent: Analytical
+Evaluating agent: Approximation
+Evaluating agent: TimeWeightedAgent
+Evaluation completed successfully
+
+================================================================================
+RISK METRICS SUMMARY
+================================================================================
+
+Agent: Analytical
+--------------------------------------------------
+BASIC STATISTICS:
+  Mean:                -56.226688
+  Std Deviation:       3283.616211
+  Minimum:             -12477.111328
+  Maximum:             11223.585938
+  Skewness:            -0.093729
+  Kurtosis:            0.047640
+
+PERCENTILES:
+  10th Percentile:     -4268.364746
+  25th Percentile:     -2200.556885
+  50th Percentile:     -19.157881
+  75th Percentile:     2158.329102
+  90th Percentile:     4120.716797
+
+RISK MEASURES:
+  VaR 95%:             5302.723145
+  CVaR 95%:            6593.160156
+  VaR 99%:             7448.621094
+  CVaR 99%:            8338.136719
+  Semi-deviation:      3228.443359
+  Max Drawdown:        23409.906250
+
+RISK-ADJUSTED RATIOS:
+  Sharpe Ratio:        -0.017123
+  Sortino Ratio:       -0.017416
+
+Agent: Approximation
+--------------------------------------------------
+BASIC STATISTICS:
+  Mean:                -58.739437
+  Std Deviation:       3273.903076
+  Minimum:             -12536.261719
+  Maximum:             13033.880859
+  Skewness:            -0.025354
+  Kurtosis:            0.098178
+
+PERCENTILES:
+  10th Percentile:     -4184.699219
+  25th Percentile:     -2178.302734
+  50th Percentile:     -85.626053
+  75th Percentile:     2127.783691
+  90th Percentile:     4152.413086
+
+RISK MEASURES:
+  VaR 95%:             5343.314453
+  CVaR 95%:            6717.319336
+  VaR 99%:             7605.615723
+  CVaR 99%:            8577.891602
+  Semi-deviation:      3281.840820
+  Max Drawdown:        25468.308594
+
+RISK-ADJUSTED RATIOS:
+  Sharpe Ratio:        -0.017942
+  Sortino Ratio:       -0.017898
+
+Agent: TimeWeightedAgent
+--------------------------------------------------
+BASIC STATISTICS:
+  Mean:                277.364258
+  Std Deviation:       3286.418457
+  Minimum:             -12726.567383
+  Maximum:             11063.730469
+  Skewness:            -0.097897
+  Kurtosis:            0.045890
+
+PERCENTILES:
+  10th Percentile:     -3923.000488
+  25th Percentile:     -1862.746094
+  50th Percentile:     308.798187
+  75th Percentile:     2501.565430
+  90th Percentile:     4467.935059
+
+RISK MEASURES:
+  VaR 95%:             5630.518555
+  CVaR 95%:            6929.646973
+  VaR 99%:             7819.338867
+  CVaR 99%:            8678.275391
+  Semi-deviation:      3235.187500
+  Max Drawdown:        22651.580078
+
+RISK-ADJUSTED RATIOS:
+  Sharpe Ratio:        0.084397
+  Sortino Ratio:       0.085734
+
+================================================================================
+Risk metrics displayed successfully
+Starting plot generation...
+Generated expectation trajectories plot
+Generated individual trajectories plot (1 trajectories)
+Generated cost histograms
+Using dynamics config from model folder: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU/dynamics_config.json
+------------------------------------------------------------
+DYNAMICS CONFIGURATION:
+------------------------------------------------------------
+dynamics: FullDynamics
+T: 1.0
+N: 144
+dim: 3
+dim_W: 2
+y0: [0.0, 80.0, 0.0]
+mu_P: 0.0
+mu_D: 0.0
+time_dep_vol: True
+use_exact: True
+low_vol: False
+sigma_P0: 10
+sigma_P1: 20
+alpha_P: 120.0
+beta_P: 40.0
+sigma_D0: 30.0
+sigma_D1: 50.0
+alpha_D: 1600.0
+beta_D: 900.0
+rho: -0.6
+psi: 5.0
+gamma: 0.01
+nu: 0.042
+eta: 10
+smooth_control: True
+eps: 1.0
+schedule_epsilon: True
+eps_decay_factor: 0.95
+eps_update_every: 1000
+analytical_known: True
+dt: 0.006944444444444444
+------------------------------------------------------------
+Loaded training config from: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU/train_config.json
+Saved configuration files to: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU
+Loading trained model from: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU
+Using best model checkpoint
+Successfully loaded trained model
+Using specified max_batch_size: 4096
+Starting evaluation with 10000 simulations and seed 1
+Evaluating agent: Analytical
+Evaluating agent: Approximation
+Evaluation completed successfully
+
+================================================================================
+RISK METRICS SUMMARY
+================================================================================
+
+Agent: Analytical
+--------------------------------------------------
+BASIC STATISTICS:
+  Mean:                -56.226688
+  Std Deviation:       3283.616211
+  Minimum:             -12477.111328
+  Maximum:             11223.585938
+  Skewness:            -0.093729
+  Kurtosis:            0.047640
+
+PERCENTILES:
+  10th Percentile:     -4268.364746
+  25th Percentile:     -2200.556885
+  50th Percentile:     -19.157881
+  75th Percentile:     2158.329102
+  90th Percentile:     4120.716797
+
+RISK MEASURES:
+  VaR 95%:             5302.723145
+  CVaR 95%:            6593.160156
+  VaR 99%:             7448.621094
+  CVaR 99%:            8338.136719
+  Semi-deviation:      3228.443359
+  Max Drawdown:        23409.906250
+
+RISK-ADJUSTED RATIOS:
+  Sharpe Ratio:        -0.017123
+  Sortino Ratio:       -0.017416
+
+Agent: Approximation
+--------------------------------------------------
+BASIC STATISTICS:
+  Mean:                -62.763607
+  Std Deviation:       3274.189453
+  Minimum:             -12400.940430
+  Maximum:             11587.548828
+  Skewness:            -0.029241
+  Kurtosis:            0.083769
+
+PERCENTILES:
+  10th Percentile:     -4192.329102
+  25th Percentile:     -2183.512451
+  50th Percentile:     -86.008057
+  75th Percentile:     2129.855225
+  90th Percentile:     4147.111328
+
+RISK MEASURES:
+  VaR 95%:             5340.079102
+  CVaR 95%:            6705.997559
+  VaR 99%:             7574.198242
+  CVaR 99%:            8545.410156
+  Semi-deviation:      3279.480957
+  Max Drawdown:        23988.488281
+
+RISK-ADJUSTED RATIOS:
+  Sharpe Ratio:        -0.019169
+  Sortino Ratio:       -0.019138
+
+================================================================================
+Risk metrics displayed successfully
+Starting plot generation...
+Generated expectation trajectories plot
+Generated individual trajectories plot (1 trajectories)
+Generated cost histograms
+Generated trading comparison plots
+Generated risk metrics plots
+Generated comparison report
+All plots and reports saved to: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU
+Using dynamics config from model folder: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU/dynamics_config.json
+------------------------------------------------------------
+DYNAMICS CONFIGURATION:
+------------------------------------------------------------
+dynamics: FullDynamics
+T: 1.0
+N: 144
+dim: 3
+dim_W: 2
+y0: [0.0, 80.0, 0.0]
+mu_P: 0.0
+mu_D: 0.0
+time_dep_vol: True
+use_exact: True
+low_vol: False
+sigma_P0: 10
+sigma_P1: 20
+alpha_P: 120.0
+beta_P: 40.0
+sigma_D0: 30.0
+sigma_D1: 50.0
+alpha_D: 1600.0
+beta_D: 900.0
+rho: -0.6
+psi: 5.0
+gamma: 0.01
+nu: 0.042
+eta: 10
+smooth_control: True
+eps: 1.0
+schedule_epsilon: True
+eps_decay_factor: 0.95
+eps_update_every: 1000
+analytical_known: True
+dt: 0.006944444444444444
+------------------------------------------------------------
+Loaded training config from: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU/train_config.json
+Saved configuration files to: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU
+Loading trained model from: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU
+Using best model checkpoint
+Successfully loaded trained model
+Using specified max_batch_size: 4096
+Starting evaluation with 100000 simulations and seed 42
+Evaluating agent: Analytical
+Evaluating agent: Approximation
+Evaluating agent: TimeWeightedAgent
+Evaluation completed successfully
+
+================================================================================
+RISK METRICS SUMMARY
+================================================================================
+
+Agent: Analytical
+--------------------------------------------------
+BASIC STATISTICS:
+  Mean:                -83.054848
+  Std Deviation:       3289.510742
+  Minimum:             -15963.613281
+  Maximum:             13291.613281
+  Skewness:            -0.087715
+  Kurtosis:            0.096251
+
+PERCENTILES:
+  10th Percentile:     -4298.516113
+  25th Percentile:     -2258.318115
+  50th Percentile:     -42.815796
+  75th Percentile:     2145.030029
+  90th Percentile:     4093.463867
+
+RISK MEASURES:
+  VaR 95%:             5257.705566
+  CVaR 95%:            6579.833496
+  VaR 99%:             7431.394531
+  CVaR 99%:            8468.008789
+  Semi-deviation:      3239.265625
+  Max Drawdown:        28848.902344
+
+RISK-ADJUSTED RATIOS:
+  Sharpe Ratio:        -0.025248
+  Sortino Ratio:       -0.025640
+
+Agent: Approximation
+--------------------------------------------------
+BASIC STATISTICS:
+  Mean:                -96.118797
+  Std Deviation:       3281.260010
+  Minimum:             -15577.453125
+  Maximum:             14082.493164
+  Skewness:            -0.030061
+  Kurtosis:            0.130636
+
+PERCENTILES:
+  10th Percentile:     -4258.332031
+  25th Percentile:     -2248.906494
+  50th Percentile:     -117.310867
+  75th Percentile:     2093.538818
+  90th Percentile:     4114.259766
+
+RISK MEASURES:
+  VaR 95%:             5292.080078
+  CVaR 95%:            6670.702637
+  VaR 99%:             7527.887207
+  CVaR 99%:            8635.982422
+  Semi-deviation:      3282.913086
+  Max Drawdown:        29234.796875
+
+RISK-ADJUSTED RATIOS:
+  Sharpe Ratio:        -0.029293
+  Sortino Ratio:       -0.029279
+
+Agent: TimeWeightedAgent
+--------------------------------------------------
+BASIC STATISTICS:
+  Mean:                244.118027
+  Std Deviation:       3291.229492
+  Minimum:             -15575.092773
+  Maximum:             13136.539062
+  Skewness:            -0.087253
+  Kurtosis:            0.077982
+
+PERCENTILES:
+  10th Percentile:     -3981.934814
+  25th Percentile:     -1936.891113
+  50th Percentile:     276.087128
+  75th Percentile:     2477.914062
+  90th Percentile:     4421.082031
+
+RISK MEASURES:
+  VaR 95%:             5575.434570
+  CVaR 95%:            6901.539062
+  VaR 99%:             7722.505859
+  CVaR 99%:            8776.727539
+  Semi-deviation:      3242.919922
+  Max Drawdown:        28465.753906
+
+RISK-ADJUSTED RATIOS:
+  Sharpe Ratio:        0.074172
+  Sortino Ratio:       0.075277
+
+================================================================================
+Risk metrics displayed successfully
+Starting plot generation...
+Generated expectation trajectories plot
+Generated individual trajectories plot (1 trajectories)
+Generated cost histograms
+Generated trading comparison plots
+Generated risk metrics plots
+Generated comparison report
+All plots and reports saved to: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU
+Using dynamics config from model folder: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU/dynamics_config.json
+------------------------------------------------------------
+DYNAMICS CONFIGURATION:
+------------------------------------------------------------
+dynamics: FullDynamics
+T: 1.0
+N: 144
+dim: 3
+dim_W: 2
+y0: [0.0, 80.0, 0.0]
+mu_P: 0.0
+mu_D: 0.0
+time_dep_vol: True
+use_exact: True
+low_vol: False
+sigma_P0: 10
+sigma_P1: 20
+alpha_P: 120.0
+beta_P: 40.0
+sigma_D0: 30.0
+sigma_D1: 50.0
+alpha_D: 1600.0
+beta_D: 900.0
+rho: -0.6
+psi: 5.0
+gamma: 0.01
+nu: 0.042
+eta: 10
+smooth_control: True
+eps: 1.0
+schedule_epsilon: True
+eps_decay_factor: 0.95
+eps_update_every: 1000
+analytical_known: True
+dt: 0.006944444444444444
+------------------------------------------------------------
+Loaded training config from: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU/train_config.json
+Saved configuration files to: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU
+Loading trained model from: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU
+Using best model checkpoint
+Successfully loaded trained model
+Using specified max_batch_size: 4096
+Starting evaluation with 100000 simulations and seed 1234
+Evaluating agent: Analytical
+Evaluating agent: Approximation
+Evaluating agent: TimeWeightedAgent
+Evaluation completed successfully
+
+================================================================================
+RISK METRICS SUMMARY
+================================================================================
+
+Agent: Analytical
+--------------------------------------------------
+BASIC STATISTICS:
+  Mean:                -79.732460
+  Std Deviation:       3301.682129
+  Minimum:             -16362.322266
+  Maximum:             15614.790039
+  Skewness:            -0.086215
+  Kurtosis:            0.097003
+
+PERCENTILES:
+  10th Percentile:     -4299.439453
+  25th Percentile:     -2268.666504
+  50th Percentile:     -46.118629
+  75th Percentile:     2152.804688
+  90th Percentile:     4113.885742
+
+RISK MEASURES:
+  VaR 95%:             5273.110840
+  CVaR 95%:            6596.657715
+  VaR 99%:             7405.592285
+  CVaR 99%:            8531.774414
+  Semi-deviation:      3254.000977
+  Max Drawdown:        31977.113281
+
+RISK-ADJUSTED RATIOS:
+  Sharpe Ratio:        -0.024149
+  Sortino Ratio:       -0.024503
+
+Agent: Approximation
+--------------------------------------------------
+BASIC STATISTICS:
+  Mean:                -92.599022
+  Std Deviation:       3294.062500
+  Minimum:             -16061.270508
+  Maximum:             18991.757812
+  Skewness:            -0.027661
+  Kurtosis:            0.128276
+
+PERCENTILES:
+  10th Percentile:     -4256.839844
+  25th Percentile:     -2262.183105
+  50th Percentile:     -118.421890
+  75th Percentile:     2109.287598
+  90th Percentile:     4132.877930
+
+RISK MEASURES:
+  VaR 95%:             5320.050781
+  CVaR 95%:            6688.666504
+  VaR 99%:             7516.845703
+  CVaR 99%:            8702.706055
+  Semi-deviation:      3299.180908
+  Max Drawdown:        35053.027344
+
+RISK-ADJUSTED RATIOS:
+  Sharpe Ratio:        -0.028111
+  Sortino Ratio:       -0.028067
+
+Agent: TimeWeightedAgent
+--------------------------------------------------
+BASIC STATISTICS:
+  Mean:                248.000839
+  Std Deviation:       3303.358643
+  Minimum:             -16071.466797
+  Maximum:             15728.504883
+  Skewness:            -0.083347
+  Kurtosis:            0.084926
+
+PERCENTILES:
+  10th Percentile:     -3979.427490
+  25th Percentile:     -1942.398682
+  50th Percentile:     274.012878
+  75th Percentile:     2482.956055
+  90th Percentile:     4453.740234
+
+RISK MEASURES:
+  VaR 95%:             5603.454102
+  CVaR 95%:            6925.971191
+  VaR 99%:             7748.501465
+  CVaR 99%:            8858.483398
+  Semi-deviation:      3259.419922
+  Max Drawdown:        31799.972656
+
+RISK-ADJUSTED RATIOS:
+  Sharpe Ratio:        0.075075
+  Sortino Ratio:       0.076087
+
+================================================================================
+Risk metrics displayed successfully
+Starting plot generation...
+Generated expectation trajectories plot
+Generated individual trajectories plot (1 trajectories)
+Generated cost histograms
+Generated trading comparison plots
+Generated risk metrics plots
+Generated comparison report
+All plots and reports saved to: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU
+Using dynamics config from model folder: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU/dynamics_config.json
+------------------------------------------------------------
+DYNAMICS CONFIGURATION:
+------------------------------------------------------------
+dynamics: FullDynamics
+T: 1.0
+N: 144
+dim: 3
+dim_W: 2
+y0: [0.0, 80.0, 0.0]
+mu_P: 0.0
+mu_D: 0.0
+time_dep_vol: True
+use_exact: True
+low_vol: False
+sigma_P0: 10
+sigma_P1: 20
+alpha_P: 120.0
+beta_P: 40.0
+sigma_D0: 30.0
+sigma_D1: 50.0
+alpha_D: 1600.0
+beta_D: 900.0
+rho: -0.6
+psi: 5.0
+gamma: 0.01
+nu: 0.042
+eta: 10
+smooth_control: True
+eps: 1.0
+schedule_epsilon: True
+eps_decay_factor: 0.95
+eps_update_every: 1000
+analytical_known: True
+dt: 0.006944444444444444
+------------------------------------------------------------
+Loaded training config from: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU/train_config.json
+Saved configuration files to: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU
+Loading trained model from: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU
+Using best model checkpoint
+Successfully loaded trained model
+Using specified max_batch_size: 4096
+Starting evaluation with 1000000 simulations and seed 1234
+Evaluating agent: Analytical
+Evaluating agent: Approximation
+Evaluating agent: TimeWeightedAgent
+Evaluation completed successfully
+
+================================================================================
+RISK METRICS SUMMARY
+================================================================================
+
+Agent: Analytical
+--------------------------------------------------
+BASIC STATISTICS:
+  Mean:                -69.212830
+  Std Deviation:       3294.377441
+  Minimum:             -17632.201172
+  Maximum:             15614.790039
+  Skewness:            -0.082787
+  Kurtosis:            0.091072
+
+PERCENTILES:
+  10th Percentile:     -4292.039551
+  25th Percentile:     -2250.546143
+  50th Percentile:     -34.969475
+  75th Percentile:     2156.848145
+  90th Percentile:     4113.754395
+
+RISK MEASURES:
+  VaR 95%:             5277.395996
+  CVaR 95%:            6610.195801
+  VaR 99%:             7444.456055
+  CVaR 99%:            8530.917969
+  Semi-deviation:      3246.151611
+  Max Drawdown:        32459.128906
+
+RISK-ADJUSTED RATIOS:
+  Sharpe Ratio:        -0.021009
+  Sortino Ratio:       -0.021322
+
+Agent: Approximation
+--------------------------------------------------
+BASIC STATISTICS:
+  Mean:                -82.334724
+  Std Deviation:       3286.666748
+  Minimum:             -17249.849609
+  Maximum:             18991.337891
+  Skewness:            -0.024768
+  Kurtosis:            0.120983
+
+PERCENTILES:
+  10th Percentile:     -4254.055664
+  25th Percentile:     -2239.889404
+  50th Percentile:     -107.943024
+  75th Percentile:     2109.625244
+  90th Percentile:     4134.020020
+
+RISK MEASURES:
+  VaR 95%:             5324.048340
+  CVaR 95%:            6701.738281
+  VaR 99%:             7550.788574
+  CVaR 99%:            8693.792969
+  Semi-deviation:      3292.125977
+  Max Drawdown:        35060.476562
+
+RISK-ADJUSTED RATIOS:
+  Sharpe Ratio:        -0.025051
+  Sortino Ratio:       -0.025010
+
+Agent: TimeWeightedAgent
+--------------------------------------------------
+BASIC STATISTICS:
+  Mean:                258.882019
+  Std Deviation:       3295.218262
+  Minimum:             -16845.974609
+  Maximum:             15728.504883
+  Skewness:            -0.081586
+  Kurtosis:            0.080160
+
+PERCENTILES:
+  10th Percentile:     -3965.164062
+  25th Percentile:     -1925.583252
+  50th Percentile:     293.501556
+  75th Percentile:     2489.093018
+  90th Percentile:     4445.133789
+
+RISK MEASURES:
+  VaR 95%:             5607.770508
+  CVaR 95%:            6935.882812
+  VaR 99%:             7776.297852
+  CVaR 99%:            8851.485352
+  Semi-deviation:      3247.938965
+  Max Drawdown:        31884.917969
+
+RISK-ADJUSTED RATIOS:
+  Sharpe Ratio:        0.078563
+  Sortino Ratio:       0.079707
+
+================================================================================
+Risk metrics displayed successfully
+Starting plot generation...
+Generated expectation trajectories plot
+Generated individual trajectories plot (1 trajectories)
+Generated cost histograms
+Generated trading comparison plots
+Generated risk metrics plots
+Generated comparison report
+All plots and reports saved to: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU
+Using dynamics config from model folder: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU/dynamics_config.json
+------------------------------------------------------------
+DYNAMICS CONFIGURATION:
+------------------------------------------------------------
+dynamics: FullDynamics
+T: 1.0
+N: 144
+dim: 3
+dim_W: 2
+y0: [0.0, 80.0, 0.0]
+mu_P: 0.0
+mu_D: 0.0
+time_dep_vol: True
+use_exact: True
+low_vol: False
+sigma_P0: 10
+sigma_P1: 20
+alpha_P: 120.0
+beta_P: 40.0
+sigma_D0: 30.0
+sigma_D1: 50.0
+alpha_D: 1600.0
+beta_D: 900.0
+rho: -0.6
+psi: 5.0
+gamma: 0.01
+nu: 0.042
+eta: 10
+smooth_control: True
+eps: 1.0
+schedule_epsilon: True
+eps_decay_factor: 0.95
+eps_update_every: 1000
+analytical_known: True
+dt: 0.006944444444444444
+------------------------------------------------------------
+Loaded training config from: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU/train_config.json
+Saved configuration files to: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU
+Loading trained model from: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU
+Using best model checkpoint
+Successfully loaded trained model
+Using specified max_batch_size: 10000
+Starting evaluation with 1000000 simulations and seed 1234
+Evaluating agent: Analytical
+Evaluating agent: Approximation
+Evaluating agent: TimeWeightedAgent
+Evaluation completed successfully
+
+================================================================================
+RISK METRICS SUMMARY
+================================================================================
+
+Agent: Analytical
+--------------------------------------------------
+BASIC STATISTICS:
+  Mean:                -76.532890
+  Std Deviation:       3292.305908
+  Minimum:             -18552.662109
+  Maximum:             16835.994141
+  Skewness:            -0.083803
+  Kurtosis:            0.092612
+
+PERCENTILES:
+  10th Percentile:     -4295.765137
+  25th Percentile:     -2260.053223
+  50th Percentile:     -40.623795
+  75th Percentile:     2152.754395
+  90th Percentile:     4104.870117
+
+RISK MEASURES:
+  VaR 95%:             5264.413086
+  CVaR 95%:            6593.801758
+  VaR 99%:             7423.323242
+  CVaR 99%:            8517.809570
+  Semi-deviation:      3243.685303
+  Max Drawdown:        33299.039062
+
+RISK-ADJUSTED RATIOS:
+  Sharpe Ratio:        -0.023246
+  Sortino Ratio:       -0.023594
+
+Agent: Approximation
+--------------------------------------------------
+BASIC STATISTICS:
+  Mean:                -94.297043
+  Std Deviation:       3286.167725
+  Minimum:             -16384.474609
+  Maximum:             17192.677734
+  Skewness:            -0.025854
+  Kurtosis:            0.120449
+
+PERCENTILES:
+  10th Percentile:     -4269.689453
+  25th Percentile:     -2260.860596
+  50th Percentile:     -117.626411
+  75th Percentile:     2105.507324
+  90th Percentile:     4118.841309
+
+RISK MEASURES:
+  VaR 95%:             5302.748047
+  CVaR 95%:            6680.191406
+  VaR 99%:             7516.484863
+  CVaR 99%:            8685.881836
+  Semi-deviation:      3289.238281
+  Max Drawdown:        33577.152344
+
+RISK-ADJUSTED RATIOS:
+  Sharpe Ratio:        -0.028695
+  Sortino Ratio:       -0.028668
+
+Agent: TimeWeightedAgent
+--------------------------------------------------
+BASIC STATISTICS:
+  Mean:                252.393799
+  Std Deviation:       3293.314209
+  Minimum:             -18336.683594
+  Maximum:             16559.869141
+  Skewness:            -0.081974
+  Kurtosis:            0.083674
+
+PERCENTILES:
+  10th Percentile:     -3971.632324
+  25th Percentile:     -1930.590820
+  50th Percentile:     286.255127
+  75th Percentile:     2485.611816
+  90th Percentile:     4438.365234
+
+RISK MEASURES:
+  VaR 95%:             5597.231445
+  CVaR 95%:            6923.933105
+  VaR 99%:             7743.733887
+  CVaR 99%:            8840.010742
+  Semi-deviation:      3245.918213
+  Max Drawdown:        32964.726562
+
+RISK-ADJUSTED RATIOS:
+  Sharpe Ratio:        0.076638
+  Sortino Ratio:       0.077757
+
+================================================================================
+Risk metrics displayed successfully
+Starting plot generation...
+Generated expectation trajectories plot
+Generated individual trajectories plot (1 trajectories)
+Generated cost histograms
+Generated trading comparison plots
+Generated risk metrics plots
+Generated comparison report
+All plots and reports saved to: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU
+Using dynamics config from model folder: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU/dynamics_config.json
+------------------------------------------------------------
+DYNAMICS CONFIGURATION:
+------------------------------------------------------------
+dynamics: FullDynamics
+T: 1.0
+N: 144
+dim: 3
+dim_W: 2
+y0: [0.0, 80.0, 0.0]
+mu_P: 0.0
+mu_D: 0.0
+time_dep_vol: True
+use_exact: True
+low_vol: False
+sigma_P0: 10
+sigma_P1: 20
+alpha_P: 120.0
+beta_P: 40.0
+sigma_D0: 30.0
+sigma_D1: 50.0
+alpha_D: 1600.0
+beta_D: 900.0
+rho: -0.6
+psi: 5.0
+gamma: 0.01
+nu: 0.042
+eta: 10
+smooth_control: True
+eps: 1.0
+schedule_epsilon: True
+eps_decay_factor: 0.95
+eps_update_every: 1000
+analytical_known: True
+dt: 0.006944444444444444
+------------------------------------------------------------
+Loaded training config from: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU/train_config.json
+Saved configuration files to: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU
+Loading trained model from: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU
+Using best model checkpoint
+Successfully loaded trained model
+Using specified max_batch_size: 10000
+Starting evaluation with 1000000 simulations and seed 1234
+Evaluating agent: Analytical
+Evaluating agent: Approximation
+Evaluating agent: TimeWeightedAgent
+Evaluation completed successfully
+
+================================================================================
+RISK METRICS SUMMARY
+================================================================================
+
+Agent: Analytical
+--------------------------------------------------
+BASIC STATISTICS:
+  Mean:                -76.532890
+  Std Deviation:       3292.305908
+  Minimum:             -18552.662109
+  Maximum:             16835.994141
+  Skewness:            -0.083803
+  Kurtosis:            0.092612
+
+PERCENTILES:
+  10th Percentile:     -4295.765137
+  25th Percentile:     -2260.053223
+  50th Percentile:     -40.623795
+  75th Percentile:     2152.754395
+  90th Percentile:     4104.870117
+
+RISK MEASURES:
+  VaR 95%:             5264.413086
+  CVaR 95%:            6593.801758
+  VaR 99%:             7423.323242
+  CVaR 99%:            8517.809570
+  Semi-deviation:      3243.685303
+  Max Drawdown:        33299.039062
+
+RISK-ADJUSTED RATIOS:
+  Sharpe Ratio:        -0.023246
+  Sortino Ratio:       -0.023594
+
+Agent: Approximation
+--------------------------------------------------
+BASIC STATISTICS:
+  Mean:                -94.844353
+  Std Deviation:       3286.358398
+  Minimum:             -16402.761719
+  Maximum:             17152.193359
+  Skewness:            -0.026038
+  Kurtosis:            0.119015
+
+PERCENTILES:
+  10th Percentile:     -4270.881836
+  25th Percentile:     -2262.281738
+  50th Percentile:     -117.078461
+  75th Percentile:     2105.528809
+  90th Percentile:     4117.850098
+
+RISK MEASURES:
+  VaR 95%:             5301.814453
+  CVaR 95%:            6679.178223
+  VaR 99%:             7514.734863
+  CVaR 99%:            8685.095703
+  Semi-deviation:      3288.710938
+  Max Drawdown:        33554.953125
+
+RISK-ADJUSTED RATIOS:
+  Sharpe Ratio:        -0.028860
+  Sortino Ratio:       -0.028839
+
+Agent: TimeWeightedAgent
+--------------------------------------------------
+BASIC STATISTICS:
+  Mean:                252.393799
+  Std Deviation:       3293.314209
+  Minimum:             -18336.683594
+  Maximum:             16559.869141
+  Skewness:            -0.081974
+  Kurtosis:            0.083674
+
+PERCENTILES:
+  10th Percentile:     -3971.632324
+  25th Percentile:     -1930.590820
+  50th Percentile:     286.255127
+  75th Percentile:     2485.611816
+  90th Percentile:     4438.365234
+
+RISK MEASURES:
+  VaR 95%:             5597.231445
+  CVaR 95%:            6923.933105
+  VaR 99%:             7743.733887
+  CVaR 99%:            8840.010742
+  Semi-deviation:      3245.918213
+  Max Drawdown:        32964.726562
+
+RISK-ADJUSTED RATIOS:
+  Sharpe Ratio:        0.076638
+  Sortino Ratio:       0.077757
+
+================================================================================
+Risk metrics displayed successfully
+Starting plot generation...
+Generated expectation trajectories plot
+Generated individual trajectories plot (1 trajectories)
+Generated cost histograms
+Generated cost histograms overlay
+Generated trading comparison plots
+Generated risk metrics plots
+Generated comparison report
+All plots and reports saved to: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU
+Using dynamics config from model folder: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU/dynamics_config.json
+------------------------------------------------------------
+DYNAMICS CONFIGURATION:
+------------------------------------------------------------
+dynamics: FullDynamics
+T: 1.0
+N: 144
+dim: 3
+dim_W: 2
+y0: [0.0, 80.0, 0.0]
+mu_P: 0.0
+mu_D: 0.0
+time_dep_vol: True
+use_exact: True
+low_vol: False
+sigma_P0: 10
+sigma_P1: 20
+alpha_P: 120.0
+beta_P: 40.0
+sigma_D0: 30.0
+sigma_D1: 50.0
+alpha_D: 1600.0
+beta_D: 900.0
+rho: -0.6
+psi: 5.0
+gamma: 0.01
+nu: 0.042
+eta: 10
+smooth_control: True
+eps: 1.0
+schedule_epsilon: True
+eps_decay_factor: 0.95
+eps_update_every: 1000
+analytical_known: True
+dt: 0.006944444444444444
+------------------------------------------------------------
+Loaded training config from: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU/train_config.json
+Saved configuration files to: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU
+Loading trained model from: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU
+Using best model checkpoint
+Successfully loaded trained model
+Using specified max_batch_size: 10000
+Starting evaluation with 1000000 simulations and seed 1234
+Evaluating agent: Analytical
+Evaluating agent: Approximation
+Evaluating agent: TimeWeightedAgent
+Evaluation completed successfully
+
+================================================================================
+RISK METRICS SUMMARY
+================================================================================
+
+Agent: Analytical
+--------------------------------------------------
+BASIC STATISTICS:
+  Mean:                -76.532890
+  Std Deviation:       3292.305908
+  Minimum:             -18552.662109
+  Maximum:             16835.994141
+  Skewness:            -0.083803
+  Kurtosis:            0.092612
+
+PERCENTILES:
+  10th Percentile:     -4295.765137
+  25th Percentile:     -2260.053223
+  50th Percentile:     -40.623795
+  75th Percentile:     2152.754395
+  90th Percentile:     4104.870117
+
+RISK MEASURES:
+  VaR 95%:             5264.413086
+  CVaR 95%:            6593.801758
+  VaR 99%:             7423.323242
+  CVaR 99%:            8517.809570
+  Semi-deviation:      3243.685303
+  Max Drawdown:        33299.039062
+
+RISK-ADJUSTED RATIOS:
+  Sharpe Ratio:        -0.023246
+  Sortino Ratio:       -0.023594
+
+Agent: Approximation
+--------------------------------------------------
+BASIC STATISTICS:
+  Mean:                -95.381226
+  Std Deviation:       3286.770752
+  Minimum:             -16421.205078
+  Maximum:             17300.048828
+  Skewness:            -0.026425
+  Kurtosis:            0.119313
+
+PERCENTILES:
+  10th Percentile:     -4272.694824
+  25th Percentile:     -2262.781250
+  50th Percentile:     -117.421204
+  75th Percentile:     2105.575684
+  90th Percentile:     4117.393066
+
+RISK MEASURES:
+  VaR 95%:             5302.139160
+  CVaR 95%:            6678.889648
+  VaR 99%:             7510.907227
+  CVaR 99%:            8684.708008
+  Semi-deviation:      3288.805176
+  Max Drawdown:        33721.253906
+
+RISK-ADJUSTED RATIOS:
+  Sharpe Ratio:        -0.029020
+  Sortino Ratio:       -0.029002
+
+Agent: TimeWeightedAgent
+--------------------------------------------------
+BASIC STATISTICS:
+  Mean:                252.393799
+  Std Deviation:       3293.314209
+  Minimum:             -18336.683594
+  Maximum:             16559.869141
+  Skewness:            -0.081974
+  Kurtosis:            0.083674
+
+PERCENTILES:
+  10th Percentile:     -3971.632324
+  25th Percentile:     -1930.590820
+  50th Percentile:     286.255127
+  75th Percentile:     2485.611816
+  90th Percentile:     4438.365234
+
+RISK MEASURES:
+  VaR 95%:             5597.231445
+  CVaR 95%:            6923.933105
+  VaR 99%:             7743.733887
+  CVaR 99%:            8840.010742
+  Semi-deviation:      3245.918213
+  Max Drawdown:        32964.726562
+
+RISK-ADJUSTED RATIOS:
+  Sharpe Ratio:        0.076638
+  Sortino Ratio:       0.077757
+
+================================================================================
+Risk metrics displayed successfully
+Starting plot generation...
+Generated expectation trajectories plot
+Generated individual trajectories plot (1 trajectories)
+Generated cost histograms
+Generated cost histograms overlay
+Generated trading comparison plots
+Generated risk metrics plots
+Generated comparison report
+All plots and reports saved to: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU
+Using dynamics config from model folder: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU/dynamics_config.json
+------------------------------------------------------------
+DYNAMICS CONFIGURATION:
+------------------------------------------------------------
+dynamics: FullDynamics
+T: 1.0
+N: 144
+dim: 3
+dim_W: 2
+y0: [0.0, 80.0, 0.0]
+mu_P: 0.0
+mu_D: 0.0
+time_dep_vol: True
+use_exact: True
+low_vol: False
+sigma_P0: 10
+sigma_P1: 20
+alpha_P: 120.0
+beta_P: 40.0
+sigma_D0: 30.0
+sigma_D1: 50.0
+alpha_D: 1600.0
+beta_D: 900.0
+rho: -0.6
+psi: 5.0
+gamma: 0.01
+nu: 0.042
+eta: 10
+smooth_control: True
+eps: 1.0
+schedule_epsilon: True
+eps_decay_factor: 0.95
+eps_update_every: 1000
+analytical_known: True
+dt: 0.006944444444444444
+------------------------------------------------------------
+Loaded training config from: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU/train_config.json
+Saved configuration files to: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU
+Loading trained model from: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU
+Using best model checkpoint
+Error loading trained model: 'adaptive_step_size'
+Make sure the model directory contains the required checkpoint files:
+  - model_best.pth
+  - train_config.json
+Using dynamics config from model folder: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU/dynamics_config.json
+------------------------------------------------------------
+DYNAMICS CONFIGURATION:
+------------------------------------------------------------
+dynamics: FullDynamics
+T: 1.0
+N: 144
+dim: 3
+dim_W: 2
+y0: [0.0, 80.0, 0.0]
+mu_P: 0.0
+mu_D: 0.0
+time_dep_vol: True
+use_exact: True
+low_vol: False
+sigma_P0: 10
+sigma_P1: 20
+alpha_P: 120.0
+beta_P: 40.0
+sigma_D0: 30.0
+sigma_D1: 50.0
+alpha_D: 1600.0
+beta_D: 900.0
+rho: -0.6
+psi: 5.0
+gamma: 0.01
+nu: 0.042
+eta: 10
+smooth_control: True
+eps: 1.0
+schedule_epsilon: True
+eps_decay_factor: 0.95
+eps_update_every: 1000
+analytical_known: True
+dt: 0.006944444444444444
+------------------------------------------------------------
+Loaded training config from: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU/train_config.json
+Saved configuration files to: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU
+Loading trained model from: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU
+Using best model checkpoint
+Successfully loaded trained model
+Using specified max_batch_size: 10000
+Starting evaluation with 1000000 simulations and seed 1234
+Evaluating agent: IOB
+Evaluating agent: TWAP
+Evaluating agent: Analytical
+Evaluating agent: NN
+Evaluation completed successfully
+
+================================================================================
+RISK METRICS SUMMARY
+================================================================================
+
+Agent: IOB
+--------------------------------------------------
+BASIC STATISTICS:
+  Mean:                4190.647949
+  Std Deviation:       3313.284668
+  Minimum:             -13851.556641
+  Maximum:             19494.718750
+  Skewness:            -0.105457
+  Kurtosis:            0.051700
+
+PERCENTILES:
+  10th Percentile:     -84.122490
+  25th Percentile:     1994.696167
+  50th Percentile:     4247.819824
+  75th Percentile:     6451.211914
+  90th Percentile:     8390.127930
+
+RISK MEASURES:
+  VaR 95%:             9532.228516
+  CVaR 95%:            10840.483398
+  VaR 99%:             11655.405273
+  CVaR 99%:            12725.296875
+  Semi-deviation:      3244.332275
+  Max Drawdown:        31787.125000
+
+RISK-ADJUSTED RATIOS:
+  Sharpe Ratio:        1.264802
+  Sortino Ratio:       1.291683
+
+Agent: TWAP
+--------------------------------------------------
+BASIC STATISTICS:
+  Mean:                252.393799
+  Std Deviation:       3293.314209
+  Minimum:             -18336.683594
+  Maximum:             16559.869141
+  Skewness:            -0.081974
+  Kurtosis:            0.083674
+
+PERCENTILES:
+  10th Percentile:     -3971.632324
+  25th Percentile:     -1930.590820
+  50th Percentile:     286.255127
+  75th Percentile:     2485.611816
+  90th Percentile:     4438.365234
+
+RISK MEASURES:
+  VaR 95%:             5597.231445
+  CVaR 95%:            6923.933105
+  VaR 99%:             7743.733887
+  CVaR 99%:            8840.010742
+  Semi-deviation:      3245.918213
+  Max Drawdown:        32964.726562
+
+RISK-ADJUSTED RATIOS:
+  Sharpe Ratio:        0.076638
+  Sortino Ratio:       0.077757
+
+Agent: Analytical
+--------------------------------------------------
+BASIC STATISTICS:
+  Mean:                -76.532890
+  Std Deviation:       3292.305908
+  Minimum:             -18552.662109
+  Maximum:             16835.994141
+  Skewness:            -0.083803
+  Kurtosis:            0.092612
+
+PERCENTILES:
+  10th Percentile:     -4295.765137
+  25th Percentile:     -2260.053223
+  50th Percentile:     -40.623795
+  75th Percentile:     2152.754395
+  90th Percentile:     4104.870117
+
+RISK MEASURES:
+  VaR 95%:             5264.413086
+  CVaR 95%:            6593.801758
+  VaR 99%:             7423.323242
+  CVaR 99%:            8517.809570
+  Semi-deviation:      3243.685303
+  Max Drawdown:        33299.039062
+
+RISK-ADJUSTED RATIOS:
+  Sharpe Ratio:        -0.023246
+  Sortino Ratio:       -0.023594
+
+Agent: NN
+--------------------------------------------------
+BASIC STATISTICS:
+  Mean:                -95.551949
+  Std Deviation:       3286.802979
+  Minimum:             -16428.283203
+  Maximum:             17353.306641
+  Skewness:            -0.026577
+  Kurtosis:            0.118889
+
+PERCENTILES:
+  10th Percentile:     -4272.737305
+  25th Percentile:     -2263.052490
+  50th Percentile:     -117.485107
+  75th Percentile:     2105.739258
+  90th Percentile:     4117.198242
+
+RISK MEASURES:
+  VaR 95%:             5302.114746
+  CVaR 95%:            6678.444824
+  VaR 99%:             7510.474609
+  CVaR 99%:            8683.274414
+  Semi-deviation:      3288.790527
+  Max Drawdown:        33781.589844
+
+RISK-ADJUSTED RATIOS:
+  Sharpe Ratio:        -0.029071
+  Sortino Ratio:       -0.029054
+
+================================================================================
+Risk metrics displayed successfully
+Starting plot generation...
+Generated expectation trajectories plot
+Generated individual trajectories plot (1 trajectories)
+Generated cost histograms
+Generated trading comparison plots
+Generated risk metrics plots
+Generated comparison report
+All plots and reports saved to: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU
+Using dynamics config from model folder: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU/dynamics_config.json
+------------------------------------------------------------
+DYNAMICS CONFIGURATION:
+------------------------------------------------------------
+dynamics: FullDynamics
+T: 1.0
+N: 144
+dim: 3
+dim_W: 2
+y0: [0.0, 80.0, 0.0]
+mu_P: 0.0
+mu_D: 0.0
+time_dep_vol: True
+use_exact: True
+low_vol: False
+sigma_P0: 10
+sigma_P1: 20
+alpha_P: 120.0
+beta_P: 40.0
+sigma_D0: 30.0
+sigma_D1: 50.0
+alpha_D: 1600.0
+beta_D: 900.0
+rho: -0.6
+psi: 5.0
+gamma: 0.01
+nu: 0.042
+eta: 10
+smooth_control: True
+eps: 0.01
+schedule_epsilon: True
+eps_decay_factor: 0.95
+eps_update_every: 1000
+analytical_known: True
+dt: 0.006944444444444444
+------------------------------------------------------------
+Loaded training config from: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU/train_config.json
+Saved configuration files to: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU
+Loading trained model from: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU
+Using best model checkpoint
+Successfully loaded trained model
+Using specified max_batch_size: 10000
+Starting evaluation with 1000000 simulations and seed 1234
+Evaluating agent: IOB
+Evaluating agent: TWAP
+Evaluating agent: Analytical
+Evaluating agent: NN
+Evaluation completed successfully
+
+================================================================================
+RISK METRICS SUMMARY
+================================================================================
+
+Agent: IOB
+--------------------------------------------------
+BASIC STATISTICS:
+  Mean:                4190.647949
+  Std Deviation:       3313.284668
+  Minimum:             -13851.556641
+  Maximum:             19494.718750
+  Skewness:            -0.105457
+  Kurtosis:            0.051700
+
+PERCENTILES:
+  10th Percentile:     -84.122490
+  25th Percentile:     1994.696167
+  50th Percentile:     4247.819824
+  75th Percentile:     6451.211914
+  90th Percentile:     8390.127930
+
+RISK MEASURES:
+  VaR 95%:             9532.228516
+  CVaR 95%:            10840.483398
+  VaR 99%:             11655.405273
+  CVaR 99%:            12725.296875
+  Semi-deviation:      3244.332275
+  Max Drawdown:        31787.125000
+
+RISK-ADJUSTED RATIOS:
+  Sharpe Ratio:        1.264802
+  Sortino Ratio:       1.291683
+
+Agent: TWAP
+--------------------------------------------------
+BASIC STATISTICS:
+  Mean:                252.393799
+  Std Deviation:       3293.314209
+  Minimum:             -18336.683594
+  Maximum:             16559.869141
+  Skewness:            -0.081974
+  Kurtosis:            0.083674
+
+PERCENTILES:
+  10th Percentile:     -3971.632324
+  25th Percentile:     -1930.590820
+  50th Percentile:     286.255127
+  75th Percentile:     2485.611816
+  90th Percentile:     4438.365234
+
+RISK MEASURES:
+  VaR 95%:             5597.231445
+  CVaR 95%:            6923.933105
+  VaR 99%:             7743.733887
+  CVaR 99%:            8840.010742
+  Semi-deviation:      3245.918213
+  Max Drawdown:        32964.726562
+
+RISK-ADJUSTED RATIOS:
+  Sharpe Ratio:        0.076638
+  Sortino Ratio:       0.077757
+
+Agent: Analytical
+--------------------------------------------------
+BASIC STATISTICS:
+  Mean:                -76.532890
+  Std Deviation:       3292.305908
+  Minimum:             -18552.662109
+  Maximum:             16835.994141
+  Skewness:            -0.083803
+  Kurtosis:            0.092612
+
+PERCENTILES:
+  10th Percentile:     -4295.765137
+  25th Percentile:     -2260.053223
+  50th Percentile:     -40.623795
+  75th Percentile:     2152.754395
+  90th Percentile:     4104.870117
+
+RISK MEASURES:
+  VaR 95%:             5264.413086
+  CVaR 95%:            6593.801758
+  VaR 99%:             7423.323242
+  CVaR 99%:            8517.809570
+  Semi-deviation:      3243.685303
+  Max Drawdown:        33299.039062
+
+RISK-ADJUSTED RATIOS:
+  Sharpe Ratio:        -0.023246
+  Sortino Ratio:       -0.023594
+
+Agent: NN
+--------------------------------------------------
+BASIC STATISTICS:
+  Mean:                -28.020395
+  Std Deviation:       3272.187012
+  Minimum:             -16252.721680
+  Maximum:             17423.328125
+  Skewness:            0.010547
+  Kurtosis:            0.147171
+
+PERCENTILES:
+  10th Percentile:     -4145.999512
+  25th Percentile:     -2168.580078
+  50th Percentile:     -103.095886
+  75th Percentile:     2147.295410
+  90th Percentile:     4206.940918
+
+RISK MEASURES:
+  VaR 95%:             5407.056641
+  CVaR 95%:            6790.947754
+  VaR 99%:             7629.251953
+  CVaR 99%:            8800.255859
+  Semi-deviation:      3314.597900
+  Max Drawdown:        33676.050781
+
+RISK-ADJUSTED RATIOS:
+  Sharpe Ratio:        -0.008563
+  Sortino Ratio:       -0.008454
+
+================================================================================
+Risk metrics displayed successfully
+Starting plot generation...
+Generated expectation trajectories plot
+Generated individual trajectories plot (1 trajectories)
+Generated cost histograms
+Generated trading comparison plots
+Generated risk metrics plots
+Generated comparison report
+All plots and reports saved to: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU
+Using dynamics config from model folder: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU/dynamics_config.json
+------------------------------------------------------------
+DYNAMICS CONFIGURATION:
+------------------------------------------------------------
+dynamics: FullDynamics
+T: 1.0
+N: 144
+dim: 3
+dim_W: 2
+y0: [0.0, 80.0, 0.0]
+mu_P: 0.0
+mu_D: 0.0
+time_dep_vol: True
+use_exact: True
+low_vol: False
+sigma_P0: 10
+sigma_P1: 20
+alpha_P: 120.0
+beta_P: 40.0
+sigma_D0: 30.0
+sigma_D1: 50.0
+alpha_D: 1600.0
+beta_D: 900.0
+rho: -0.6
+psi: 5.0
+gamma: 0.01
+nu: 0.042
+eta: 10
+smooth_control: True
+eps: 0.1
+schedule_epsilon: True
+eps_decay_factor: 0.95
+eps_update_every: 1000
+analytical_known: True
+dt: 0.006944444444444444
+------------------------------------------------------------
+Loaded training config from: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU/train_config.json
+Saved configuration files to: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU
+Loading trained model from: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU
+Using best model checkpoint
+Successfully loaded trained model
+Using specified max_batch_size: 10000
+Starting evaluation with 1000000 simulations and seed 1234
+Evaluating agent: IOB
+Evaluating agent: TWAP
+Evaluating agent: Analytical
+Evaluating agent: NN
+Evaluation completed successfully
+
+================================================================================
+RISK METRICS SUMMARY
+================================================================================
+
+Agent: IOB
+--------------------------------------------------
+BASIC STATISTICS:
+  Mean:                4190.647949
+  Std Deviation:       3313.284668
+  Minimum:             -13851.556641
+  Maximum:             19494.718750
+  Skewness:            -0.105457
+  Kurtosis:            0.051700
+
+PERCENTILES:
+  10th Percentile:     -84.122490
+  25th Percentile:     1994.696167
+  50th Percentile:     4247.819824
+  75th Percentile:     6451.211914
+  90th Percentile:     8390.127930
+
+RISK MEASURES:
+  VaR 95%:             9532.228516
+  CVaR 95%:            10840.483398
+  VaR 99%:             11655.405273
+  CVaR 99%:            12725.296875
+  Semi-deviation:      3244.332275
+  Max Drawdown:        31787.125000
+
+RISK-ADJUSTED RATIOS:
+  Sharpe Ratio:        1.264802
+  Sortino Ratio:       1.291683
+
+Agent: TWAP
+--------------------------------------------------
+BASIC STATISTICS:
+  Mean:                252.393799
+  Std Deviation:       3293.314209
+  Minimum:             -18336.683594
+  Maximum:             16559.869141
+  Skewness:            -0.081974
+  Kurtosis:            0.083674
+
+PERCENTILES:
+  10th Percentile:     -3971.632324
+  25th Percentile:     -1930.590820
+  50th Percentile:     286.255127
+  75th Percentile:     2485.611816
+  90th Percentile:     4438.365234
+
+RISK MEASURES:
+  VaR 95%:             5597.231445
+  CVaR 95%:            6923.933105
+  VaR 99%:             7743.733887
+  CVaR 99%:            8840.010742
+  Semi-deviation:      3245.918213
+  Max Drawdown:        32964.726562
+
+RISK-ADJUSTED RATIOS:
+  Sharpe Ratio:        0.076638
+  Sortino Ratio:       0.077757
+
+Agent: Analytical
+--------------------------------------------------
+BASIC STATISTICS:
+  Mean:                -76.532890
+  Std Deviation:       3292.305908
+  Minimum:             -18552.662109
+  Maximum:             16835.994141
+  Skewness:            -0.083803
+  Kurtosis:            0.092612
+
+PERCENTILES:
+  10th Percentile:     -4295.765137
+  25th Percentile:     -2260.053223
+  50th Percentile:     -40.623795
+  75th Percentile:     2152.754395
+  90th Percentile:     4104.870117
+
+RISK MEASURES:
+  VaR 95%:             5264.413086
+  CVaR 95%:            6593.801758
+  VaR 99%:             7423.323242
+  CVaR 99%:            8517.809570
+  Semi-deviation:      3243.685303
+  Max Drawdown:        33299.039062
+
+RISK-ADJUSTED RATIOS:
+  Sharpe Ratio:        -0.023246
+  Sortino Ratio:       -0.023594
+
+Agent: NN
+--------------------------------------------------
+BASIC STATISTICS:
+  Mean:                -43.734703
+  Std Deviation:       3274.528809
+  Minimum:             -16310.636719
+  Maximum:             17421.089844
+  Skewness:            -0.000008
+  Kurtosis:            0.145656
+
+PERCENTILES:
+  10th Percentile:     -4174.608398
+  25th Percentile:     -2184.159668
+  50th Percentile:     -107.655312
+  75th Percentile:     2137.023682
+  90th Percentile:     4184.190918
+
+RISK MEASURES:
+  VaR 95%:             5381.617188
+  CVaR 95%:            6761.600098
+  VaR 99%:             7599.526855
+  CVaR 99%:            8767.926758
+  Semi-deviation:      3308.379639
+  Max Drawdown:        33529.328125
+
+RISK-ADJUSTED RATIOS:
+  Sharpe Ratio:        -0.013356
+  Sortino Ratio:       -0.013219
+
+================================================================================
+Risk metrics displayed successfully
+Starting plot generation...
+Generated expectation trajectories plot
+Generated individual trajectories plot (1 trajectories)
+Generated cost histograms
+Generated trading comparison plots
+Generated risk metrics plots
+Generated comparison report
+All plots and reports saved to: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU
+Using dynamics config from model folder: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU/dynamics_config.json
+------------------------------------------------------------
+DYNAMICS CONFIGURATION:
+------------------------------------------------------------
+dynamics: FullDynamics
+T: 1.0
+N: 144
+dim: 3
+dim_W: 2
+y0: [0.0, 80.0, 0.0]
+mu_P: 0.0
+mu_D: 0.0
+time_dep_vol: True
+use_exact: True
+low_vol: False
+sigma_P0: 10
+sigma_P1: 20
+alpha_P: 120.0
+beta_P: 40.0
+sigma_D0: 30.0
+sigma_D1: 50.0
+alpha_D: 1600.0
+beta_D: 900.0
+rho: -0.6
+psi: 5.0
+gamma: 0.01
+nu: 0.042
+eta: 10
+smooth_control: True
+eps: 0.3
+schedule_epsilon: True
+eps_decay_factor: 0.95
+eps_update_every: 1000
+analytical_known: True
+dt: 0.006944444444444444
+------------------------------------------------------------
+Loaded training config from: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU/train_config.json
+Saved configuration files to: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU
+Loading trained model from: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU
+Using best model checkpoint
+Successfully loaded trained model
+Using specified max_batch_size: 10000
+Starting evaluation with 1000000 simulations and seed 1234
+Evaluating agent: IOB
+Evaluating agent: TWAP
+Evaluating agent: Analytical
+Evaluating agent: NN
+Evaluation completed successfully
+
+================================================================================
+RISK METRICS SUMMARY
+================================================================================
+
+Agent: IOB
+--------------------------------------------------
+BASIC STATISTICS:
+  Mean:                4190.647949
+  Std Deviation:       3313.284668
+  Minimum:             -13851.556641
+  Maximum:             19494.718750
+  Skewness:            -0.105457
+  Kurtosis:            0.051700
+
+PERCENTILES:
+  10th Percentile:     -84.122490
+  25th Percentile:     1994.696167
+  50th Percentile:     4247.819824
+  75th Percentile:     6451.211914
+  90th Percentile:     8390.127930
+
+RISK MEASURES:
+  VaR 95%:             9532.228516
+  CVaR 95%:            10840.483398
+  VaR 99%:             11655.405273
+  CVaR 99%:            12725.296875
+  Semi-deviation:      3244.332275
+  Max Drawdown:        31787.125000
+
+RISK-ADJUSTED RATIOS:
+  Sharpe Ratio:        1.264802
+  Sortino Ratio:       1.291683
+
+Agent: TWAP
+--------------------------------------------------
+BASIC STATISTICS:
+  Mean:                252.393799
+  Std Deviation:       3293.314209
+  Minimum:             -18336.683594
+  Maximum:             16559.869141
+  Skewness:            -0.081974
+  Kurtosis:            0.083674
+
+PERCENTILES:
+  10th Percentile:     -3971.632324
+  25th Percentile:     -1930.590820
+  50th Percentile:     286.255127
+  75th Percentile:     2485.611816
+  90th Percentile:     4438.365234
+
+RISK MEASURES:
+  VaR 95%:             5597.231445
+  CVaR 95%:            6923.933105
+  VaR 99%:             7743.733887
+  CVaR 99%:            8840.010742
+  Semi-deviation:      3245.918213
+  Max Drawdown:        32964.726562
+
+RISK-ADJUSTED RATIOS:
+  Sharpe Ratio:        0.076638
+  Sortino Ratio:       0.077757
+
+Agent: Analytical
+--------------------------------------------------
+BASIC STATISTICS:
+  Mean:                -76.532890
+  Std Deviation:       3292.305908
+  Minimum:             -18552.662109
+  Maximum:             16835.994141
+  Skewness:            -0.083803
+  Kurtosis:            0.092612
+
+PERCENTILES:
+  10th Percentile:     -4295.765137
+  25th Percentile:     -2260.053223
+  50th Percentile:     -40.623795
+  75th Percentile:     2152.754395
+  90th Percentile:     4104.870117
+
+RISK MEASURES:
+  VaR 95%:             5264.413086
+  CVaR 95%:            6593.801758
+  VaR 99%:             7423.323242
+  CVaR 99%:            8517.809570
+  Semi-deviation:      3243.685303
+  Max Drawdown:        33299.039062
+
+RISK-ADJUSTED RATIOS:
+  Sharpe Ratio:        -0.023246
+  Sortino Ratio:       -0.023594
+
+Agent: NN
+--------------------------------------------------
+BASIC STATISTICS:
+  Mean:                -68.073952
+  Std Deviation:       3278.594482
+  Minimum:             -16361.741211
+  Maximum:             17414.978516
+  Skewness:            -0.013586
+  Kurtosis:            0.140555
+
+PERCENTILES:
+  10th Percentile:     -4218.696777
+  25th Percentile:     -2211.511719
+  50th Percentile:     -116.088478
+  75th Percentile:     2119.366699
+  90th Percentile:     4153.875488
+
+RISK MEASURES:
+  VaR 95%:             5343.168457
+  CVaR 95%:            6720.588867
+  VaR 99%:             7554.866699
+  CVaR 99%:            8722.600586
+  Semi-deviation:      3299.879639
+  Max Drawdown:        33660.171875
+
+RISK-ADJUSTED RATIOS:
+  Sharpe Ratio:        -0.020763
+  Sortino Ratio:       -0.020629
+
+================================================================================
+Risk metrics displayed successfully
+Starting plot generation...
+Generated expectation trajectories plot
+Generated individual trajectories plot (1 trajectories)
+Generated cost histograms
+Generated trading comparison plots
+Generated risk metrics plots
+Generated comparison report
+All plots and reports saved to: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU
+Using dynamics config from model folder: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU/dynamics_config.json
+------------------------------------------------------------
+DYNAMICS CONFIGURATION:
+------------------------------------------------------------
+dynamics: FullDynamics
+T: 1.0
+N: 144
+dim: 3
+dim_W: 2
+y0: [0.0, 80.0, 0.0]
+mu_P: 0.0
+mu_D: 0.0
+time_dep_vol: True
+use_exact: True
+low_vol: False
+sigma_P0: 10
+sigma_P1: 20
+alpha_P: 120.0
+beta_P: 40.0
+sigma_D0: 30.0
+sigma_D1: 50.0
+alpha_D: 1600.0
+beta_D: 900.0
+rho: -0.6
+psi: 5.0
+gamma: 0.01
+nu: 0.042
+eta: 10
+smooth_control: True
+eps: 0.5
+schedule_epsilon: True
+eps_decay_factor: 0.95
+eps_update_every: 1000
+analytical_known: True
+dt: 0.006944444444444444
+------------------------------------------------------------
+Loaded training config from: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU/train_config.json
+Saved configuration files to: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU
+Loading trained model from: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU
+Using best model checkpoint
+Successfully loaded trained model
+Using specified max_batch_size: 10000
+Starting evaluation with 1000000 simulations and seed 1234
+Evaluating agent: IOB
+Evaluating agent: TWAP
+Evaluating agent: Analytical
+Evaluating agent: NN
+Evaluation completed successfully
+
+================================================================================
+RISK METRICS SUMMARY
+================================================================================
+
+Agent: IOB
+--------------------------------------------------
+BASIC STATISTICS:
+  Mean:                4190.647949
+  Std Deviation:       3313.284668
+  Minimum:             -13851.556641
+  Maximum:             19494.718750
+  Skewness:            -0.105457
+  Kurtosis:            0.051700
+
+PERCENTILES:
+  10th Percentile:     -84.122490
+  25th Percentile:     1994.696167
+  50th Percentile:     4247.819824
+  75th Percentile:     6451.211914
+  90th Percentile:     8390.127930
+
+RISK MEASURES:
+  VaR 95%:             9532.228516
+  CVaR 95%:            10840.483398
+  VaR 99%:             11655.405273
+  CVaR 99%:            12725.296875
+  Semi-deviation:      3244.332275
+  Max Drawdown:        31787.125000
+
+RISK-ADJUSTED RATIOS:
+  Sharpe Ratio:        1.264802
+  Sortino Ratio:       1.291683
+
+Agent: TWAP
+--------------------------------------------------
+BASIC STATISTICS:
+  Mean:                252.393799
+  Std Deviation:       3293.314209
+  Minimum:             -18336.683594
+  Maximum:             16559.869141
+  Skewness:            -0.081974
+  Kurtosis:            0.083674
+
+PERCENTILES:
+  10th Percentile:     -3971.632324
+  25th Percentile:     -1930.590820
+  50th Percentile:     286.255127
+  75th Percentile:     2485.611816
+  90th Percentile:     4438.365234
+
+RISK MEASURES:
+  VaR 95%:             5597.231445
+  CVaR 95%:            6923.933105
+  VaR 99%:             7743.733887
+  CVaR 99%:            8840.010742
+  Semi-deviation:      3245.918213
+  Max Drawdown:        32964.726562
+
+RISK-ADJUSTED RATIOS:
+  Sharpe Ratio:        0.076638
+  Sortino Ratio:       0.077757
+
+Agent: Analytical
+--------------------------------------------------
+BASIC STATISTICS:
+  Mean:                -76.532890
+  Std Deviation:       3292.305908
+  Minimum:             -18552.662109
+  Maximum:             16835.994141
+  Skewness:            -0.083803
+  Kurtosis:            0.092612
+
+PERCENTILES:
+  10th Percentile:     -4295.765137
+  25th Percentile:     -2260.053223
+  50th Percentile:     -40.623795
+  75th Percentile:     2152.754395
+  90th Percentile:     4104.870117
+
+RISK MEASURES:
+  VaR 95%:             5264.413086
+  CVaR 95%:            6593.801758
+  VaR 99%:             7423.323242
+  CVaR 99%:            8517.809570
+  Semi-deviation:      3243.685303
+  Max Drawdown:        33299.039062
+
+RISK-ADJUSTED RATIOS:
+  Sharpe Ratio:        -0.023246
+  Sortino Ratio:       -0.023594
+
+Agent: NN
+--------------------------------------------------
+BASIC STATISTICS:
+  Mean:                -83.347549
+  Std Deviation:       3281.578369
+  Minimum:             -16401.000000
+  Maximum:             17338.716797
+  Skewness:            -0.020332
+  Kurtosis:            0.135371
+
+PERCENTILES:
+  10th Percentile:     -4245.095215
+  25th Percentile:     -2231.961914
+  50th Percentile:     -120.737389
+  75th Percentile:     2108.421143
+  90th Percentile:     4135.686523
+
+RISK MEASURES:
+  VaR 95%:             5322.055176
+  CVaR 95%:            6697.646973
+  VaR 99%:             7531.595215
+  CVaR 99%:            8698.938477
+  Semi-deviation:      3294.844482
+  Max Drawdown:        33478.296875
+
+RISK-ADJUSTED RATIOS:
+  Sharpe Ratio:        -0.025399
+  Sortino Ratio:       -0.025296
+
+================================================================================
+Risk metrics displayed successfully
+Starting plot generation...
+Generated expectation trajectories plot
+Generated individual trajectories plot (1 trajectories)
+Generated cost histograms
+Generated trading comparison plots
+Generated risk metrics plots
+Generated comparison report
+All plots and reports saved to: saved_models/eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU

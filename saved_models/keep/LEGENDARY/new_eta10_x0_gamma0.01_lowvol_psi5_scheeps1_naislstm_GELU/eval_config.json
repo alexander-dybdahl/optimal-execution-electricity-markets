@@ -1,0 +1,23 @@
+{
+    "device": "cuda",
+    "save_dir": null,
+    "model_dir": "saved_models/new_eta10_x0_gamma0.01_lowvol_psi5_scheeps1_naislstm_GELU",
+    "dynamics_path": "config/dynamics_configs/full_config.json",
+    "use_model_dynamics": true,
+    "best": true,
+    "verbose": true,
+    "plot": false,
+    "plot_individual_trajectories": true,
+    "n_traj": 1,
+    "plot_control_trajectories": true,
+    "plot_trading_comparison": true,
+    "plot_trading_heatmap": false,
+    "plot_terminal_cost_analysis": false,
+    "plot_risk_metrics": true,
+    "plot_controls": false,
+    "plot_losses": false,
+    "comparison": true,
+    "n_simulations": 1000000,
+    "seed": 1234,
+    "max_batch_size": 10000
+}
