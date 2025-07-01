@@ -7,8 +7,10 @@ import torch
 
 from agents.analyticalagent import AnalyticalAgent
 from agents.deepagent import DeepAgent
-from agents.immediateagent import ImmediateAgent
 from agents.timeweightedagent import TimeWeightedAgent
+from agents.immediateagent import ImmediateAgent
+from agents.startendagent import StartEndAgent
+from agents.ktimesagent import KTimesAgent
 from dynamics import create_dynamics
 from core.solver import Solver
 from utils.load_config import load_config, load_dynamics_config
@@ -173,8 +175,11 @@ def main():
         
         solver.evaluate_agent(agent=AnalyticalAgent(dynamics=dynamics), agent_name="Analytical")
         solver.evaluate_agent(agent=model, agent_name="Approximation")
-        solver.evaluate_agent(agent=TimeWeightedAgent(dynamics=dynamics), agent_name="TimeWeightedAgent")
-        #solver.evaluate_agent(agent=ImmediateAgent(dynamics=dynamics), agent_name="ImmediateAgent")
+        solver.evaluate_agent(agent=TimeWeightedAgent(dynamics=dynamics), agent_name="TimeWeighted")
+        # solver.evaluate_agent(agent=ImmediateAgent(dynamics=dynamics), agent_name="Immediate")
+        # solver.evaluate_agent(agent=StartEndAgent(dynamics=dynamics), agent_name="StartEnd")
+        # solver.evaluate_agent(agent=KTimesAgent(dynamics=dynamics, K=5), agent_name="KTimes_6")
+        # solver.evaluate_agent(agent=KTimesAgent(dynamics=dynamics, K=10), agent_name="KTimes_12")
         
         logger.log(f"Evaluation completed successfully")
         
