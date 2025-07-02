@@ -18,6 +18,7 @@
   "plot_losses": false,
   "comparison": true,
   "plot_learned_vs_analytical": false,
+  "agents": ["Analytical", "NN", "TWAP", "IOBE"],
   "n_simulations": 1024,
   "seed": 42,
   "max_batch_size": 2500
