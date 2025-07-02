@@ -124,9 +124,9 @@ def plot_approx_vs_analytic(results, timesteps, validation=None, plot=True, save
     colors = lambda i: color_cycle[i % len(color_cycle)]
 
     for i in range(approx_q.shape[1]):
-        axs[0, 0].plot(timesteps[:-1], approx_q[:, i], color=colors(i), label=f"Learned $q^\\theta(t)$" if i == 0 else None)
+        axs[0, 0].plot(timesteps[:-1], approx_q[:, i], color=colors(i), linewidth=2, label=f"Learned $q^\\theta(t)$" if i == 0 else None)
         if true_q is not None:
-            axs[0, 0].plot(timesteps[:-1], true_q[:, i], linestyle="--", color=colors(i), alpha=0.4, label=f"Analytical $\\bar{{q}}(t)$" if i == 0 else None)
+            axs[0, 0].plot(timesteps[:-1], true_q[:, i], linestyle="--", color=colors(i), alpha=0.7, linewidth=1.5, label=f"Analytical $\\bar{{q}}(t)$" if i == 0 else None)
     axs[0, 0].set_title("Control $q(t)$: Learned vs Analytical", fontsize=20)
     axs[0, 0].set_xlabel("Time $t$", fontsize=18)
     axs[0, 0].set_ylabel("$q(t)$", fontsize=18)
@@ -149,9 +149,9 @@ def plot_approx_vs_analytic(results, timesteps, validation=None, plot=True, save
         axs[0, 1].tick_params(axis='both', which='major', labelsize=14)
 
     for i in range(Y_vals.shape[1]):
-        axs[1, 0].plot(timesteps, Y_vals[:, i, 0], color=colors(i), label=f"Learned $Y^\\theta(t)$" if i == 0 else None)
+        axs[1, 0].plot(timesteps, Y_vals[:, i, 0], color=colors(i), linewidth=2, label=f"Learned $Y^\\theta(t)$" if i == 0 else None)
         if true_Y is not None:
-            axs[1, 0].plot(timesteps, true_Y[:, i, 0], linestyle="--", color=colors(i), alpha=0.4, label=f"Analytical $\\bar{{Y}}(t)$" if i == 0 else None)
+            axs[1, 0].plot(timesteps, true_Y[:, i, 0], linestyle="--", color=colors(i), alpha=0.7, linewidth=1.5, label=f"Analytical $\\bar{{Y}}(t)$" if i == 0 else None)
     axs[1, 0].set_title("Cost-to-Go $Y(t)$", fontsize=20)
     axs[1, 0].set_xlabel("Time $t$", fontsize=18)
     axs[1, 0].set_ylabel("Y(t)", fontsize=18)
@@ -174,11 +174,11 @@ def plot_approx_vs_analytic(results, timesteps, validation=None, plot=True, save
         axs[1, 1].tick_params(axis='both', which='major', labelsize=14)
 
     for i in range(y_vals.shape[1]):
-        axs[2, 0].plot(timesteps, y_vals[:, i, 0], color=colors(i), label=f"$X(t)$" if i == 0 else None)
+        axs[2, 0].plot(timesteps, y_vals[:, i, 0], color=colors(i), linewidth=2, label=f"$X(t)$" if i == 0 else None)
         if true_y is not None:
-            axs[2, 0].plot(timesteps, true_y[:, i, 0], linestyle="--", color=colors(i), alpha=0.4, label=f"$\\bar{{X}}(t)$" if i == 0 else None)
+            axs[2, 0].plot(timesteps, true_y[:, i, 0], linestyle="--", color=colors(i), alpha=0.7, linewidth=1.5, label=f"$\\bar{{X}}(t)$" if i == 0 else None)
         if y_vals.shape[2] > 1:
-            axs[2, 0].plot(timesteps, y_vals[:, i, 2], linestyle="-.", color=colors(i), label=f"$G(t)$" if i == 0 else None)
+            axs[2, 0].plot(timesteps, y_vals[:, i, 2], linestyle="-.", color=colors(i), linewidth=2, label=f"$G(t)$" if i == 0 else None)
     axs[2, 0].set_title("States: $X(t)$ and $G(t)$", fontsize=20)
     axs[2, 0].set_xlabel("Time $t$", fontsize=18)
     axs[2, 0].set_ylabel("X(t), G(t)", fontsize=18)
@@ -188,9 +188,9 @@ def plot_approx_vs_analytic(results, timesteps, validation=None, plot=True, save
 
     if y_vals.shape[2] > 1:
         for i in range(y_vals.shape[1]):
-            axs[2, 1].plot(timesteps, y_vals[:, i, 1], color=colors(i), label=f"$P(t)$" if i == 0 else None)
+            axs[2, 1].plot(timesteps, y_vals[:, i, 1], color=colors(i), linewidth=2, label=f"$P(t)$" if i == 0 else None)
             if true_y is not None:
-                axs[2, 1].plot(timesteps, true_y[:, i, 1], linestyle="--", color=colors(i), alpha=0.4, label=f"$\\bar{{P}}(t)$" if i == 0 else None)
+                axs[2, 1].plot(timesteps, true_y[:, i, 1], linestyle="--", color=colors(i), alpha=0.7, linewidth=1.5, label=f"$\\bar{{P}}(t)$" if i == 0 else None)
         axs[2, 1].set_title("State: $P(t)$", fontsize=20)
         axs[2, 1].set_xlabel("Time $t$", fontsize=18)
         axs[2, 1].set_ylabel("P(t)", fontsize=18)
