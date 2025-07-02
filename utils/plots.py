@@ -124,73 +124,79 @@ def plot_approx_vs_analytic(results, timesteps, validation=None, plot=True, save
     colors = lambda i: color_cycle[i % len(color_cycle)]
 
     for i in range(approx_q.shape[1]):
-        axs[0, 0].plot(timesteps[:-1], approx_q[:, i], color=colors(i), alpha=0.6, label=f"Learned $q^\\theta(t)$" if i == 0 else None)
+        axs[0, 0].plot(timesteps[:-1], approx_q[:, i], color=colors(i), label=f"Learned $q^\\theta(t)$" if i == 0 else None)
         if true_q is not None:
             axs[0, 0].plot(timesteps[:-1], true_q[:, i], linestyle="--", color=colors(i), alpha=0.4, label=f"Analytical $\\bar{{q}}(t)$" if i == 0 else None)
-    axs[0, 0].set_title("Control $q(t)$: Learned vs Analytical")
-    axs[0, 0].set_xlabel("Time $t$")
-    axs[0, 0].set_ylabel("$q(t)$")
+    axs[0, 0].set_title("Control $q(t)$: Learned vs Analytical", fontsize=20)
+    axs[0, 0].set_xlabel("Time $t$", fontsize=18)
+    axs[0, 0].set_ylabel("$q(t)$", fontsize=18)
     axs[0, 0].grid(True, linestyle='--')
-    axs[0, 0].legend(loc='upper left')
+    axs[0, 0].legend(loc='upper left', fontsize=16)
+    axs[0, 0].tick_params(axis='both', which='major', labelsize=14)
 
     if validation is not None and true_q is not None:
         for i in range(approx_q.shape[1]):
             # Calculate relative error: |q - q_true| / |q_true|, with small epsilon to avoid division by zero
             eps = 1e-8
             rel_error = np.abs(approx_q[:, i] - true_q[:, i]) / (np.abs(true_q[:, i]) + eps)
-            axs[0, 1].plot(timesteps[:-1], rel_error, color=colors(i), alpha=0.6, label=f"Rel. Error $q(t)$ ({val_q_loss[-1]:.2f})" if i == 0 else None)
+            axs[0, 1].plot(timesteps[:-1], rel_error, color=colors(i), label=f"Rel. Error $q(t)$ ({val_q_loss[-1]:.2f})" if i == 0 else None)
         axs[0, 1].axhline(0, color='red', linestyle='--', linewidth=0.8)
-        axs[0, 1].set_title("Relative Error in Control $q(t)$")
-        axs[0, 1].set_xlabel("Time $t$")
-        axs[0, 1].set_ylabel("$|q(t) - \\bar{{q}}(t)| / |\\bar{{q}}(t)|$")
+        axs[0, 1].set_title("Relative Error in Control $q(t)$", fontsize=20)
+        axs[0, 1].set_xlabel("Time $t$", fontsize=18)
+        axs[0, 1].set_ylabel("$|q(t) - \\bar{{q}}(t)| / |\\bar{{q}}(t)|$", fontsize=18)
         axs[0, 1].grid(True, linestyle='--')
-        axs[0, 1].legend(loc='upper left')
+        axs[0, 1].legend(loc='upper left', fontsize=16)
+        axs[0, 1].tick_params(axis='both', which='major', labelsize=14)
 
     for i in range(Y_vals.shape[1]):
-        axs[1, 0].plot(timesteps, Y_vals[:, i, 0], color=colors(i), alpha=0.6, label=f"Learned $Y^\\theta(t)$" if i == 0 else None)
+        axs[1, 0].plot(timesteps, Y_vals[:, i, 0], color=colors(i), label=f"Learned $Y^\\theta(t)$" if i == 0 else None)
         if true_Y is not None:
             axs[1, 0].plot(timesteps, true_Y[:, i, 0], linestyle="--", color=colors(i), alpha=0.4, label=f"Analytical $\\bar{{Y}}(t)$" if i == 0 else None)
-    axs[1, 0].set_title("Cost-to-Go $Y(t)$")
-    axs[1, 0].set_xlabel("Time $t$")
-    axs[1, 0].set_ylabel("Y(t)")
+    axs[1, 0].set_title("Cost-to-Go $Y(t)$", fontsize=20)
+    axs[1, 0].set_xlabel("Time $t$", fontsize=18)
+    axs[1, 0].set_ylabel("Y(t)", fontsize=18)
     axs[1, 0].grid(True, linestyle='--')
-    axs[1, 0].legend(loc='upper left')
+    axs[1, 0].legend(loc='upper left', fontsize=16)
+    axs[1, 0].tick_params(axis='both', which='major', labelsize=14)
 
     if validation is not None and true_Y is not None:
         for i in range(Y_vals.shape[1]):
             # Calculate relative error: |Y - Y_true| / |Y_true|, with small epsilon to avoid division by zero
             eps = 1e-8
             rel_error_Y = np.abs(Y_vals[:, i, 0] - true_Y[:, i, 0]) / (np.abs(true_Y[:, i, 0]) + eps)
-            axs[1, 1].plot(timesteps, rel_error_Y, color=colors(i), alpha=0.6, label=f"Rel. Error $Y(t)$ ({val_Y_loss[-1]:.2f})" if i == 0 else None)
+            axs[1, 1].plot(timesteps, rel_error_Y, color=colors(i), label=f"Rel. Error $Y(t)$ ({val_Y_loss[-1]:.2f})" if i == 0 else None)
         axs[1, 1].axhline(0, color='red', linestyle='--', linewidth=0.8)
-        axs[1, 1].set_title("Relative Error in Cost-to-Go $Y(t)$")
-        axs[1, 1].set_xlabel("Time $t$")
-        axs[1, 1].set_ylabel("$|Y(t) - \\bar{{Y}}(t)| / |\\bar{{Y}}(t)|$")
+        axs[1, 1].set_title("Relative Error in Cost-to-Go $Y(t)$", fontsize=20)
+        axs[1, 1].set_xlabel("Time $t$", fontsize=18)
+        axs[1, 1].set_ylabel("$|Y(t) - \\bar{{Y}}(t)| / |\\bar{{Y}}(t)|$", fontsize=18)
         axs[1, 1].grid(True, linestyle='--')
-        axs[1, 1].legend(loc='upper left')
+        axs[1, 1].legend(loc='upper left', fontsize=16)
+        axs[1, 1].tick_params(axis='both', which='major', labelsize=14)
 
     for i in range(y_vals.shape[1]):
-        axs[2, 0].plot(timesteps, y_vals[:, i, 0], color=colors(i), alpha=0.6, label=f"$X(t)$" if i == 0 else None)
+        axs[2, 0].plot(timesteps, y_vals[:, i, 0], color=colors(i), label=f"$X(t)$" if i == 0 else None)
         if true_y is not None:
             axs[2, 0].plot(timesteps, true_y[:, i, 0], linestyle="--", color=colors(i), alpha=0.4, label=f"$\\bar{{X}}(t)$" if i == 0 else None)
         if y_vals.shape[2] > 1:
-            axs[2, 0].plot(timesteps, y_vals[:, i, 2], linestyle="-.", color=colors(i), alpha=0.6, label=f"$G(t)$" if i == 0 else None)
-    axs[2, 0].set_title("States: $X(t)$ and $G(t)$")
-    axs[2, 0].set_xlabel("Time $t$")
-    axs[2, 0].set_ylabel("X(t), G(t)")
+            axs[2, 0].plot(timesteps, y_vals[:, i, 2], linestyle="-.", color=colors(i), label=f"$G(t)$" if i == 0 else None)
+    axs[2, 0].set_title("States: $X(t)$ and $G(t)$", fontsize=20)
+    axs[2, 0].set_xlabel("Time $t$", fontsize=18)
+    axs[2, 0].set_ylabel("X(t), G(t)", fontsize=18)
     axs[2, 0].grid(True, linestyle='--')
-    axs[2, 0].legend(loc='upper left')
+    axs[2, 0].legend(loc='upper left', fontsize=16)
+    axs[2, 0].tick_params(axis='both', which='major', labelsize=14)
 
     if y_vals.shape[2] > 1:
         for i in range(y_vals.shape[1]):
-            axs[2, 1].plot(timesteps, y_vals[:, i, 1], color=colors(i), alpha=0.6, label=f"$P(t)$" if i == 0 else None)
+            axs[2, 1].plot(timesteps, y_vals[:, i, 1], color=colors(i), label=f"$P(t)$" if i == 0 else None)
             if true_y is not None:
                 axs[2, 1].plot(timesteps, true_y[:, i, 1], linestyle="--", color=colors(i), alpha=0.4, label=f"$\\bar{{P}}(t)$" if i == 0 else None)
-        axs[2, 1].set_title("State: $P(t)$")
-        axs[2, 1].set_xlabel("Time $t$")
-        axs[2, 1].set_ylabel("P(t)")
+        axs[2, 1].set_title("State: $P(t)$", fontsize=20)
+        axs[2, 1].set_xlabel("Time $t$", fontsize=18)
+        axs[2, 1].set_ylabel("P(t)", fontsize=18)
         axs[2, 1].grid(True, linestyle='--')
-        axs[2, 1].legend(loc='upper left')
+        axs[2, 1].legend(loc='upper left', fontsize=16)
+        axs[2, 1].tick_params(axis='both', which='major', labelsize=14)
 
     plt.tight_layout()
     if save_dir:

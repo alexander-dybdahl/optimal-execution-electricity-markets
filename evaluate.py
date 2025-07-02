@@ -38,6 +38,7 @@ def main():
     parser.add_argument("--plot_risk_metrics", type=str2bool, nargs='?', const=True, default=eval_cfg["plot_risk_metrics"], help="Plot risk metrics")
     parser.add_argument("--plot_controls", type=str2bool, nargs='?', const=True, default=eval_cfg["plot_controls"], help="Plot controls")
     parser.add_argument("--plot_losses", type=str2bool, nargs='?', const=True, default=eval_cfg.get("plot_losses", False), help="Plot training losses from CSV file")
+    parser.add_argument("--plot_learned_vs_analytical", type=str2bool, nargs='?', const=True, default=eval_cfg.get("plot_learned_vs_analytical", False), help="Plot learned vs analytical Q and Y comparison across all dimensions")
     parser.add_argument("--comparison", type=str2bool, nargs='?', const=True, default=eval_cfg["comparison"], help="Generate comparison report")
     parser.add_argument("--n_simulations", type=int, default=eval_cfg["n_simulations"], help="Number of simulations to run")
     parser.add_argument("--seed", type=int, default=eval_cfg["seed"], help="Seed to use for evaluation")
@@ -234,6 +235,10 @@ def main():
         if args.plot_controls:
             solver.plot_control_histograms(plot=args.plot, save_dir=save_dir)
             logger.log("Generated control histograms")
+            
+        if args.plot_learned_vs_analytical:
+            solver.plot_learned_vs_analytical_comparison(plot=args.plot, save_dir=save_dir)
+            logger.log("Generated learned vs analytical Q and Y comparison")
             
         if args.comparison:
             solver.generate_comparison_report(save_dir=save_dir)

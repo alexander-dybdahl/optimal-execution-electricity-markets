@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 import matplotlib.cm as cm
 import logging
+import os
 from matplotlib.patches import Patch
 from scipy import stats
 
@@ -20,6 +21,7 @@ class Solver:
         self.results = {}
         self.costs = {}
         self.risk_metrics = {}
+        self.agents = {}
         self.colors = {}
         self._color_cycle = plt.rcParams['axes.prop_cycle'].by_key()['color']
         self._color_idx = 0
@@ -53,6 +55,9 @@ class Solver:
             'timesteps': timesteps,
             'results': results
         }
+        
+        # Store the actual agent object for later use
+        self.agents[agent_name] = agent
 
         self.costs[agent_name] = costs_numpy
         
@@ -195,7 +200,7 @@ class Solver:
             save_dir (str): Directory to save the plots, if provided
             save_individual (bool): Whether to save each variable in separate plots
         """
-        plt.rcParams.update({'font.size': 26})
+        plt.rcParams.update({'font.size': 18})
         if not self.results:
             print("No results to plot.")
             return
@@ -221,7 +226,7 @@ class Solver:
             # Create individual plot if requested
             if save_individual and save_dir:
                 fig_individual, ax_individual = plt.subplots(1, 1, figsize=(12, 6))
-                plt.rcParams.update({'font.size': 26})
+                plt.rcParams.update({'font.size': 18})
             
             # For Y plot, create agent handles only for agents that have Y data
             if var == 'Y':
@@ -262,7 +267,6 @@ class Solver:
                                 traj_data,
                                 color=color,
                                 linestyle=line_styles['learned'],
-                                alpha=0.6,
                                 linewidth=2.0
                             )
                             # Plot on individual figure if requested
@@ -272,7 +276,6 @@ class Solver:
                                     traj_data,
                                     color=color,
                                     linestyle=line_styles['learned'],
-                                    alpha=0.6,
                                     linewidth=2.0
                                 )
                         else:  # traj_data.ndim > 1
@@ -296,7 +299,6 @@ class Solver:
                                     traj_data[:, i],
                                     color=color,
                                     linestyle=linestyle,
-                                    alpha=0.6,
                                     linewidth=2.0
                                 )
                                 # Plot on individual figure if requested
@@ -306,17 +308,16 @@ class Solver:
                                         traj_data[:, i],
                                         color=color,
                                         linestyle=linestyle,
-                                        alpha=0.6,
                                         linewidth=2.0
                                     )
 
             # Configure main subplot
-            ax.set_xlabel("Time", fontsize=28)
-            ax.set_ylabel(var_ylabels[var], fontsize=28)
-            ax.tick_params(axis='both', which='major', labelsize=24)
+            ax.set_xlabel("Time", fontsize=20)
+            ax.set_ylabel(var_ylabels[var], fontsize=20)
+            ax.tick_params(axis='both', which='major', labelsize=16)
             ax.grid(True, linestyle='--', alpha=0.5)
             if agent_handles:  # Only add legend if there are agents with data
-                ax.legend(handles=agent_handles, loc='upper right', frameon=True, fontsize=24)
+                ax.legend(handles=agent_handles, loc='upper right', frameon=True, fontsize=16)
             
             # Add state component legend for y(t) plot
             # if var == 'y':
@@ -332,12 +333,12 @@ class Solver:
             
             # Configure and save individual plot if requested
             if save_individual and save_dir:
-                ax_individual.set_xlabel("Time", fontsize=28)
-                ax_individual.set_ylabel(var_ylabels[var], fontsize=28)
-                ax_individual.tick_params(axis='both', which='major', labelsize=24)
+                ax_individual.set_xlabel("Time", fontsize=20)
+                ax_individual.set_ylabel(var_ylabels[var], fontsize=20)
+                ax_individual.tick_params(axis='both', which='major', labelsize=16)
                 ax_individual.grid(True, linestyle='--', alpha=0.5)
                 if agent_handles:
-                    ax_individual.legend(handles=agent_handles, loc='upper right', frameon=True, fontsize=24)
+                    ax_individual.legend(handles=agent_handles, loc='upper right', frameon=True, fontsize=16)
                 
                 # Add state component legend for y(t) individual plot
                 # if var == 'y':
@@ -580,7 +581,7 @@ class Solver:
         The plots provide insight into both the expected behavior and stochastic 
         variability of each agent's strategy.
         """
-        plt.rcParams.update({'font.size': 14})
+        plt.rcParams.update({'font.size': 16})
         from matplotlib.lines import Line2D
         if not self.results:
             print("No results to plot.")
@@ -716,10 +717,10 @@ class Solver:
             # Right: Individual trajectories
             for sim_idx in range(n_traj_to_plot):
                 ax1_traj.plot(timesteps, X_traj[:, sim_idx], color=color, 
-                            linewidth=1, alpha=0.6, label=agent_name if sim_idx == 0 else "")
+                            linewidth=1.5, label=agent_name if sim_idx == 0 else "")
                 if D_traj is not None:
                     ax1_traj.plot(timesteps, D_traj[:, sim_idx], color=color, 
-                                linewidth=1, alpha=0.6, linestyle='--')
+                                linewidth=1.5, linestyle='--')
             
             # === ROW 2: PRICE EVOLUTION ===
             # Left: Expected (mean ± std)
@@ -730,7 +731,7 @@ class Solver:
             # Right: Individual trajectories
             for sim_idx in range(n_traj_to_plot):
                 ax2_traj.plot(timesteps, P_traj[:, sim_idx], color=color, 
-                            linewidth=1, alpha=0.6, label=agent_name if sim_idx == 0 else "")
+                            linewidth=1.5, label=agent_name if sim_idx == 0 else "")
             
             # === ROW 3: TRADE SIZES ===
             # Left: Expected (mean ± std)
@@ -741,7 +742,7 @@ class Solver:
             # Right: Individual trajectories
             for sim_idx in range(n_traj_to_plot):
                 q_sim = q_traj[:, sim_idx, :].squeeze()
-                ax3_traj.plot(trade_times, q_sim, color=color, linewidth=1, alpha=0.6, 
+                ax3_traj.plot(trade_times, q_sim, color=color, linewidth=1.5, 
                             label=agent_name if sim_idx == 0 else "")
             
             # === ROW 4: EXECUTION PRICES ===
@@ -753,7 +754,7 @@ class Solver:
             # Right: Individual trajectories
             for sim_idx in range(n_traj_to_plot):
                 exec_price_sim = execution_prices[:, sim_idx, :].squeeze()
-                ax4_traj.plot(trade_times, exec_price_sim, color=color, linewidth=1, alpha=0.6,
+                ax4_traj.plot(trade_times, exec_price_sim, color=color, linewidth=1.5,
                             label=agent_name if sim_idx == 0 else "")
             
             # === ROW 5: INDIVIDUAL TRADE VALUES (q*execution_price) ===
@@ -769,7 +770,7 @@ class Solver:
             # Right: Individual trajectories
             for sim_idx in range(n_traj_to_plot):
                 trade_values_sim = trade_values[:, sim_idx]
-                ax5_traj.plot(trade_times, trade_values_sim, color=color, linewidth=1, alpha=0.6,
+                ax5_traj.plot(trade_times, trade_values_sim, color=color, linewidth=1.5,
                             label=agent_name if sim_idx == 0 else "")
             
             # === ROW 6: CUMULATIVE TRADING COST ===
@@ -783,7 +784,7 @@ class Solver:
             # Right: Individual trajectories
             for sim_idx in range(n_traj_to_plot):
                 ax6_traj.plot(timesteps, cumulative_trade_costs[:, sim_idx], color=color, 
-                            linewidth=1, alpha=0.6, label=agent_name if sim_idx == 0 else "")
+                            linewidth=1.5, label=agent_name if sim_idx == 0 else "")
             
             # === ROW 7: TERMINAL COST HISTOGRAMS ===
             # Left: Terminal cost histogram (expected distribution)
@@ -821,96 +822,110 @@ class Solver:
         
         # Customize subplots
         # Row 1: Position & Generation
-        ax1_exp.set_title('Expected Position & Generation vs Time', fontsize=12, fontweight='bold')
-        ax1_exp.set_xlabel('Time')
-        ax1_exp.set_ylabel('Quantity')
+        ax1_exp.set_title('Expected Position & Generation vs Time', fontsize=16, fontweight='bold')
+        ax1_exp.set_xlabel('Time', fontsize=14)
+        ax1_exp.set_ylabel('Quantity', fontsize=14)
+        ax1_exp.tick_params(axis='both', which='major', labelsize=12)
         ax1_exp.grid(True, alpha=0.3)
-        ax1_exp.legend()
+        ax1_exp.legend(fontsize=12)
         
-        ax1_traj.set_title('Individual Position & Generation Trajectories', fontsize=12, fontweight='bold')
-        ax1_traj.set_xlabel('Time')
-        ax1_traj.set_ylabel('Quantity')
+        ax1_traj.set_title('Individual Position & Generation Trajectories', fontsize=16, fontweight='bold')
+        ax1_traj.set_xlabel('Time', fontsize=14)
+        ax1_traj.set_ylabel('Quantity', fontsize=14)
+        ax1_traj.tick_params(axis='both', which='major', labelsize=12)
         ax1_traj.grid(True, alpha=0.3)
-        ax1_traj.legend()
+        ax1_traj.legend(fontsize=12)
         
         # Row 2: Price Evolution
-        ax2_exp.set_title('Expected Price Evolution vs Time', fontsize=12, fontweight='bold')
-        ax2_exp.set_xlabel('Time')
-        ax2_exp.set_ylabel('Mid Price P')
+        ax2_exp.set_title('Expected Price Evolution vs Time', fontsize=16, fontweight='bold')
+        ax2_exp.set_xlabel('Time', fontsize=14)
+        ax2_exp.set_ylabel('Mid Price P', fontsize=14)
+        ax2_exp.tick_params(axis='both', which='major', labelsize=12)
         ax2_exp.grid(True, alpha=0.3)
-        ax2_exp.legend()
+        ax2_exp.legend(fontsize=12)
         
-        ax2_traj.set_title('Individual Price Trajectories', fontsize=12, fontweight='bold')
-        ax2_traj.set_xlabel('Time')
-        ax2_traj.set_ylabel('Mid Price P')
+        ax2_traj.set_title('Individual Price Trajectories', fontsize=16, fontweight='bold')
+        ax2_traj.set_xlabel('Time', fontsize=14)
+        ax2_traj.set_ylabel('Mid Price P', fontsize=14)
+        ax2_traj.tick_params(axis='both', which='major', labelsize=12)
         ax2_traj.grid(True, alpha=0.3)
-        ax2_traj.legend()
+        ax2_traj.legend(fontsize=12)
         
         # Row 3: Trade Sizes
-        ax3_exp.set_title('Expected Trade Sizes vs Time', fontsize=12, fontweight='bold')
-        ax3_exp.set_xlabel('Time')
-        ax3_exp.set_ylabel('Trade Size q(t)')
+        ax3_exp.set_title('Expected Trade Sizes vs Time', fontsize=16, fontweight='bold')
+        ax3_exp.set_xlabel('Time', fontsize=14)
+        ax3_exp.set_ylabel('Trade Size q(t)', fontsize=14)
+        ax3_exp.tick_params(axis='both', which='major', labelsize=12)
         ax3_exp.grid(True, alpha=0.3)
         ax3_exp.axhline(y=0, color='black', linestyle='--', alpha=0.5)
-        ax3_exp.legend()
+        ax3_exp.legend(fontsize=12)
         
-        ax3_traj.set_title('Individual Trade Size Trajectories', fontsize=12, fontweight='bold')
-        ax3_traj.set_xlabel('Time')
-        ax3_traj.set_ylabel('Trade Size q(t)')
+        ax3_traj.set_title('Individual Trade Size Trajectories', fontsize=16, fontweight='bold')
+        ax3_traj.set_xlabel('Time', fontsize=14)
+        ax3_traj.set_ylabel('Trade Size q(t)', fontsize=14)
+        ax3_traj.tick_params(axis='both', which='major', labelsize=12)
         ax3_traj.grid(True, alpha=0.3)
         ax3_traj.axhline(y=0, color='black', linestyle='--', alpha=0.5)
-        ax3_traj.legend()
+        ax3_traj.legend(fontsize=12)
         
         # Row 4: Execution Prices
-        ax4_exp.set_title('Expected Execution Prices vs Time', fontsize=12, fontweight='bold')
-        ax4_exp.set_xlabel('Time')
-        ax4_exp.set_ylabel('Execution Price P̃')
+        ax4_exp.set_title('Expected Execution Prices vs Time', fontsize=16, fontweight='bold')
+        ax4_exp.set_xlabel('Time', fontsize=14)
+        ax4_exp.set_ylabel('Execution Price P̃', fontsize=14)
+        ax4_exp.tick_params(axis='both', which='major', labelsize=12)
         ax4_exp.grid(True, alpha=0.3)
-        ax4_exp.legend()
+        ax4_exp.legend(fontsize=12)
         
-        ax4_traj.set_title('Individual Execution Price Trajectories', fontsize=12, fontweight='bold')
-        ax4_traj.set_xlabel('Time')
-        ax4_traj.set_ylabel('Execution Price P̃')
+        ax4_traj.set_title('Individual Execution Price Trajectories', fontsize=16, fontweight='bold')
+        ax4_traj.set_xlabel('Time', fontsize=14)
+        ax4_traj.set_ylabel('Execution Price P̃', fontsize=14)
+        ax4_traj.tick_params(axis='both', which='major', labelsize=12)
         ax4_traj.grid(True, alpha=0.3)
-        ax4_traj.legend()
+        ax4_traj.legend(fontsize=12)
         
         # Row 5: Individual Trade Values
-        ax5_exp.set_title('Expected Trade Values vs Time', fontsize=12, fontweight='bold')
-        ax5_exp.set_xlabel('Time')
-        ax5_exp.set_ylabel('Trade Value: q(t) × P̃(t)')
+        ax5_exp.set_title('Expected Trade Values vs Time', fontsize=16, fontweight='bold')
+        ax5_exp.set_xlabel('Time', fontsize=14)
+        ax5_exp.set_ylabel('Trade Value: q(t) × P̃(t)', fontsize=14)
+        ax5_exp.tick_params(axis='both', which='major', labelsize=12)
         ax5_exp.grid(True, alpha=0.3)
         ax5_exp.axhline(y=0, color='black', linestyle='--', alpha=0.5)
-        ax5_exp.legend()
+        ax5_exp.legend(fontsize=12)
         
-        ax5_traj.set_title('Individual Trade Value Trajectories', fontsize=12, fontweight='bold')
-        ax5_traj.set_xlabel('Time')
-        ax5_traj.set_ylabel('Trade Value: q(t) × P̃(t)')
+        ax5_traj.set_title('Individual Trade Value Trajectories', fontsize=16, fontweight='bold')
+        ax5_traj.set_xlabel('Time', fontsize=14)
+        ax5_traj.set_ylabel('Trade Value: q(t) × P̃(t)', fontsize=14)
+        ax5_traj.tick_params(axis='both', which='major', labelsize=12)
         ax5_traj.grid(True, alpha=0.3)
         ax5_traj.axhline(y=0, color='black', linestyle='--', alpha=0.5)
-        ax5_traj.legend()
+        ax5_traj.legend(fontsize=12)
         
         # Row 6: Cumulative Trading Cost
-        ax6_exp.set_title('Expected Cumulative Trading Cost vs Time', fontsize=12, fontweight='bold')
-        ax6_exp.set_xlabel('Time')
-        ax6_exp.set_ylabel('∫ q(s) × P̃(s) ds')
+        ax6_exp.set_title('Expected Cumulative Trading Cost vs Time', fontsize=16, fontweight='bold')
+        ax6_exp.set_xlabel('Time', fontsize=14)
+        ax6_exp.set_ylabel('∫ q(s) × P̃(s) ds', fontsize=14)
+        ax6_exp.tick_params(axis='both', which='major', labelsize=12)
         ax6_exp.grid(True, alpha=0.3)
-        ax6_exp.legend()
+        ax6_exp.legend(fontsize=12)
         
-        ax6_traj.set_title('Individual Cumulative Cost Trajectories', fontsize=12, fontweight='bold')
-        ax6_traj.set_xlabel('Time')
-        ax6_traj.set_ylabel('∫ q(s) × P̃(s) ds')
+        ax6_traj.set_title('Individual Cumulative Cost Trajectories', fontsize=16, fontweight='bold')
+        ax6_traj.set_xlabel('Time', fontsize=14)
+        ax6_traj.set_ylabel('∫ q(s) × P̃(s) ds', fontsize=14)
+        ax6_traj.tick_params(axis='both', which='major', labelsize=12)
         ax6_traj.grid(True, alpha=0.3)
-        ax6_traj.legend()
+        ax6_traj.legend(fontsize=12)
         
         # Row 7: Terminal Cost Histograms
-        ax7_exp.set_title('Terminal Cost Distribution at Final Time T', fontsize=12, fontweight='bold')
-        ax7_exp.set_xlabel('Terminal Cost: 0.5η(D-X)²')
-        ax7_exp.set_ylabel('Probability Density')
+        ax7_exp.set_title('Terminal Cost Distribution at Final Time T', fontsize=16, fontweight='bold')
+        ax7_exp.set_xlabel('Terminal Cost: 0.5η(D-X)²', fontsize=14)
+        ax7_exp.set_ylabel('Probability Density', fontsize=14)
+        ax7_exp.tick_params(axis='both', which='major', labelsize=12)
         ax7_exp.grid(True, alpha=0.3)
         
-        ax7_traj.set_title('Total Cost Distribution (All Simulations)', fontsize=12, fontweight='bold')
-        ax7_traj.set_xlabel('Total Cost')
-        ax7_traj.set_ylabel('Probability Density')
+        ax7_traj.set_title('Total Cost Distribution (All Simulations)', fontsize=16, fontweight='bold')
+        ax7_traj.set_xlabel('Total Cost', fontsize=14)
+        ax7_traj.set_ylabel('Probability Density', fontsize=14)
+        ax7_traj.tick_params(axis='both', which='major', labelsize=12)
         ax7_traj.grid(True, alpha=0.3)
         
         # plt.suptitle('Expected Paths vs Individual Trajectories Analysis', 
@@ -928,7 +943,7 @@ class Solver:
         """
         Create a heatmap showing trading intensity across time and price levels for each agent
         """
-        plt.rcParams.update({'font.size': 14})
+        plt.rcParams.update({'font.size': 16})
         if not self.results:
             print("No results to plot.")
             return
@@ -969,9 +984,10 @@ class Solver:
                                  cmap='YlOrRd')
             
             axes[idx].set_title(f'{agent_name}\nTrading Intensity Heatmap', 
-                              fontweight='bold')
-            axes[idx].set_xlabel('Price')
-            axes[idx].set_ylabel('Trade Size')
+                              fontsize=16, fontweight='bold')
+            axes[idx].set_xlabel('Price', fontsize=14)
+            axes[idx].set_ylabel('Trade Size', fontsize=14)
+            axes[idx].tick_params(axis='both', which='major', labelsize=12)
             
             # Add colorbar
             plt.colorbar(im, ax=axes[idx], label='Frequency')
@@ -1568,15 +1584,13 @@ class Solver:
                 X_traj = y_traj[:, :, 0]
                 D_traj = y_traj[:, :, 2]
                 gap_traj = D_traj - X_traj
-                gap_mean = gap_traj.mean(axis=1)
-                gap_std = gap_traj.std(axis=1)
                 final_gap_mean = gap_traj[-1, :].mean()
                 final_gap_std = gap_traj[-1, :].std()
                 
                 # Plot position-generation gap evolution
-                ax2.plot(timesteps, gap_mean, color=color, linewidth=2, label=agent_name)
-                ax2.fill_between(timesteps, gap_mean - gap_std, gap_mean + gap_std, 
-                               color=color, alpha=0.2)
+                ax2.plot(timesteps, gap_traj.mean(axis=1), color=color, linewidth=2, label=agent_name)
+                ax2.fill_between(timesteps, gap_traj.mean(axis=1) - gap_traj.std(axis=1), 
+                               gap_traj.mean(axis=1) + gap_traj.std(axis=1), color=color, alpha=0.2)
             else:
                 final_gap_mean = 0.0
                 final_gap_std = 0.0
@@ -1655,199 +1669,176 @@ class Solver:
         else:
             plt.close()
         
-    def _get_trajectory_colors_and_styles(self, n_traj):
+    def plot_learned_vs_analytical_comparison(self, plot=True, save_dir=None):
         """
-        Helper method to ensure consistent colors and line styles across all trajectory plots.
-        Returns colors and line styles that should be used consistently.
+        Create four simple plots comparing learned Y and Q values against analytical solutions.
+        Each plot shows one variable varying over its full interval while keeping others constant.
         """
-        # Define line styles for different agents
-        line_styles = ['-', '--', '-.', ':', (0, (3, 1, 1, 1)), (0, (5, 1))]
-        
-        # Get colormap for trajectories - use consistent colormap
-        total_trajectories = len(self.results) * n_traj
-        colors = cm.get_cmap("tab20", max(total_trajectories, 20))
-        
-        return colors, line_styles
-
-    def plot_state_trajectories(self, n_traj=5, plot=True, save_dir=None):
-        """
-        Plot individual trajectories of state variables (X and D) for each agent.
-        X and D are plotted in the same subplot with different markers.
-        Each trajectory gets a unique color, different agents use different line styles.
-        
-        Args:
-            n_traj (int): Number of individual trajectories to plot per agent
-            plot (bool): Whether to show the plots interactively
-            save_dir (str): Directory to save the plots, if provided
-        """
-        plt.rcParams.update({'font.size': 14})
         if not self.results:
             print("No results to plot.")
             return
-            
-        # Check if n_traj is valid
-        if n_traj > self.n_sim:
-            raise ValueError(f"n_traj ({n_traj}) cannot be larger than n_simulations ({self.n_sim})")
-            
-        # Get consistent colors and line styles
-        colors, line_styles = self._get_trajectory_colors_and_styles(n_traj)
-            
-        # Create figure with single subplot for both X and D
-        fig, ax = plt.subplots(1, 1, figsize=(12, 8))
         
-        # Track agent handles for legend
-        agent_handles = []
-        trajectory_idx = 0
+        # Find the neural network agent (DeepAgent)
+        deep_agent = None
+        for agent_name, agent in self.agents.items():
+            if agent_name == "NN":
+                deep_agent = agent
+                break
         
-        for agent_idx, (agent_name, data) in enumerate(self.results.items()):
-            timesteps = data['timesteps']
-            results = data['results']
-            linestyle = line_styles[agent_idx % len(line_styles)]
+        if deep_agent is None:
+            print("Need NN agent for comparison.")
+            return
+        
+        # Check if the dynamics has analytical solutions
+        if not self.dynamics.analytical_known:
+            print("Analytical solutions not available for this dynamics.")
+            return
+        
+        print("Generating learned vs analytical comparison plots...")
+        
+        # Set up the plot with 4 subplots
+        fig, axes = plt.subplots(2, 2, figsize=(15, 12))
+        axes = axes.flatten()
+        
+        # Fixed values for non-varying variables
+        fixed_t = 0.5
+        fixed_X = 0.0
+        fixed_P = 70.0
+        fixed_G = 0.0
+        
+        # Variable ranges
+        t_range = np.linspace(0, 1, 50)
+        X_range = np.linspace(-100, 100, 50)
+        P_range = np.linspace(40, 100, 50)
+        G_range = np.linspace(-100, 100, 50)
+        
+        variables = [
+            ('t', t_range, fixed_X, fixed_P, fixed_G),
+            ('X', fixed_t, X_range, fixed_P, fixed_G),
+            ('P', fixed_t, fixed_X, P_range, fixed_G),
+            ('G', fixed_t, fixed_X, fixed_P, G_range)
+        ]
+        
+        device = self.dynamics.device
+        
+        for i, (var_name, *var_data) in enumerate(variables):
+            ax = axes[i]
             
-            # Get state trajectories
-            y_traj = results.get('y_learned', None)
-            if y_traj is None:
+            # Set up the varying and fixed values
+            if var_name == 't':
+                t_vals, X_val, P_val, G_val = var_data
+                varying_vals = t_vals
+                # Create state tensors - broadcasting to match t_vals length
+                X_vals = np.full(len(t_vals), X_val)
+                P_vals = np.full(len(t_vals), P_val)
+                G_vals = np.full(len(t_vals), G_val)
+                t_tensor = torch.tensor(t_vals, dtype=torch.float32, device=device)
+            elif var_name == 'X':
+                t_val, X_vals, P_val, G_val = var_data
+                varying_vals = X_vals
+                t_vals = np.full(len(X_vals), t_val)
+                P_vals = np.full(len(X_vals), P_val)
+                G_vals = np.full(len(X_vals), G_val)
+                t_tensor = torch.tensor(t_vals, dtype=torch.float32, device=device)
+            elif var_name == 'P':
+                t_val, X_val, P_vals, G_val = var_data
+                varying_vals = P_vals
+                t_vals = np.full(len(P_vals), t_val)
+                X_vals = np.full(len(P_vals), X_val)
+                G_vals = np.full(len(P_vals), G_val)
+                t_tensor = torch.tensor(t_vals, dtype=torch.float32, device=device)
+            else:  # G
+                t_val, X_val, P_val, G_vals = var_data
+                varying_vals = G_vals
+                t_vals = np.full(len(G_vals), t_val)
+                X_vals = np.full(len(G_vals), X_val)
+                P_vals = np.full(len(G_vals), P_val)
+                t_tensor = torch.tensor(t_vals, dtype=torch.float32, device=device)
+            
+            # Create state tensor for all points
+            states = torch.tensor(np.column_stack([X_vals, P_vals, G_vals]), 
+                                dtype=torch.float32, device=device)
+            
+            # Get learned predictions
+            try:
+                with torch.no_grad():
+                    learned_Y = deep_agent.predict_Y(t_tensor.unsqueeze(1), states).cpu().numpy().flatten()
+                    learned_Q = deep_agent.predict(t_tensor.unsqueeze(1), states).cpu().numpy().flatten()
+            except Exception as e:
+                print(f"Error getting learned predictions for {var_name}: {e}")
                 continue
-                
-            y_traj = np.asarray(y_traj)  # Shape: (N+1, n_sim, state_dim)
             
-            # Extract X (cumulative position) and G (generation) if available
-            X_traj = y_traj[:, :, 0]  # Cumulative position
-            if y_traj.shape[-1] > 2:
-                D_traj = y_traj[:, :, 2]  # Generation (if available)
-            else:
-                D_traj = None
+            # Get analytical values
+            analytical_Y = []
+            analytical_Q = []
             
-            # Plot individual X and D trajectories - each with unique color but consistent across plots
-            for i in range(min(n_traj, X_traj.shape[1])):
-                color = colors(trajectory_idx)
-                alpha = 0.8  # Make trajectories clearly visible
+            for j in range(len(varying_vals)):
+                state = states[j].detach().cpu().numpy()
+                t_val_curr = t_tensor[j].item()
                 
-                # Plot X trajectory (cumulative position)
-                line_label_X = f"{agent_name} X (traj {i+1})"
-                ax.plot(timesteps, X_traj[:, i], color=color, alpha=alpha, 
-                       linestyle=linestyle, linewidth=3.0, label=line_label_X,
-                       marker='o', markersize=3, markevery=len(timesteps)//10)
-                
-                # Plot G trajectory (generation) if available
-                if D_traj is not None:
-                    line_label_D = f"{agent_name} G (traj {i+1})"
-                    ax.plot(timesteps, D_traj[:, i], color=color, alpha=alpha*0.7, 
-                           linestyle=linestyle, linewidth=2.5, label=line_label_D,
-                           marker='s', markersize=2, markevery=len(timesteps)//10)
-                
-                trajectory_idx += 1
+                try:
+                    # Use the analytical functions from dynamics
+                    t_torch = torch.tensor([[t_val_curr]], dtype=torch.float32, device=device)
+                    y_torch = torch.tensor(state, dtype=torch.float32, device=device).unsqueeze(0)
+                    
+                    with torch.no_grad():
+                        y_val = self.dynamics.value_function_analytic(t_torch, y_torch).cpu().numpy().item()
+                        q_val = self.dynamics.optimal_control_analytic(t_torch, y_torch).cpu().numpy().item()
+                    
+                    analytical_Y.append(y_val)
+                    analytical_Q.append(q_val)
+                except Exception as e:
+                    print(f"Error computing analytical values at {var_name}={varying_vals[j]}: {e}")
+                    analytical_Y.append(np.nan)
+                    analytical_Q.append(np.nan)
             
-            # Store handle for agent legend (showing line style)
-            agent_handles.append(plt.Line2D([0], [0], color='black', linestyle=linestyle, 
-                                          linewidth=3.0, label=f"{agent_name} (style)"))
-        
-        # Customize subplot with DeepAgent style
-        ax.set_title(f"State Trajectories $x(t)$ and $g(t)$: {n_traj} individual paths per agent")
-        ax.set_xlabel("Time $t$")
-        ax.set_ylabel("State Values")
-        ax.grid(True)
-        
-        # Create custom legend handles for X and D distinction
-        x_handle = plt.Line2D([0], [0], color='gray', marker='o', markersize=6, 
-                             label='X (position)', linestyle='-', linewidth=3.0)
-        d_handle = plt.Line2D([0], [0], color='gray', marker='s', markersize=4, 
-                             label='G (generation)', linestyle='-', linewidth=2.5, alpha=0.7)
-        
-        # Three legends: agents, X/D distinction, and individual trajectories
-        leg1 = ax.legend(handles=agent_handles, title="Agents", loc='upper right', fontsize=9)
-        ax.add_artist(leg1)
-        
-        if any('D_traj' in locals() and D_traj is not None for _, data in self.results.items()):
-            leg2 = ax.legend(handles=[x_handle, d_handle], title="Variables", loc='upper left', fontsize=9)
-            ax.add_artist(leg2)
-        
-        ax.legend(loc='center left', bbox_to_anchor=(1, 0.5), fontsize=7, title="Trajectories")
+            analytical_Y = np.array(analytical_Y)
+            analytical_Q = np.array(analytical_Q)
+            
+            # Plot Y values (Value function in blue tones)
+            ax.plot(varying_vals, learned_Y, 'b-', label='Learned Y', linewidth=2)
+            ax.plot(varying_vals, analytical_Y, 'b--', label='Analytical Y', linewidth=2)
+            
+            # Plot Q values (Control in red tones)
+            ax2 = ax.twinx()
+            ax2.plot(varying_vals, learned_Q, 'r-', label='Learned q', linewidth=2)
+            ax2.plot(varying_vals, analytical_Q, 'r--', label='Analytical q', linewidth=2)
+            
+            # Formatting
+            ax.set_xlabel(f'{var_name}')
+            ax.set_ylabel('Y values', color='b')
+            ax2.set_ylabel('q values', color='r')
+            ax.tick_params(axis='y', labelcolor='b')
+            ax2.tick_params(axis='y', labelcolor='r')
+            
+            # Set title with fixed values
+            if var_name == 't':
+                title = f'Y & q vs {var_name} (X={X_val}, P={P_val}, G={G_val})'
+            elif var_name == 'X':
+                title = f'Y & q vs {var_name} (t={t_val}, P={P_val}, G={G_val})'
+            elif var_name == 'P':
+                title = f'Y & q vs {var_name} (t={t_val}, X={X_val}, G={G_val})'
+            else:  # G
+                title = f'Y & q vs {var_name} (t={t_val}, X={X_val}, P={P_val})'
+            
+            ax.set_title(title)
+            
+            # Combine legends
+            lines1, labels1 = ax.get_legend_handles_labels()
+            lines2, labels2 = ax2.get_legend_handles_labels()
+            ax.legend(lines1 + lines2, labels1 + labels2, loc='best')
         
         plt.tight_layout()
+        
+        # Save the plot
         if save_dir:
-            plt.savefig(f"{save_dir}/imgs/state_trajectories_n{n_traj}.png", dpi=300, bbox_inches='tight')
-        if plot:
-            plt.show()
+            save_path = os.path.join(save_dir, "learned_vs_analytical_comparison.png")
         else:
-            plt.close()
-    
-    def plot_control_trajectories(self, n_traj=5, plot=True, save_dir=None):
-        """
-        Plot individual trajectories of control variables (q) for each agent.
-        Each trajectory gets a unique color (consistent with other plots), different agents use different line styles.
+            save_path = "learned_vs_analytical_comparison.png"
         
-        Args:
-            n_traj (int): Number of individual trajectories to plot per agent
-            plot (bool): Whether to show the plots interactively
-            save_dir (str): Directory to save the plots, if provided
-        """
-        plt.rcParams.update({'font.size': 14})
-        if not self.results:
-            print("No results to plot.")
-            return
-            
-        # Check if n_traj is valid
-        if n_traj > self.n_sim:
-            raise ValueError(f"n_traj ({n_traj}) cannot be larger than n_simulations ({self.n_sim})")
-            
-        # Get consistent colors and line styles
-        colors, line_styles = self._get_trajectory_colors_and_styles(n_traj)
-            
-        # Create figure with DeepAgent style
-        fig, ax = plt.subplots(1, 1, figsize=(12, 8))
+        plt.savefig(save_path, dpi=300, bbox_inches='tight')
+        print(f"Comparison plots saved to {save_path}")
         
-        # Track agent handles for legend
-        agent_handles = []
-        trajectory_idx = 0
-        
-        for agent_idx, (agent_name, data) in enumerate(self.results.items()):
-            timesteps = data['timesteps']
-            results = data['results']
-            linestyle = line_styles[agent_idx % len(line_styles)]
-            
-            # Get control trajectories
-            q_traj = results.get('q_learned', None)
-            if q_traj is None:
-                continue
-                
-            q_traj = np.asarray(q_traj)  # Shape: (N, n_sim, control_dim)
-            
-            # Use timesteps for controls (exclude last timestep since no control at terminal time)
-            control_times = timesteps[:-1]
-            
-            # Plot individual control trajectories - each with consistent color from other plots
-            for i in range(min(n_traj, q_traj.shape[1])):
-                # Squeeze if control is 1-dimensional
-                if q_traj.shape[-1] == 1:
-                    q_i = q_traj[:, i, 0]
-                else:
-                    q_i = q_traj[:, i, 0]  # Plot first control dimension if multi-dimensional
-                
-                color = colors(trajectory_idx)  # Same color as corresponding trajectory in other plots
-                alpha = 0.8  # Make trajectories clearly visible
-                line_label = f"{agent_name} (traj {i+1})"
-                ax.plot(control_times, q_i, color=color, alpha=alpha, 
-                       linestyle=linestyle, linewidth=3.0, label=line_label)
-                trajectory_idx += 1
-            
-            # Store handle for agent legend (showing line style)
-            agent_handles.append(plt.Line2D([0], [0], color='black', linestyle=linestyle, 
-                                          linewidth=3.0, label=f"{agent_name} (style)"))
-        
-        # Customize subplot with DeepAgent style
-        ax.set_title(f"Control $q(t)$: {n_traj} individual paths per agent")
-        ax.set_xlabel("Time $t$")
-        ax.set_ylabel("$q(t)$")
-        ax.grid(True)
-        # Two legends: one for agents (line styles), one for individual trajectories
-        leg1 = ax.legend(handles=agent_handles, title="Agents", loc='upper right', fontsize=9)
-        ax.add_artist(leg1)
-        ax.legend(loc='center left', bbox_to_anchor=(1, 0.5), fontsize=8, title="Trajectories")
-        
-        plt.tight_layout()
-        if save_dir:
-            plt.savefig(f"{save_dir}/imgs/control_trajectories_n{n_traj}.png", dpi=300, bbox_inches='tight')
         if plot:
             plt.show()
         else:

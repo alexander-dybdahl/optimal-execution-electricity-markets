@@ -1468,3 +1468,107 @@ class DeepAgent(nn.Module):
             logger.log(f"Model saved to {save_path}.pth")
 
         return losses
+
+    def predict_Y(self, t, y):
+        """
+        Predict the value function (Y) using the trained network.
+
+        Args:
+            t: tensor of shape (batch, 1) - current time
+            y: tensor of shape (batch, dim) - current state
+        Returns:
+            Y: tensor of shape (batch, 1) - value function
+        """
+        if self.network_type == "dY":
+            # For dY networks, we need to approximate Y at time t using Taylor expansion
+            batch_size = y.shape[0]
+            
+            # Get Y0 at initial state y0
+            y0_initial = self.dynamics.y0.repeat(batch_size, 1).to(self.device)
+            self.Y_init_net.eval()
+            self.dY_net.eval()
+            
+            with torch.no_grad():
+                Y0 = self.Y_init_net(y0_initial)
+                
+                # If t is close to 0, just use Y0 and spatial derivatives
+                t_eps = 1e-6
+                if torch.all(torch.abs(t) < t_eps):
+                    # For t ≈ 0, use first-order Taylor expansion in space only
+                    dY = self.dY_net(torch.zeros_like(t), y)
+                    dY_dy = dY[:, 1:]  # spatial derivatives
+                    dy = y - y0_initial
+                    Y = Y0 + (dY_dy * dy).sum(dim=1, keepdim=True)
+                else:
+                    # For general t, use Taylor expansion in both time and space
+                    if self.second_order_taylor:
+                        t = t.requires_grad_(True)
+                        y = y.requires_grad_(True)
+                        
+                    # Get derivatives at (0, y0)
+                    t0 = torch.zeros_like(t)
+                    if self.second_order_taylor:
+                        t0 = t0.requires_grad_(True)
+                        y0_initial = y0_initial.requires_grad_(True)
+                        
+                    dY0 = self.dY_net(t0, y0_initial)
+                    dY0_dt = dY0[:, 0:1]  # temporal derivative
+                    dY0_dy = dY0[:, 1:]   # spatial derivatives
+                    
+                    # Time and space differences
+                    dt = t - t0
+                    dy = y - y0_initial
+                    
+                    # First-order Taylor expansion: Y ≈ Y0 + dY/dt * dt + dY/dy * dy
+                    Y = Y0 + dY0_dt * dt + (dY0_dy * dy).sum(dim=1, keepdim=True)
+                    
+                    if self.second_order_taylor:
+                        # Second-order Taylor approximation
+                        try:
+                            # Second derivative with respect to time
+                            ddY_ddt = torch.autograd.grad(
+                                outputs=dY0_dt,
+                                inputs=t0,
+                                grad_outputs=torch.ones_like(dY0_dt),
+                                create_graph=False,
+                                retain_graph=True,
+                            )[0]
+                            
+                            # Cross derivative (mixed partial)
+                            cross_term = torch.autograd.grad(
+                                outputs=dY0_dt,
+                                inputs=y0_initial,
+                                grad_outputs=torch.ones_like(dY0_dt),
+                                create_graph=False,
+                                retain_graph=True,
+                            )[0]
+                            
+                            # Second derivative with respect to space (Hessian-vector product)
+                            hvp = torch.autograd.grad(
+                                outputs=(dY0_dy * dy).sum(),
+                                inputs=y0_initial,
+                                create_graph=False,
+                                retain_graph=True
+                            )[0]
+                            
+                            # Handle cases where gradient with respect to t might be None
+                            if ddY_ddt is None:
+                                ddY_ddt = torch.zeros_like(dY0_dt)
+                            
+                            # Add second-order terms
+                            Y += 0.5 * (ddY_ddt * dt ** 2 
+                                       + 2 * (cross_term * dy).sum(dim=1, keepdim=True) * dt 
+                                       + (hvp * dy).sum(dim=1, keepdim=True))
+                        except RuntimeError:
+                            # Fallback to first-order if second-order fails
+                            pass
+            
+            self.Y_init_net.train()
+            self.dY_net.train()
+        elif self.network_type == "Y":
+            # Direct Y prediction using the Y network
+            self.Y_net.eval()
+            with torch.no_grad():
+                Y = self.Y_net(t, y)
+            self.Y_net.train()
+        return Y

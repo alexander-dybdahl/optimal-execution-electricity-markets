@@ -17,6 +17,7 @@
   "plot_controls": false,
   "plot_losses": false,
   "comparison": true,
+  "plot_learned_vs_analytical": false,
   "n_simulations": 1024,
   "seed": 42,
   "max_batch_size": 2500
