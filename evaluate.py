@@ -39,6 +39,7 @@ def main():
     parser.add_argument("--plot_controls", type=str2bool, nargs='?', const=True, default=eval_cfg["plot_controls"], help="Plot controls")
     parser.add_argument("--plot_losses", type=str2bool, nargs='?', const=True, default=eval_cfg.get("plot_losses", False), help="Plot training losses from CSV file")
     parser.add_argument("--plot_learned_vs_analytical", type=str2bool, nargs='?', const=True, default=eval_cfg.get("plot_learned_vs_analytical", False), help="Plot learned vs analytical Q and Y comparison across all dimensions")
+    parser.add_argument("--agents", type=str, nargs='*', default=eval_cfg.get("agents", ["Analytical", "NN", "TWAP"]), help="List of agents to evaluate. Available: Analytical, NN, TWAP, Hybrid, Immediate, StartEnd, KTimes_5, KTimes_10")
     parser.add_argument("--comparison", type=str2bool, nargs='?', const=True, default=eval_cfg["comparison"], help="Generate comparison report")
     parser.add_argument("--n_simulations", type=int, default=eval_cfg["n_simulations"], help="Number of simulations to run")
     parser.add_argument("--seed", type=int, default=eval_cfg["seed"], help="Seed to use for evaluation")
@@ -174,15 +175,32 @@ def main():
         # Evaluate
         solver = Solver(dynamics=dynamics, seed=args.seed, n_sim=args.n_simulations, max_batch_size=max_batch_size)
         logger.log(f"Starting evaluation with {args.n_simulations} simulations and seed {args.seed}")
+        logger.log(f"Evaluating agents: {args.agents}")
         
-        solver.evaluate_agent(agent=AnalyticalAgent(dynamics=dynamics), agent_name="Analytical")
-        # solver.evaluate_agent(agent=HybridAgent(dynamics=dynamics), agent_name="Hybrid")
-        solver.evaluate_agent(agent=model, agent_name="NN")
-        solver.evaluate_agent(agent=TimeWeightedAgent(dynamics=dynamics), agent_name="TWAP")
-        # solver.evaluate_agent(agent=ImmediateAgent(dynamics=dynamics), agent_name="Immediate")
-        # solver.evaluate_agent(agent=StartEndAgent(dynamics=dynamics), agent_name="StartEnd")
-        # solver.evaluate_agent(agent=KTimesAgent(dynamics=dynamics, K=5), agent_name="KTimes_6")
-        # solver.evaluate_agent(agent=KTimesAgent(dynamics=dynamics, K=10), agent_name="KTimes_12")
+        # Define available agents
+        available_agents = {
+            "Analytical": lambda: AnalyticalAgent(dynamics=dynamics),
+            "NN": lambda: model,
+            "TWAP": lambda: TimeWeightedAgent(dynamics=dynamics),
+            "Hybrid": lambda: HybridAgent(dynamics=dynamics),
+            # "IOBE": lambda: ImmediateAgent(dynamics=dynamics),
+            "IOBE": lambda: StartEndAgent(dynamics=dynamics),
+            "KTimes_5": lambda: KTimesAgent(dynamics=dynamics, K=5),
+            "KTimes_10": lambda: KTimesAgent(dynamics=dynamics, K=10)
+        }
+        
+        # Evaluate selected agents
+        for agent_name in args.agents:
+            if agent_name in available_agents:
+                try:
+                    agent = available_agents[agent_name]()
+                    solver.evaluate_agent(agent=agent, agent_name=agent_name)
+                    logger.log(f"Successfully evaluated agent: {agent_name}")
+                except Exception as e:
+                    logger.log(f"Error evaluating agent {agent_name}: {e}")
+                    # Continue with other agents
+            else:
+                logger.log(f"Warning: Unknown agent '{agent_name}'. Available agents: {list(available_agents.keys())}")
         
         logger.log(f"Evaluation completed successfully")
         
