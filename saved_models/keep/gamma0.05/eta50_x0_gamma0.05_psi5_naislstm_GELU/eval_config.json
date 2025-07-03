@@ -1,0 +1,29 @@
+{
+    "device": "cuda",
+    "save_dir": null,
+    "model_dir": "saved_models/6_naislstm_GELU",
+    "dynamics_path": "config/dynamics_configs/full_config.json",
+    "use_model_dynamics": true,
+    "best": false,
+    "verbose": true,
+    "plot": false,
+    "plot_individual_trajectories": true,
+    "n_traj": 1,
+    "plot_control_trajectories": true,
+    "plot_trading_comparison": true,
+    "plot_trading_heatmap": false,
+    "plot_terminal_cost_analysis": false,
+    "plot_risk_metrics": false,
+    "plot_controls": false,
+    "plot_losses": false,
+    "plot_learned_vs_analytical": false,
+    "agents": [
+        "Analytical",
+        "NN",
+        "TWAP"
+    ],
+    "comparison": true,
+    "n_simulations": 100000,
+    "seed": 42,
+    "max_batch_size": 10000
+}
