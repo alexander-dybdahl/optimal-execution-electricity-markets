@@ -434,7 +434,7 @@ class Solver:
             mean_values.append((agent_name, mean_cost, color))
             
             # Plot histogram with high transparency and no edge lines
-            ax.hist(costs, bins=bins, color=color, alpha=0.4, 
+            ax.hist(costs, bins=bins, color=color, alpha=0.6, 
                    label=f'{agent_name}', density=True, edgecolor='none')
             
             # Plot mean line
@@ -443,7 +443,7 @@ class Solver:
         # Add mean values as text annotations with proper spacing
         text_x_pos = 0.02  # 2% from left edge
         text_y_start = 0.95  # Start at 95% from bottom
-        text_y_step = 0.08  # 8% spacing between each text box
+        text_y_step = 0.06  # 6% spacing between each text box
         
         for i, (agent_name, mean_cost, color) in enumerate(mean_values):
             text_y_pos = text_y_start - i * text_y_step

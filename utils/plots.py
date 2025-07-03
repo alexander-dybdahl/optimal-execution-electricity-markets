@@ -105,7 +105,7 @@ def plot_training_losses(model_dir, save_dir, plot=True):
         print(f"CSV file path: {csv_path}")
 
 # All these plotting functions assume that the results include both learned and analytical results
-def plot_approx_vs_analytic(results, timesteps, validation=None, plot=True, save_dir=None, num=None):
+def plot_approx_vs_analytic(results, timesteps, validation=None, plot=True, save_dir=None, num=None, same_color=False):
 
     approx_q = results["q_learned"]
     y_vals = results["y_learned"]
@@ -121,12 +121,22 @@ def plot_approx_vs_analytic(results, timesteps, validation=None, plot=True, save
     fig, axs = plt.subplots(3, 2, figsize=(18, 12))
     # Use standard matplotlib color cycle instead of tab10
     color_cycle = plt.rcParams['axes.prop_cycle'].by_key()['color']
-    colors = lambda i: color_cycle[i % len(color_cycle)]
+    
+    if same_color:
+        # All learned trajectories use the first color, analytical uses red
+        learned_color = color_cycle[0]  # First color in cycle
+        analytical_color = 'red'
+        colors = lambda i: learned_color
+        analytical_colors = lambda i: analytical_color
+    else:
+        # Each trajectory uses its own color from the color cycle
+        colors = lambda i: color_cycle[i % len(color_cycle)]
+        analytical_colors = lambda i: color_cycle[i % len(color_cycle)]
 
     for i in range(approx_q.shape[1]):
-        axs[0, 0].plot(timesteps[:-1], approx_q[:, i], color=colors(i), linewidth=2, label=f"Learned $q^\\theta(t)$" if i == 0 else None)
         if true_q is not None:
-            axs[0, 0].plot(timesteps[:-1], true_q[:, i], linestyle="--", color=colors(i), alpha=0.7, linewidth=1.5, label=f"Analytical $\\bar{{q}}(t)$" if i == 0 else None)
+            axs[0, 0].plot(timesteps[:-1], true_q[:, i], linestyle="--", color=analytical_colors(i), alpha=0.7, linewidth=1.5, label=f"Analytical $\\bar{{q}}(t)$" if i == 0 else None)
+        axs[0, 0].plot(timesteps[:-1], approx_q[:, i], color=colors(i), linewidth=2, label=f"Learned $q^\\theta(t)$" if i == 0 else None)
     axs[0, 0].set_title("Control $q(t)$: Learned vs Analytical", fontsize=20)
     axs[0, 0].set_xlabel("Time $t$", fontsize=18)
     axs[0, 0].set_ylabel("$q(t)$", fontsize=18)
@@ -149,9 +159,9 @@ def plot_approx_vs_analytic(results, timesteps, validation=None, plot=True, save
         axs[0, 1].tick_params(axis='both', which='major', labelsize=14)
 
     for i in range(Y_vals.shape[1]):
-        axs[1, 0].plot(timesteps, Y_vals[:, i, 0], color=colors(i), linewidth=2, label=f"Learned $Y^\\theta(t)$" if i == 0 else None)
         if true_Y is not None:
-            axs[1, 0].plot(timesteps, true_Y[:, i, 0], linestyle="--", color=colors(i), alpha=0.7, linewidth=1.5, label=f"Analytical $\\bar{{Y}}(t)$" if i == 0 else None)
+            axs[1, 0].plot(timesteps, true_Y[:, i, 0], linestyle="--", color=analytical_colors(i), alpha=0.7, linewidth=1.5, label=f"Analytical $\\bar{{Y}}(t)$" if i == 0 else None)
+        axs[1, 0].plot(timesteps, Y_vals[:, i, 0], color=colors(i), linewidth=2, label=f"Learned $Y^\\theta(t)$" if i == 0 else None)
     axs[1, 0].set_title("Cost-to-Go $Y(t)$", fontsize=20)
     axs[1, 0].set_xlabel("Time $t$", fontsize=18)
     axs[1, 0].set_ylabel("Y(t)", fontsize=18)
@@ -174,9 +184,9 @@ def plot_approx_vs_analytic(results, timesteps, validation=None, plot=True, save
         axs[1, 1].tick_params(axis='both', which='major', labelsize=14)
 
     for i in range(y_vals.shape[1]):
-        axs[2, 0].plot(timesteps, y_vals[:, i, 0], color=colors(i), linewidth=2, label=f"$X(t)$" if i == 0 else None)
         if true_y is not None:
-            axs[2, 0].plot(timesteps, true_y[:, i, 0], linestyle="--", color=colors(i), alpha=0.7, linewidth=1.5, label=f"$\\bar{{X}}(t)$" if i == 0 else None)
+            axs[2, 0].plot(timesteps, true_y[:, i, 0], linestyle="--", color=analytical_colors(i), alpha=0.7, linewidth=1.5, label=f"$\\bar{{X}}(t)$" if i == 0 else None)
+        axs[2, 0].plot(timesteps, y_vals[:, i, 0], color=colors(i), linewidth=2, label=f"$X(t)$" if i == 0 else None)
         if y_vals.shape[2] > 1:
             axs[2, 0].plot(timesteps, y_vals[:, i, 2], linestyle="-.", color=colors(i), linewidth=2, label=f"$G(t)$" if i == 0 else None)
     axs[2, 0].set_title("States: $X(t)$ and $G(t)$", fontsize=20)
@@ -190,7 +200,7 @@ def plot_approx_vs_analytic(results, timesteps, validation=None, plot=True, save
         for i in range(y_vals.shape[1]):
             axs[2, 1].plot(timesteps, y_vals[:, i, 1], color=colors(i), linewidth=2, label=f"$P(t)$" if i == 0 else None)
             if true_y is not None:
-                axs[2, 1].plot(timesteps, true_y[:, i, 1], linestyle="--", color=colors(i), alpha=0.7, linewidth=1.5, label=f"$\\bar{{P}}(t)$" if i == 0 else None)
+                axs[2, 1].plot(timesteps, true_y[:, i, 1], linestyle="--", color=analytical_colors(i), alpha=0.7, linewidth=1.5, label=f"$\\bar{{P}}(t)$" if i == 0 else None)
         axs[2, 1].set_title("State: $P(t)$", fontsize=20)
         axs[2, 1].set_xlabel("Time $t$", fontsize=18)
         axs[2, 1].set_ylabel("P(t)", fontsize=18)
