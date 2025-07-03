@@ -380,27 +380,28 @@ class Solver:
 
         # Create individual plots for each agent
         for agent_name, costs in self.costs.items():
-            fig, ax = plt.subplots(1, 1, figsize=(8, 6))
+            fig, ax = plt.subplots(1, 1, figsize=(12, 8))
 
             # Calculate stats
             mean_cost = np.mean(costs)
             std_cost = np.std(costs)
 
-            # Plot histogram with uniform color
+            # Plot histogram with consistent steelblue color for all agents
             ax.hist(costs, bins='auto', color='steelblue', alpha=0.7, label=agent_name)
 
             # Plot mean line
-            ax.axvline(mean_cost, color='red', linestyle='dotted', linewidth=2, label=f'Mean: {mean_cost:.4f}')
+            ax.axvline(mean_cost, color='red', linestyle='--', linewidth=3, label=f'Mean: {mean_cost:.4f}')
 
-            ax.set_xlabel("Cost Objective")
-            ax.set_ylabel("Frequency")
+            ax.set_xlabel("Cost Objective", fontsize=24)
+            ax.set_ylabel("Frequency", fontsize=24)
+            ax.tick_params(axis='both', which='major', labelsize=20)
             
             # Create legend with std as separate entry
             handles, labels = ax.get_legend_handles_labels()
             # Add std as text-only legend entry
             handles.append(plt.Line2D([0], [0], color='none', label=f'Std: {std_cost:.4f}'))
             
-            ax.legend(handles=handles, loc="upper right")
+            ax.legend(handles=handles, loc="upper right", fontsize=20)
             ax.grid(True, linestyle='--', alpha=0.5)
 
             plt.tight_layout()
@@ -413,6 +414,61 @@ class Solver:
                 plt.show()
             else:
                 plt.close()
+
+        # Create combined plot with all agents
+        fig, ax = plt.subplots(1, 1, figsize=(12, 8))
+        
+        # Collect all costs for determining global bins
+        all_costs = []
+        for costs in self.costs.values():
+            all_costs.extend(costs)
+        
+        # Determine common bins for all histograms
+        bins = np.histogram_bin_edges(all_costs, bins='auto')
+        
+        # Plot each agent's histogram on the same plot with high transparency
+        mean_values = []
+        for agent_name, costs in self.costs.items():
+            color = self.colors[agent_name]
+            mean_cost = np.mean(costs)
+            mean_values.append((agent_name, mean_cost, color))
+            
+            # Plot histogram with high transparency and no edge lines
+            ax.hist(costs, bins=bins, color=color, alpha=0.4, 
+                   label=f'{agent_name}', density=True, edgecolor='none')
+            
+            # Plot mean line
+            ax.axvline(mean_cost, color=color, linestyle='--', linewidth=3, alpha=0.8)
+        
+        # Add mean values as text annotations with proper spacing
+        text_x_pos = 0.02  # 2% from left edge
+        text_y_start = 0.95  # Start at 95% from bottom
+        text_y_step = 0.08  # 8% spacing between each text box
+        
+        for i, (agent_name, mean_cost, color) in enumerate(mean_values):
+            text_y_pos = text_y_start - i * text_y_step
+            ax.text(text_x_pos, text_y_pos, 
+                   f'{agent_name}: μ = {mean_cost:.4f}',
+                   transform=ax.transAxes, 
+                   bbox=dict(boxstyle="round,pad=0.3", facecolor=color, alpha=0.3),
+                   fontsize=18, verticalalignment='top')
+        
+        ax.set_xlabel("Cost Objective", fontsize=24)
+        ax.set_ylabel("Density", fontsize=24)
+        ax.tick_params(axis='both', which='major', labelsize=20)
+        ax.grid(True, linestyle='--', alpha=0.5)
+        ax.legend(loc="upper right", fontsize=20)
+        
+        plt.tight_layout()
+        
+        # Save combined plot
+        if save_dir:
+            plt.savefig(f"{save_dir}/imgs/cost_histogram_combined.png", dpi=300, bbox_inches='tight')
+        
+        if plot:
+            plt.show()
+        else:
+            plt.close()
             
     def calculate_risk_metrics(self, costs, confidence_levels=[0.95, 0.99]):
         """
