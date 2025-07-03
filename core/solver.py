@@ -679,6 +679,7 @@ class Solver:
         agent_handles = []
         agent_count = 0  # Counter for text box positioning
         terminal_cost_stats = []  # Collect terminal cost stats for legend
+        mean_values = []  # Collect mean values for total cost text annotations
         
         for agent_name, data in self.results.items():
             timesteps = data['timesteps']
@@ -853,18 +854,17 @@ class Solver:
                 
                 if len(terminal_costs_positive) > 0:
                     log_terminal_costs = np.log10(terminal_costs_positive + epsilon)
-                    log_mean = np.log10(terminal_cost_final_mean + epsilon)
                     
-                    # Use regular histogram binning on log-transformed data
-                    ax7_exp.hist(log_terminal_costs, bins='auto', color=color, alpha=0.7, density=True, label=agent_name)
-                    # Plot mean line on log-transformed axis
-                    ax7_exp.axvline(log_mean, color='red', linestyle='dotted', linewidth=2,
-                                  label=f'Mean: {terminal_cost_final_mean:.4f}')
+                    # Use regular histogram binning with consistent style
+                    ax7_exp.hist(log_terminal_costs, bins='auto', color=color, alpha=0.6, 
+                               density=True, edgecolor='none')
                     
                     # Collect terminal cost stats for legend (to be created outside loop)
                     terminal_cost_stats.append({
                         'agent_name': agent_name,
-                        'std': terminal_cost_final_std
+                        'mean': terminal_cost_final_mean,
+                        'std': terminal_cost_final_std,
+                        'color': color
                     })
             
             # Right: Total cost distribution
@@ -873,28 +873,49 @@ class Solver:
                 mean_cost = np.mean(costs)
                 std_cost = np.std(costs)
                 
-                # Plot histogram without label (to avoid duplicate)
-                ax7_traj.hist(costs, bins='auto', color=color, alpha=0.7, density=True)
-                # Plot mean line with label
-                ax7_traj.axvline(mean_cost, color=color, linestyle='--', linewidth=2, 
-                               label=f'{agent_name} (μ={mean_cost:.4f})')
+                # Plot histogram with consistent style (high transparency, no edge lines)
+                ax7_traj.hist(costs, bins='auto', color=color, alpha=0.6, 
+                             density=True, edgecolor='none')
                 
-                # Add text with statistics, using agent_count for proper spacing
-                ax7_traj.text(0.95, 0.98 - 0.15 * agent_count, 
-                            f'{agent_name}: μ={mean_cost:.4f}, σ={std_cost:.4f}',
-                            transform=ax7_traj.transAxes, verticalalignment='top', horizontalalignment='right',
-                            bbox=dict(boxstyle="round,pad=0.3", facecolor=color, alpha=0.3))
+                # Plot mean line
+                ax7_traj.axvline(mean_cost, color=color, linestyle='--', linewidth=3, alpha=0.8)
+                
+                # Add to mean values list for text annotations
+                mean_values.append((agent_name, mean_cost, color))
             
             agent_count += 1
         
-        # Create terminal cost histogram legend with std for all agents (outside loop)
+        # Create terminal cost histogram legend with mean value text boxes (outside loop)
         if terminal_cost_stats:
-            handles, labels = ax7_exp.get_legend_handles_labels()
-            # Add std as text-only legend entries for each agent
-            for stats in terminal_cost_stats:
-                handles.append(plt.Line2D([0], [0], color='none', 
-                                        label=f"{stats['agent_name']} Std: {stats['std']:.4f}"))
-            ax7_exp.legend(handles=handles, loc="upper right", fontsize=16)
+            # Add mean values as text annotations for terminal cost plot
+            text_x_pos = 0.02  # 2% from left edge
+            text_y_start = 0.95  # Start at 95% from bottom
+            text_y_step = 0.11  # 11% spacing between each text box
+            
+            for i, stats in enumerate(terminal_cost_stats):
+                log_mean = np.log10(stats['mean'] + 1e-8)
+                ax7_exp.axvline(log_mean, color=stats['color'], linestyle='--', linewidth=3, alpha=0.8)
+                
+                text_y_pos = text_y_start - i * text_y_step
+                ax7_exp.text(text_x_pos, text_y_pos, 
+                           f'{stats["agent_name"]}: μ = {stats["mean"]:.4f}',
+                           transform=ax7_exp.transAxes, 
+                           bbox=dict(boxstyle="round,pad=0.3", facecolor=stats["color"], alpha=0.3),
+                           fontsize=15, verticalalignment='top')
+        
+        # Add mean values as text annotations for total cost plot
+        if mean_values:
+            text_x_pos = 0.02  # 2% from left edge
+            text_y_start = 0.95  # Start at 95% from bottom
+            text_y_step = 0.11  # 11% spacing between each text box
+            
+            for i, (agent_name, mean_cost, color) in enumerate(mean_values):
+                text_y_pos = text_y_start - i * text_y_step
+                ax7_traj.text(text_x_pos, text_y_pos, 
+                           f'{agent_name}: μ = {mean_cost:.4f}',
+                           transform=ax7_traj.transAxes, 
+                           bbox=dict(boxstyle="round,pad=0.3", facecolor=color, alpha=0.3),
+                           fontsize=15, verticalalignment='top')
         
         # Customize subplots
         # Row 1: Position & Generation

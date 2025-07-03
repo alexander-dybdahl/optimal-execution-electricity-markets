@@ -135,7 +135,7 @@ def plot_approx_vs_analytic(results, timesteps, validation=None, plot=True, save
 
     for i in range(approx_q.shape[1]):
         if true_q is not None:
-            axs[0, 0].plot(timesteps[:-1], true_q[:, i], linestyle="--", color=analytical_colors(i), alpha=0.7, linewidth=1.5, label=f"Analytical $\\bar{{q}}(t)$" if i == 0 else None)
+            axs[0, 0].plot(timesteps[:-1], true_q[:, i], linestyle=":", color=analytical_colors(i), alpha=0.7, linewidth=1.5, label=f"Analytical $\\bar{{q}}(t)$" if i == 0 else None)
         axs[0, 0].plot(timesteps[:-1], approx_q[:, i], color=colors(i), linewidth=2, label=f"Learned $q^\\theta(t)$" if i == 0 else None)
     axs[0, 0].set_title("Control $q(t)$: Learned vs Analytical", fontsize=20)
     axs[0, 0].set_xlabel("Time $t$", fontsize=18)
@@ -160,7 +160,7 @@ def plot_approx_vs_analytic(results, timesteps, validation=None, plot=True, save
 
     for i in range(Y_vals.shape[1]):
         if true_Y is not None:
-            axs[1, 0].plot(timesteps, true_Y[:, i, 0], linestyle="--", color=analytical_colors(i), alpha=0.7, linewidth=1.5, label=f"Analytical $\\bar{{Y}}(t)$" if i == 0 else None)
+            axs[1, 0].plot(timesteps, true_Y[:, i, 0], linestyle=":", color=analytical_colors(i), alpha=0.7, linewidth=1.5, label=f"Analytical $Y(t)$" if i == 0 else None)
         axs[1, 0].plot(timesteps, Y_vals[:, i, 0], color=colors(i), linewidth=2, label=f"Learned $Y^\\theta(t)$" if i == 0 else None)
     axs[1, 0].set_title("Cost-to-Go $Y(t)$", fontsize=20)
     axs[1, 0].set_xlabel("Time $t$", fontsize=18)
@@ -178,14 +178,14 @@ def plot_approx_vs_analytic(results, timesteps, validation=None, plot=True, save
         axs[1, 1].axhline(0, color='red', linestyle='--', linewidth=0.8)
         axs[1, 1].set_title("Relative Error in Cost-to-Go $Y(t)$", fontsize=20)
         axs[1, 1].set_xlabel("Time $t$", fontsize=18)
-        axs[1, 1].set_ylabel("$|Y(t) - \\bar{{Y}}(t)| / |\\bar{{Y}}(t)|$", fontsize=18)
+        axs[1, 1].set_ylabel("$|Y^\theta(t) - Y(t)| / |Y(t)|$", fontsize=18)
         axs[1, 1].grid(True, linestyle='--')
         axs[1, 1].legend(loc='upper left', fontsize=16)
         axs[1, 1].tick_params(axis='both', which='major', labelsize=14)
 
     for i in range(y_vals.shape[1]):
         if true_y is not None:
-            axs[2, 0].plot(timesteps, true_y[:, i, 0], linestyle="--", color=analytical_colors(i), alpha=0.7, linewidth=1.5, label=f"$\\bar{{X}}(t)$" if i == 0 else None)
+            axs[2, 0].plot(timesteps, true_y[:, i, 0], linestyle=":", color=analytical_colors(i), alpha=0.7, linewidth=1.5, label=f"$\\bar{{X}}(t)$" if i == 0 else None)
         axs[2, 0].plot(timesteps, y_vals[:, i, 0], color=colors(i), linewidth=2, label=f"$X(t)$" if i == 0 else None)
         if y_vals.shape[2] > 1:
             axs[2, 0].plot(timesteps, y_vals[:, i, 2], linestyle="-.", color=colors(i), linewidth=2, label=f"$G(t)$" if i == 0 else None)
@@ -198,9 +198,9 @@ def plot_approx_vs_analytic(results, timesteps, validation=None, plot=True, save
 
     if y_vals.shape[2] > 1:
         for i in range(y_vals.shape[1]):
-            axs[2, 1].plot(timesteps, y_vals[:, i, 1], color=colors(i), linewidth=2, label=f"$P(t)$" if i == 0 else None)
             if true_y is not None:
-                axs[2, 1].plot(timesteps, true_y[:, i, 1], linestyle="--", color=analytical_colors(i), alpha=0.7, linewidth=1.5, label=f"$\\bar{{P}}(t)$" if i == 0 else None)
+                axs[2, 1].plot(timesteps, true_y[:, i, 1], linestyle=":", color=analytical_colors(i), alpha=0.7, linewidth=1.5, label=f"$\\bar{{P}}(t)$" if i == 0 else None)
+            axs[2, 1].plot(timesteps, y_vals[:, i, 1], color=colors(i), linewidth=2, label=f"$P(t)$" if i == 0 else None)
         axs[2, 1].set_title("State: $P(t)$", fontsize=20)
         axs[2, 1].set_xlabel("Time $t$", fontsize=18)
         axs[2, 1].set_ylabel("P(t)", fontsize=18)
@@ -301,7 +301,7 @@ def plot_approx_vs_analytic_expectation(results, timesteps, plot=True, save_dir=
     #     ax4.plot(timesteps, mean_diff_Y, color='red', label='Mean Rel. Error', linewidth=2)
     #     ax4.set_title("Relative Error in Cost-to-Go $Y(t)$", fontsize=18)
     #     ax4.set_xlabel("Time $t$", fontsize=16)
-    #     ax4.set_ylabel("$|Y(t) - \\bar{{Y}}(t)| / |\\bar{{Y}}(t)|$", fontsize=16)
+    #     ax4.set_ylabel("$|Y(t) - Y(t)| / |Y(t)|$", fontsize=16)
     #     ax4.grid(True, linestyle='--')
     #     ax4.legend(loc='upper left', fontsize=14)
     #     ax4.tick_params(axis='both', which='major', labelsize=12)
@@ -347,7 +347,7 @@ def plot_approx_vs_analytic_expectation(results, timesteps, plot=True, save_dir=
     axs[1, 1].plot(timesteps, mean_diff_Y, color='red', label='Mean Rel. Error', linewidth=2)
     axs[1, 1].set_title("Relative Error in Cost-to-Go $Y(t)$", fontsize=16)
     axs[1, 1].set_xlabel("Time $t$", fontsize=14)
-    axs[1, 1].set_ylabel("$|Y(t) - \\bar{{Y}}(t)| / |\\bar{{Y}}(t)|$", fontsize=14)
+    axs[1, 1].set_ylabel("$|Y^\theta(t) - Y(t)| / |Y(t)|$", fontsize=14)    
     axs[1, 1].grid(True, linestyle='--')
     axs[1, 1].legend(loc='upper left', fontsize=12)
     axs[1, 1].tick_params(axis='both', which='major', labelsize=10)
