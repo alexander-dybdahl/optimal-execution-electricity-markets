@@ -11,7 +11,7 @@ from scipy import stats
 from utils.simulator import simulate_paths_batched
 
 
-class Solver:
+class Evaluator:
     def __init__(self, dynamics, seed, n_sim, max_batch_size=10000):
         self.dynamics = dynamics
         self.device = dynamics.device
@@ -312,12 +312,12 @@ class Solver:
                                     )
 
             # Configure main subplot
-            ax.set_xlabel("Time", fontsize=16)
-            ax.set_ylabel(var_ylabels[var], fontsize=16)
-            ax.tick_params(axis='both', which='major', labelsize=16)
+            ax.set_xlabel("Time", fontsize=24)
+            ax.set_ylabel(var_ylabels[var], fontsize=24)
+            ax.tick_params(axis='both', which='major', labelsize=20)
             ax.grid(True, linestyle='--', alpha=0.5)
             if agent_handles:  # Only add legend if there are agents with data
-                ax.legend(handles=agent_handles, loc='upper right', frameon=True, fontsize=16)
+                ax.legend(handles=agent_handles, loc='upper right', frameon=True, fontsize=20)
             
             # Add state component legend for y(t) plot
             # if var == 'y':
@@ -333,12 +333,12 @@ class Solver:
             
             # Configure and save individual plot if requested
             if save_individual and save_dir:
-                ax_individual.set_xlabel("Time", fontsize=16)
-                ax_individual.set_ylabel(var_ylabels[var], fontsize=16)
-                ax_individual.tick_params(axis='both', which='major', labelsize=16)
+                ax_individual.set_xlabel("Time", fontsize=24)
+                ax_individual.set_ylabel(var_ylabels[var], fontsize=24)
+                ax_individual.tick_params(axis='both', which='major', labelsize=20)
                 ax_individual.grid(True, linestyle='--', alpha=0.5)
                 if agent_handles:
-                    ax_individual.legend(handles=agent_handles, loc='upper right', frameon=True, fontsize=16)
+                    ax_individual.legend(handles=agent_handles, loc='upper right', frameon=True, fontsize=20)
                 
                 # Add state component legend for y(t) individual plot
                 # if var == 'y':
@@ -380,7 +380,7 @@ class Solver:
 
         # Create individual plots for each agent
         for agent_name, costs in self.costs.items():
-            fig, ax = plt.subplots(1, 1, figsize=(12, 8))
+            fig, ax = plt.subplots(1, 1, figsize=(10, 6))
 
             # Calculate stats
             mean_cost = np.mean(costs)
@@ -1019,7 +1019,7 @@ class Solver:
         ax7_exp.tick_params(axis='both', which='major', labelsize=16)
         ax7_exp.grid(True, alpha=0.3)
         
-        ax7_traj.set_title('Total Cost Distribution (All Simulations)', fontsize=16, fontweight='bold')
+        ax7_traj.set_title('Total Cost Distribution', fontsize=16, fontweight='bold')
         ax7_traj.set_xlabel('Total Cost', fontsize=16)
         ax7_traj.set_ylabel('Probability Density', fontsize=16)
         ax7_traj.tick_params(axis='both', which='major', labelsize=16)

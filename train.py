@@ -11,7 +11,6 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 
 from agents.deepagent import DeepAgent
 from dynamics import create_dynamics
-from core.solver import Solver
 from utils.load_config import load_dynamics_config, load_train_config
 from utils.plots import plot_approx_vs_analytic, plot_approx_vs_analytic_expectation, plot_terminal_histogram 
 from utils.simulator import simulate_paths_batched
@@ -383,8 +382,8 @@ def main():
             dynamics=dynamics, 
             agent=call_model, 
             n_sim=args.n_simulations, 
-            max_batch_size=self.max_batch_size,
-            seed=self.seed if self.seed is not None else 42,
+            max_batch_size=args.batch_size,
+            seed=args.seed if args.seed is not None else 42,
             analytical=True,
         )
         plot_approx_vs_analytic(results=results, timesteps=timesteps, validation=validation, plot=args.plot, save_dir=save_dir)

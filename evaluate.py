@@ -13,7 +13,7 @@ from agents.immediateagent import ImmediateAgent
 from agents.startendagent import StartEndAgent
 from agents.ktimesagent import KTimesAgent
 from dynamics import create_dynamics
-from core.solver import Solver
+from utils.evaluator import Evaluator
 from utils.load_config import load_config, load_dynamics_config
 from utils.tools import str2bool
 from utils.plots import plot_training_losses
@@ -173,7 +173,7 @@ def main():
             logger.log(f"Using specified max_batch_size: {max_batch_size}")
 
         # Evaluate
-        solver = Solver(dynamics=dynamics, seed=args.seed, n_sim=args.n_simulations, max_batch_size=max_batch_size)
+        evaluator = Evaluator(dynamics=dynamics, seed=args.seed, n_sim=args.n_simulations, max_batch_size=max_batch_size)
         logger.log(f"Starting evaluation with {args.n_simulations} simulations and seed {args.seed}")
         logger.log(f"Evaluating agents: {args.agents}")
         
@@ -194,7 +194,7 @@ def main():
             if agent_name in available_agents:
                 try:
                     agent = available_agents[agent_name]()
-                    solver.evaluate_agent(agent=agent, agent_name=agent_name)
+                    evaluator.evaluate_agent(agent=agent, agent_name=agent_name)
                     logger.log(f"Successfully evaluated agent: {agent_name}")
                 except Exception as e:
                     logger.log(f"Error evaluating agent {agent_name}: {e}")
@@ -210,7 +210,7 @@ def main():
     
     try:
         # Display risk metrics in console
-        solver.display_risk_metrics()
+        evaluator.display_risk_metrics()
         logger.log("Risk metrics displayed successfully")
         
     except Exception as e:
@@ -222,44 +222,44 @@ def main():
         logger.log("Starting plot generation...")
         
         # Always plot expectation trajectories (mean ± std)
-        solver.plot_trajectories_expectation(plot=args.plot, save_dir=save_dir)
+        evaluator.plot_trajectories_expectation(plot=args.plot, save_dir=save_dir)
         logger.log("Generated expectation trajectories plot")
         
         # Plot individual trajectories if requested
         if args.plot_individual_trajectories:
-            solver.plot_trajectories_individual(n_traj=args.n_traj, plot=args.plot, save_dir=save_dir)
+            evaluator.plot_trajectories_individual(n_traj=args.n_traj, plot=args.plot, save_dir=save_dir)
             logger.log(f"Generated individual trajectories plot ({args.n_traj} trajectories)")
         
-        solver.plot_cost_histograms(plot=args.plot, save_dir=save_dir)
+        evaluator.plot_cost_histograms(plot=args.plot, save_dir=save_dir)
         logger.log("Generated cost histograms")
         
         if args.plot_trading_comparison:
-            solver.plot_detailed_trading_trajectories(plot=args.plot, save_dir=save_dir)
+            evaluator.plot_detailed_trading_trajectories(plot=args.plot, save_dir=save_dir)
             logger.log("Generated trading comparison plots")
 
         if args.plot_terminal_cost_analysis:
-            solver.plot_terminal_cost_analysis(plot=args.plot, save_dir=save_dir)
+            evaluator.plot_terminal_cost_analysis(plot=args.plot, save_dir=save_dir)
             logger.log("Generated terminal cost analysis")
         
         if args.plot_trading_heatmap:
-            solver.plot_trading_heatmap(plot=args.plot, save_dir=save_dir)
+            evaluator.plot_trading_heatmap(plot=args.plot, save_dir=save_dir)
             logger.log("Generated terminal heatmap plot")
             
         if args.plot_risk_metrics:
-            solver.plot_risk_metrics(plot=args.plot, save_dir=save_dir)
-            solver.plot_risk_comparison_radar(plot=args.plot, save_dir=save_dir)
+            evaluator.plot_risk_metrics(plot=args.plot, save_dir=save_dir)
+            evaluator.plot_risk_comparison_radar(plot=args.plot, save_dir=save_dir)
             logger.log("Generated risk metrics plots")
             
         if args.plot_controls:
-            solver.plot_control_histograms(plot=args.plot, save_dir=save_dir)
+            evaluator.plot_control_histograms(plot=args.plot, save_dir=save_dir)
             logger.log("Generated control histograms")
             
         if args.plot_learned_vs_analytical:
-            solver.plot_learned_vs_analytical_comparison(plot=args.plot, save_dir=save_dir)
+            evaluator.plot_learned_vs_analytical_comparison(plot=args.plot, save_dir=save_dir)
             logger.log("Generated learned vs analytical Q and Y comparison")
             
         if args.comparison:
-            solver.generate_comparison_report(save_dir=save_dir)
+            evaluator.generate_comparison_report(save_dir=save_dir)
             logger.log("Generated comparison report")
         
         logger.log(f"All plots and reports saved to: {save_dir}")
