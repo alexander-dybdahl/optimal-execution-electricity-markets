@@ -29,4 +29,10 @@ torchrun \
   --rdzv_backend=c10d \
   --rdzv_endpoint=$MASTER_ADDR:$MASTER_PORT \
   train.py \
-  --parallel True
+  --parallel True \
+  --batch_size 16384 \
+  --resume False \
+  --reset_best True \
+  --reset_lr True \
+  --save_dir "saved_models/new_eta10_x0_gamma0.01_lowvol_psi5_scheeps1" \
+  --seed 42

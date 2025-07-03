@@ -61,6 +61,7 @@ def main():
     parser.add_argument("--lstm_type", type=str, default=train_cfg.get("lstm_type", "LSTM"), help="Type of LSTM to use in LSTMWithSubnets")
     parser.add_argument("--adaptive", type=str2bool, nargs='?', const=True, default=train_cfg["adaptive"], help="Use adaptive learning rate")
     parser.add_argument("--adaptive_factor", type=float, default=train_cfg["adaptive_factor"], help="Adaptive factor")
+    parser.add_argument("--adaptive_step_size", type=int, default=train_cfg["adaptive_step_size"], help="Step size for adaptive learning rate")
     parser.add_argument("--lr", type=float, default=train_cfg["lr"], help="Learning rate for the optimizer")
     parser.add_argument("--annealing", type=str2bool, nargs='?', const=True, default=train_cfg["annealing"], help="Use annealing for psi, gamma, and nu")
     parser.add_argument("--adaptive_loss", type=str2bool, nargs='?', const=True, default=train_cfg["adaptive_loss"], help="Use adaptive loss function")

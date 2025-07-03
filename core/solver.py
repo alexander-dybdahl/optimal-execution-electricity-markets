@@ -68,7 +68,7 @@ class Solver:
         """
         Plot expected trajectories (mean ± std) of q, y, Y for each agent.
         """
-        plt.rcParams.update({'font.size': 18})
+        plt.rcParams.update({'font.size': 16})
         if not self.results:
             print("No results to plot.")
             return
@@ -165,8 +165,8 @@ class Solver:
                                 linewidth=0
                             )
 
-            ax.set_xlabel("Time", fontsize=20)
-            ax.set_ylabel(var_ylabels[var], fontsize=20)
+            ax.set_xlabel("Time", fontsize=16)
+            ax.set_ylabel(var_ylabels[var], fontsize=16)
             ax.tick_params(axis='both', which='major', labelsize=16)
             ax.grid(True, linestyle='--', alpha=0.5)
             if agent_handles:  # Only add legend if there are agents with data
@@ -200,7 +200,7 @@ class Solver:
             save_dir (str): Directory to save the plots, if provided
             save_individual (bool): Whether to save each variable in separate plots
         """
-        plt.rcParams.update({'font.size': 18})
+        plt.rcParams.update({'font.size': 16})
         if not self.results:
             print("No results to plot.")
             return
@@ -226,7 +226,7 @@ class Solver:
             # Create individual plot if requested
             if save_individual and save_dir:
                 fig_individual, ax_individual = plt.subplots(1, 1, figsize=(12, 6))
-                plt.rcParams.update({'font.size': 18})
+                plt.rcParams.update({'font.size': 16})
             
             # For Y plot, create agent handles only for agents that have Y data
             if var == 'Y':
@@ -312,8 +312,8 @@ class Solver:
                                     )
 
             # Configure main subplot
-            ax.set_xlabel("Time", fontsize=20)
-            ax.set_ylabel(var_ylabels[var], fontsize=20)
+            ax.set_xlabel("Time", fontsize=16)
+            ax.set_ylabel(var_ylabels[var], fontsize=16)
             ax.tick_params(axis='both', which='major', labelsize=16)
             ax.grid(True, linestyle='--', alpha=0.5)
             if agent_handles:  # Only add legend if there are agents with data
@@ -333,8 +333,8 @@ class Solver:
             
             # Configure and save individual plot if requested
             if save_individual and save_dir:
-                ax_individual.set_xlabel("Time", fontsize=20)
-                ax_individual.set_ylabel(var_ylabels[var], fontsize=20)
+                ax_individual.set_xlabel("Time", fontsize=16)
+                ax_individual.set_ylabel(var_ylabels[var], fontsize=16)
                 ax_individual.tick_params(axis='both', which='major', labelsize=16)
                 ax_individual.grid(True, linestyle='--', alpha=0.5)
                 if agent_handles:
@@ -369,7 +369,7 @@ class Solver:
         return self.plot_trajectories_expectation(plot=plot, save_dir=save_dir)
 
     def plot_cost_histograms(self, plot=True, save_dir=None):
-        plt.rcParams.update({'font.size': 14})
+        plt.rcParams.update({'font.size': 16})
         if not self.costs:
             print("No costs to plot.")
             return
@@ -386,8 +386,8 @@ class Solver:
             mean_cost = np.mean(costs)
             std_cost = np.std(costs)
 
-            # Plot histogram with consistent steelblue color for all agents
-            ax.hist(costs, bins='auto', color='steelblue', alpha=0.7, label=agent_name)
+            # Plot histogram with uniform color
+            ax.hist(costs, bins='auto', color='steelblue', label=agent_name)
 
             # Plot mean line
             ax.axvline(mean_cost, color='red', linestyle='--', linewidth=3, label=f'Mean: {mean_cost:.4f}')
@@ -571,7 +571,7 @@ class Solver:
                   - mean_diff: Difference in means (agent1 - agent2)
                   - better: If alternative='less', True if agent1 has significantly lower costs
         """
-        plt.rcParams.update({'font.size': 14})
+        plt.rcParams.update({'font.size': 16})
         if agent_name1 not in self.costs or agent_name2 not in self.costs:
             missing = []
             if agent_name1 not in self.costs:
@@ -644,7 +644,7 @@ class Solver:
             return
         
         # Create figure with 7 rows and 2 columns
-        fig = plt.figure(figsize=(20, 28))
+        fig = plt.figure(figsize=(16, 7*6))
         gs = gridspec.GridSpec(7, 2, figure=fig, hspace=0.4, wspace=0.3)
         
         # Create subplots - each row shows: Expected (left) vs Individual Trajectories (right)
@@ -678,6 +678,7 @@ class Solver:
         
         agent_handles = []
         agent_count = 0  # Counter for text box positioning
+        terminal_cost_stats = []  # Collect terminal cost stats for legend
         
         for agent_name, data in self.results.items():
             timesteps = data['timesteps']
@@ -845,16 +846,26 @@ class Solver:
             # === ROW 7: TERMINAL COST HISTOGRAMS ===
             # Left: Terminal cost histogram (expected distribution)
             if hasattr(self.dynamics, 'terminal_cost') and len(terminal_costs_final) > 0:
-                # Plot histogram of terminal costs
-                ax7_exp.hist(terminal_costs_final, bins=30, color=color, alpha=0.7, density=True)
-                # Plot mean line
-                ax7_exp.axvline(terminal_cost_final_mean, color=color, linestyle='--', linewidth=2,
-                              label=f'{agent_name} (μ={terminal_cost_final_mean:.4f})')
-                # Add text with statistics
-                ax7_exp.text(0.95, 0.98 - 0.15 * agent_count, 
-                           f'{agent_name}: μ={terminal_cost_final_mean:.4f}, σ={terminal_cost_final_std:.4f}',
-                           transform=ax7_exp.transAxes, verticalalignment='top', horizontalalignment='right',
-                           bbox=dict(boxstyle="round,pad=0.3", facecolor=color, alpha=0.3))
+                # Transform data with log10 for proper histogram binning
+                # Add small epsilon to avoid log(0) issues
+                epsilon = 1e-8
+                terminal_costs_positive = terminal_costs_final[terminal_costs_final > epsilon]
+                
+                if len(terminal_costs_positive) > 0:
+                    log_terminal_costs = np.log10(terminal_costs_positive + epsilon)
+                    log_mean = np.log10(terminal_cost_final_mean + epsilon)
+                    
+                    # Use regular histogram binning on log-transformed data
+                    ax7_exp.hist(log_terminal_costs, bins='auto', color=color, alpha=0.7, density=True, label=agent_name)
+                    # Plot mean line on log-transformed axis
+                    ax7_exp.axvline(log_mean, color='red', linestyle='dotted', linewidth=2,
+                                  label=f'Mean: {terminal_cost_final_mean:.4f}')
+                    
+                    # Collect terminal cost stats for legend (to be created outside loop)
+                    terminal_cost_stats.append({
+                        'agent_name': agent_name,
+                        'std': terminal_cost_final_std
+                    })
             
             # Right: Total cost distribution
             if agent_name in self.costs:
@@ -863,7 +874,7 @@ class Solver:
                 std_cost = np.std(costs)
                 
                 # Plot histogram without label (to avoid duplicate)
-                ax7_traj.hist(costs, bins=30, color=color, alpha=0.7, density=True)
+                ax7_traj.hist(costs, bins='auto', color=color, alpha=0.7, density=True)
                 # Plot mean line with label
                 ax7_traj.axvline(mean_cost, color=color, linestyle='--', linewidth=2, 
                                label=f'{agent_name} (μ={mean_cost:.4f})')
@@ -876,120 +887,245 @@ class Solver:
             
             agent_count += 1
         
+        # Create terminal cost histogram legend with std for all agents (outside loop)
+        if terminal_cost_stats:
+            handles, labels = ax7_exp.get_legend_handles_labels()
+            # Add std as text-only legend entries for each agent
+            for stats in terminal_cost_stats:
+                handles.append(plt.Line2D([0], [0], color='none', 
+                                        label=f"{stats['agent_name']} Std: {stats['std']:.4f}"))
+            ax7_exp.legend(handles=handles, loc="upper right", fontsize=16)
+        
         # Customize subplots
         # Row 1: Position & Generation
         ax1_exp.set_title('Expected Position & Generation vs Time', fontsize=16, fontweight='bold')
-        ax1_exp.set_xlabel('Time', fontsize=14)
-        ax1_exp.set_ylabel('Quantity', fontsize=14)
-        ax1_exp.tick_params(axis='both', which='major', labelsize=12)
+        ax1_exp.set_xlabel('Time', fontsize=16)
+        ax1_exp.set_ylabel('Quantity', fontsize=16)
+        ax1_exp.tick_params(axis='both', which='major', labelsize=16)
         ax1_exp.grid(True, alpha=0.3)
-        ax1_exp.legend(fontsize=12)
+        ax1_exp.legend(fontsize=16)
         
         ax1_traj.set_title('Individual Position & Generation Trajectories', fontsize=16, fontweight='bold')
-        ax1_traj.set_xlabel('Time', fontsize=14)
-        ax1_traj.set_ylabel('Quantity', fontsize=14)
-        ax1_traj.tick_params(axis='both', which='major', labelsize=12)
+        ax1_traj.set_xlabel('Time', fontsize=16)
+        ax1_traj.set_ylabel('Quantity', fontsize=16)
+        ax1_traj.tick_params(axis='both', which='major', labelsize=16)
         ax1_traj.grid(True, alpha=0.3)
-        ax1_traj.legend(fontsize=12)
+        ax1_traj.legend(fontsize=16)
         
         # Row 2: Price Evolution
         ax2_exp.set_title('Expected Price Evolution vs Time', fontsize=16, fontweight='bold')
-        ax2_exp.set_xlabel('Time', fontsize=14)
-        ax2_exp.set_ylabel('Mid Price P', fontsize=14)
-        ax2_exp.tick_params(axis='both', which='major', labelsize=12)
+        ax2_exp.set_xlabel('Time', fontsize=16)
+        ax2_exp.set_ylabel('Mid Price P', fontsize=16)
+        ax2_exp.tick_params(axis='both', which='major', labelsize=16)
         ax2_exp.grid(True, alpha=0.3)
-        ax2_exp.legend(fontsize=12)
+        ax2_exp.legend(fontsize=16)
         
         ax2_traj.set_title('Individual Price Trajectories', fontsize=16, fontweight='bold')
-        ax2_traj.set_xlabel('Time', fontsize=14)
-        ax2_traj.set_ylabel('Mid Price P', fontsize=14)
-        ax2_traj.tick_params(axis='both', which='major', labelsize=12)
+        ax2_traj.set_xlabel('Time', fontsize=16)
+        ax2_traj.set_ylabel('Mid Price P', fontsize=16)
+        ax2_traj.tick_params(axis='both', which='major', labelsize=16)
         ax2_traj.grid(True, alpha=0.3)
-        ax2_traj.legend(fontsize=12)
+        ax2_traj.legend(fontsize=16)
         
         # Row 3: Trade Sizes
         ax3_exp.set_title('Expected Trade Sizes vs Time', fontsize=16, fontweight='bold')
-        ax3_exp.set_xlabel('Time', fontsize=14)
-        ax3_exp.set_ylabel('Trade Size q(t)', fontsize=14)
-        ax3_exp.tick_params(axis='both', which='major', labelsize=12)
+        ax3_exp.set_xlabel('Time', fontsize=16)
+        ax3_exp.set_ylabel('Trade Size q(t)', fontsize=16)
+        ax3_exp.tick_params(axis='both', which='major', labelsize=16)
         ax3_exp.grid(True, alpha=0.3)
         ax3_exp.axhline(y=0, color='black', linestyle='--', alpha=0.5)
-        ax3_exp.legend(fontsize=12)
+        ax3_exp.legend(fontsize=16)
         
         ax3_traj.set_title('Individual Trade Size Trajectories', fontsize=16, fontweight='bold')
-        ax3_traj.set_xlabel('Time', fontsize=14)
-        ax3_traj.set_ylabel('Trade Size q(t)', fontsize=14)
-        ax3_traj.tick_params(axis='both', which='major', labelsize=12)
+        ax3_traj.set_xlabel('Time', fontsize=16)
+        ax3_traj.set_ylabel('Trade Size q(t)', fontsize=16)
+        ax3_traj.tick_params(axis='both', which='major', labelsize=16)
         ax3_traj.grid(True, alpha=0.3)
         ax3_traj.axhline(y=0, color='black', linestyle='--', alpha=0.5)
-        ax3_traj.legend(fontsize=12)
+        ax3_traj.legend(fontsize=16)
         
         # Row 4: Execution Prices
         ax4_exp.set_title('Expected Execution Prices vs Time', fontsize=16, fontweight='bold')
-        ax4_exp.set_xlabel('Time', fontsize=14)
-        ax4_exp.set_ylabel('Execution Price P̃', fontsize=14)
-        ax4_exp.tick_params(axis='both', which='major', labelsize=12)
+        ax4_exp.set_xlabel('Time', fontsize=16)
+        ax4_exp.set_ylabel('Execution Price P̃', fontsize=16)
+        ax4_exp.tick_params(axis='both', which='major', labelsize=16)
         ax4_exp.grid(True, alpha=0.3)
-        ax4_exp.legend(fontsize=12)
+        ax4_exp.legend(fontsize=16)
         
         ax4_traj.set_title('Individual Execution Price Trajectories', fontsize=16, fontweight='bold')
-        ax4_traj.set_xlabel('Time', fontsize=14)
-        ax4_traj.set_ylabel('Execution Price P̃', fontsize=14)
-        ax4_traj.tick_params(axis='both', which='major', labelsize=12)
+        ax4_traj.set_xlabel('Time', fontsize=16)
+        ax4_traj.set_ylabel('Execution Price P̃', fontsize=16)
+        ax4_traj.tick_params(axis='both', which='major', labelsize=16)
         ax4_traj.grid(True, alpha=0.3)
-        ax4_traj.legend(fontsize=12)
+        ax4_traj.legend(fontsize=16)
         
         # Row 5: Individual Trade Values
         ax5_exp.set_title('Expected Trade Values vs Time', fontsize=16, fontweight='bold')
-        ax5_exp.set_xlabel('Time', fontsize=14)
-        ax5_exp.set_ylabel('Trade Value: q(t) × P̃(t)', fontsize=14)
-        ax5_exp.tick_params(axis='both', which='major', labelsize=12)
+        ax5_exp.set_xlabel('Time', fontsize=16)
+        ax5_exp.set_ylabel('Trade Value: q(t) × P̃(t)', fontsize=16)
+        ax5_exp.tick_params(axis='both', which='major', labelsize=16)
         ax5_exp.grid(True, alpha=0.3)
         ax5_exp.axhline(y=0, color='black', linestyle='--', alpha=0.5)
-        ax5_exp.legend(fontsize=12)
+        ax5_exp.legend(fontsize=16)
         
         ax5_traj.set_title('Individual Trade Value Trajectories', fontsize=16, fontweight='bold')
-        ax5_traj.set_xlabel('Time', fontsize=14)
-        ax5_traj.set_ylabel('Trade Value: q(t) × P̃(t)', fontsize=14)
-        ax5_traj.tick_params(axis='both', which='major', labelsize=12)
+        ax5_traj.set_xlabel('Time', fontsize=16)
+        ax5_traj.set_ylabel('Trade Value: q(t) × P̃(t)', fontsize=16)
+        ax5_traj.tick_params(axis='both', which='major', labelsize=16)
         ax5_traj.grid(True, alpha=0.3)
         ax5_traj.axhline(y=0, color='black', linestyle='--', alpha=0.5)
-        ax5_traj.legend(fontsize=12)
+        ax5_traj.legend(fontsize=16)
         
         # Row 6: Cumulative Trading Cost
         ax6_exp.set_title('Expected Cumulative Trading Cost vs Time', fontsize=16, fontweight='bold')
-        ax6_exp.set_xlabel('Time', fontsize=14)
-        ax6_exp.set_ylabel('∫ q(s) × P̃(s) ds', fontsize=14)
-        ax6_exp.tick_params(axis='both', which='major', labelsize=12)
+        ax6_exp.set_xlabel('Time', fontsize=16)
+        ax6_exp.set_ylabel('∫ q(s) × P̃(s) ds', fontsize=16)
+        ax6_exp.tick_params(axis='both', which='major', labelsize=16)
         ax6_exp.grid(True, alpha=0.3)
-        ax6_exp.legend(fontsize=12)
+        ax6_exp.legend(fontsize=16)
         
         ax6_traj.set_title('Individual Cumulative Cost Trajectories', fontsize=16, fontweight='bold')
-        ax6_traj.set_xlabel('Time', fontsize=14)
-        ax6_traj.set_ylabel('∫ q(s) × P̃(s) ds', fontsize=14)
-        ax6_traj.tick_params(axis='both', which='major', labelsize=12)
+        ax6_traj.set_xlabel('Time', fontsize=16)
+        ax6_traj.set_ylabel('∫ q(s) × P̃(s) ds', fontsize=16)
+        ax6_traj.tick_params(axis='both', which='major', labelsize=16)
         ax6_traj.grid(True, alpha=0.3)
-        ax6_traj.legend(fontsize=12)
+        ax6_traj.legend(fontsize=16)
         
         # Row 7: Terminal Cost Histograms
         ax7_exp.set_title('Terminal Cost Distribution at Final Time T', fontsize=16, fontweight='bold')
-        ax7_exp.set_xlabel('Terminal Cost: 0.5η(D-X)²', fontsize=14)
-        ax7_exp.set_ylabel('Probability Density', fontsize=14)
-        ax7_exp.tick_params(axis='both', which='major', labelsize=12)
+        ax7_exp.set_xlabel('log₁₀(Terminal Cost: 0.5η(D-X)²)', fontsize=16)
+        ax7_exp.set_ylabel('Probability Density', fontsize=16)
+        ax7_exp.tick_params(axis='both', which='major', labelsize=16)
         ax7_exp.grid(True, alpha=0.3)
         
         ax7_traj.set_title('Total Cost Distribution (All Simulations)', fontsize=16, fontweight='bold')
-        ax7_traj.set_xlabel('Total Cost', fontsize=14)
-        ax7_traj.set_ylabel('Probability Density', fontsize=14)
-        ax7_traj.tick_params(axis='both', which='major', labelsize=12)
+        ax7_traj.set_xlabel('Total Cost', fontsize=16)
+        ax7_traj.set_ylabel('Probability Density', fontsize=16)
+        ax7_traj.tick_params(axis='both', which='major', labelsize=16)
         ax7_traj.grid(True, alpha=0.3)
         
         # plt.suptitle('Expected Paths vs Individual Trajectories Analysis', 
         #             fontsize=16, fontweight='bold', y=0.98)
         
         if save_dir:
+            # Save the main detailed plot
             plt.savefig(f"{save_dir}/imgs/detailed_trading_trajectories.png", 
                        dpi=300, bbox_inches='tight')
+            
+            # Save separate running cost expectation plot (without title)
+            fig_running_cost, ax_running_cost = plt.subplots(1, 1, figsize=(8, 6))
+            for agent_name, data in self.results.items():
+                results = data['results']
+                color = self.colors[agent_name]
+                
+                q_traj = results.get('q_learned', None)
+                y_traj = results.get('y_learned', None)
+                
+                if q_traj is None or y_traj is None:
+                    continue
+                    
+                q_traj = np.asarray(q_traj)
+                y_traj = np.asarray(y_traj)
+                timesteps = data['timesteps']
+                
+                # Recalculate execution prices and cumulative costs for this separate plot
+                execution_prices = np.zeros_like(q_traj)
+                for t in range(q_traj.shape[0]):
+                    y_t = torch.from_numpy(y_traj[t, :, :]).to(self.device)
+                    q_t = torch.from_numpy(q_traj[t, :, :]).to(self.device)
+                    
+                    if hasattr(self.dynamics, 'generator'):
+                        P_t = y_t[:, 1:2]
+                        if hasattr(self.dynamics, 'psi') and hasattr(self.dynamics, 'gamma'):
+                            temporary_impact = self.dynamics.gamma * q_t
+                            bid_ask_spread = torch.sign(q_t) * self.dynamics.psi
+                            exec_price_t = P_t + bid_ask_spread + temporary_impact
+                    
+                    execution_prices[t, :, :] = exec_price_t.detach().cpu().numpy()
+                
+                # Calculate cumulative trading costs
+                dt = self.dynamics.dt
+                trade_values = q_traj.squeeze() * execution_prices.squeeze()
+                cumulative_trade_costs = np.cumsum(np.concatenate([np.zeros((1, q_traj.shape[1])), 
+                                                                  trade_values * dt], axis=0), axis=0)
+                cumulative_cost_mean = cumulative_trade_costs.mean(axis=1)
+                cumulative_cost_std = cumulative_trade_costs.std(axis=1)
+                
+                # Plot running cost expectation
+                final_trading_cost = cumulative_cost_mean[-1]
+                ax_running_cost.plot(timesteps, cumulative_cost_mean, color=color, linewidth=2, 
+                                   label=f'{agent_name} (Final: {final_trading_cost:.4f})')
+                ax_running_cost.fill_between(timesteps, cumulative_cost_mean - cumulative_cost_std, 
+                                           cumulative_cost_mean + cumulative_cost_std, color=color, alpha=0.2)
+            
+            ax_running_cost.set_xlabel('Time', fontsize=16)
+            ax_running_cost.set_ylabel('∫ q(s) × P̃(s) ds', fontsize=16)
+            ax_running_cost.tick_params(axis='both', which='major', labelsize=16)
+            ax_running_cost.grid(True, alpha=0.3)
+            ax_running_cost.legend(fontsize=16)
+            
+            plt.tight_layout()
+            plt.savefig(f"{save_dir}/imgs/running_cost_expectation.png", dpi=300, bbox_inches='tight')
+            plt.close(fig_running_cost)
+            
+            # Save separate terminal cost distribution plot (without title, log10 x-axis)
+            fig_terminal_cost, ax_terminal_cost = plt.subplots(1, 1, figsize=(8, 6))
+            agent_count = 0
+            terminal_cost_stats_separate = []  # Collect stats for separate plot legend
+            for agent_name, data in self.results.items():
+                results = data['results']
+                color = self.colors[agent_name]
+                
+                y_traj = results.get('y_learned', None)
+                if y_traj is None:
+                    continue
+                    
+                y_traj = np.asarray(y_traj)
+                
+                # Calculate terminal cost at final time T
+                final_state = y_traj[-1, :, :]
+                y_final = torch.from_numpy(final_state).to(self.device)
+                if hasattr(self.dynamics, 'terminal_cost'):
+                    terminal_costs_final = self.dynamics.terminal_cost(y_final)
+                    terminal_costs_final = terminal_costs_final.detach().cpu().numpy().squeeze()
+                    terminal_cost_final_mean = terminal_costs_final.mean()
+                    
+                    if len(terminal_costs_final) > 0:
+                        # Transform data with log10 for proper histogram binning
+                        # Add small epsilon to avoid log(0) issues
+                        epsilon = 1e-8
+                        terminal_costs_positive = terminal_costs_final[terminal_costs_final > epsilon]
+                        
+                        if len(terminal_costs_positive) > 0:
+                            log_terminal_costs = np.log10(terminal_costs_positive + epsilon)
+                            log_mean = np.log10(terminal_cost_final_mean + epsilon)
+                            
+                            # Use regular histogram binning on log-transformed data
+                            ax_terminal_cost.hist(log_terminal_costs, bins='auto', color=color, alpha=0.7, density=True, label=agent_name)
+                            # Plot mean line on log-transformed axis
+                            ax_terminal_cost.axvline(log_mean, color='red', linestyle='dotted', linewidth=2,
+                                                   label=f'Mean: {terminal_cost_final_mean:.4f}')
+                            
+                            # Collect terminal cost stats for separate plot legend (to be created outside loop)
+                            terminal_cost_stats_separate.append({
+                                'agent_name': agent_name,
+                            })
+                
+                agent_count += 1
+            
+            if terminal_cost_stats_separate:
+                handles, labels = ax_terminal_cost.get_legend_handles_labels()
+                ax_terminal_cost.legend(handles=handles, loc="upper left", fontsize=16)
+            
+            ax_terminal_cost.set_xlabel('log₁₀(Terminal Cost: 0.5η(D-X)²)', fontsize=16)
+            ax_terminal_cost.set_ylabel('Probability Density', fontsize=16)
+            ax_terminal_cost.tick_params(axis='both', which='major', labelsize=16)
+            ax_terminal_cost.grid(True, alpha=0.3)
+            
+            plt.tight_layout()
+            plt.savefig(f"{save_dir}/imgs/terminal_cost_distribution.png", dpi=300, bbox_inches='tight')
+            plt.close(fig_terminal_cost)
+            
         if plot:
             plt.show()
         else:
@@ -1004,7 +1140,7 @@ class Solver:
             print("No results to plot.")
             return
             
-        fig, axes = plt.subplots(1, len(self.results), figsize=(6*len(self.results), 8))
+        fig, axes = plt.subplots(1, len(self.results), figsize=(8*len(self.results), 6))
         if len(self.results) == 1:
             axes = [axes]
         
@@ -1041,9 +1177,9 @@ class Solver:
             
             axes[idx].set_title(f'{agent_name}\nTrading Intensity Heatmap', 
                               fontsize=16, fontweight='bold')
-            axes[idx].set_xlabel('Price', fontsize=14)
-            axes[idx].set_ylabel('Trade Size', fontsize=14)
-            axes[idx].tick_params(axis='both', which='major', labelsize=12)
+            axes[idx].set_xlabel('Price', fontsize=16)
+            axes[idx].set_ylabel('Trade Size', fontsize=16)
+            axes[idx].tick_params(axis='both', which='major', labelsize=16)
             
             # Add colorbar
             plt.colorbar(im, ax=axes[idx], label='Frequency')
@@ -1070,7 +1206,7 @@ class Solver:
         Returns:
             dict: Dictionary of comparison results between all agent pairs
         """
-        plt.rcParams.update({'font.size': 14})
+        plt.rcParams.update({'font.size': 16})
         if len(self.costs) < 2:
             print("Need at least 2 agents to generate a comparison report.")
             return {}
@@ -1170,7 +1306,7 @@ class Solver:
         Args:
             agent_name (str, optional): Specific agent to display. If None, displays all agents.
         """
-        plt.rcParams.update({'font.size': 14})
+        plt.rcParams.update({'font.size': 16})
         if not self.risk_metrics:
             logging.warning("No risk metrics calculated. Run evaluate_agent() first.")
             return
@@ -1227,6 +1363,7 @@ class Solver:
         """
         Create visualizations for risk metrics comparison across agents.
         """
+        plt.rcParams.update({'font.size': 16})
         if not self.risk_metrics:
             print("No risk metrics to plot.")
             return
@@ -1238,7 +1375,7 @@ class Solver:
         agent_names = list(self.risk_metrics.keys())
         
         # Create figure with subplots for different risk metric categories
-        fig, axes = plt.subplots(2, 3, figsize=(18, 12))
+        fig, axes = plt.subplots(2, 3, figsize=(24, 12))
         axes = axes.flatten()
         
         # Define metrics to plot
@@ -1267,7 +1404,7 @@ class Solver:
             # Add value labels next to each point
             for j, (agent, value) in enumerate(zip(agent_names, values)):
                 ax.text(j, value, f'{value:.4f}', ha='center', va='bottom', 
-                       fontsize=9, bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.8))
+                       fontsize=16, bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.8))
             
             ax.set_title(title)
             ax.set_ylabel(ylabel)
@@ -1295,7 +1432,7 @@ class Solver:
         """
         Create a radar chart comparing risk metrics across agents.
         """
-        plt.rcParams.update({'font.size': 14})
+        plt.rcParams.update({'font.size': 16})
         if not self.risk_metrics:
             print("No risk metrics to plot.")
             return
@@ -1324,7 +1461,7 @@ class Solver:
         angles = np.linspace(0, 2 * np.pi, len(risk_metrics_keys), endpoint=False).tolist()
         angles += angles[:1]  # Complete the circle
         
-        fig, ax = plt.subplots(figsize=(10, 10), subplot_kw=dict(projection='polar'))
+        fig, ax = plt.subplots(figsize=(8, 8), subplot_kw=dict(projection='polar'))
         
         for i, agent in enumerate(agent_names):
             values = [normalized_data[metric][i] for metric in risk_metrics_keys]
@@ -1342,9 +1479,9 @@ class Solver:
         ax.set_yticklabels(['0.2', '0.4', '0.6', '0.8', '1.0'])
         ax.grid(True)
         
-        plt.legend(loc='upper right', bbox_to_anchor=(0.1, 0.1))
+        plt.legend(loc='upper right', bbox_to_anchor=(0.1, 0.1), fontsize=16)
         plt.title('Risk Metrics Comparison (Normalized)\nHigher values = Higher risk', 
-                 size=14, pad=20)
+                 size=16, pad=20)
         
         plt.tight_layout()
         if save_dir:
@@ -1367,7 +1504,7 @@ class Solver:
                           If int, plots the control at that specific timestep.
                           If list, plots the control for each timestep in the list.
         """
-        plt.rcParams.update({'font.size': 14})
+        plt.rcParams.update({'font.size': 16})
         if not self.results:
             print("No results to plot.")
             return
@@ -1398,7 +1535,7 @@ class Solver:
     def _plot_single_control_histogram(self, timestep_indices, plot, save_dir):
         """Helper method to plot control histogram for specific timesteps."""
         n_agents = len(self.results)
-        fig, axs = plt.subplots(n_agents, 1, figsize=(10, 6 * n_agents), squeeze=False)
+        fig, axs = plt.subplots(n_agents, 1, figsize=(8, 6 * n_agents), squeeze=False)
         
         for i, (agent_name, data) in enumerate(self.results.items()):
             ax = axs[i, 0]
@@ -1438,14 +1575,14 @@ class Solver:
             std_q = np.std(q_data)
             
             # Plot histogram with uniform color
-            ax.hist(q_data, bins=50, color='steelblue', alpha=0.7, label='Control Distribution')
+            ax.hist(q_data, bins='auto', color='steelblue', label='Control Distribution')
             
             # Plot mean
             ax.axvline(mean_q, color='red', linestyle='dotted', linewidth=2, 
                       label=f'Mean: {mean_q:.4f}')
             
-            ax.set_xlabel("Control Value (q)", fontsize=18)
-            ax.set_ylabel("Frequency", fontsize=18)
+            ax.set_xlabel("Control Value (q)", fontsize=16)
+            ax.set_ylabel("Frequency", fontsize=16)
             ax.tick_params(axis='both', which='major', labelsize=16)
             
             # Create legend with std as separate entry
@@ -1453,7 +1590,7 @@ class Solver:
             # Add std as text-only legend entry
             handles.append(plt.Line2D([0], [0], color='none', label=f'Std: {std_q:.4f}'))
             
-            ax.legend(handles=handles, loc="upper left", fontsize=14)
+            ax.legend(handles=handles, loc="upper left", fontsize=16)
             ax.grid(True, linestyle='--', alpha=0.5)
         
         plt.tight_layout()
@@ -1470,7 +1607,7 @@ class Solver:
     def _plot_terminal_control_histogram(self, plot, save_dir):
         """Helper method to plot terminal control histogram (last timestep)."""
         n_agents = len(self.results)
-        fig, axs = plt.subplots(n_agents, 1, figsize=(10, 6 * n_agents), squeeze=False)
+        fig, axs = plt.subplots(n_agents, 1, figsize=(8, 6 * n_agents), squeeze=False)
         
         for i, (agent_name, data) in enumerate(self.results.items()):
             ax = axs[i, 0]
@@ -1495,14 +1632,14 @@ class Solver:
             std_q = np.std(q_data)
             
             # Plot histogram with uniform color
-            ax.hist(q_data, bins=50, color='steelblue', alpha=0.7, label='Control Distribution')
+            ax.hist(q_data, bins='auto', color='steelblue', alpha=0.7, label='Control Distribution')
             
             # Plot mean
             ax.axvline(mean_q, color='red', linestyle='dotted', linewidth=2, 
                       label=f'Mean: {mean_q:.4f}')
             
-            ax.set_xlabel("Control Value (q)", fontsize=18)
-            ax.set_ylabel("Frequency", fontsize=18)
+            ax.set_xlabel("Control Value (q)", fontsize=16)
+            ax.set_ylabel("Frequency", fontsize=16)
             ax.tick_params(axis='both', which='major', labelsize=16)
             
             # Create legend with std as separate entry
@@ -1510,7 +1647,7 @@ class Solver:
             # Add std as text-only legend entry
             handles.append(plt.Line2D([0], [0], color='none', label=f'Std: {std_q:.4f}'))
             
-            ax.legend(handles=handles, loc="upper left", fontsize=14)
+            ax.legend(handles=handles, loc="upper left", fontsize=16)
             ax.grid(True, linestyle='--', alpha=0.5)
         
         plt.tight_layout()
@@ -1524,7 +1661,7 @@ class Solver:
     def _plot_average_control_histogram(self, plot, save_dir):
         """Helper method to plot average control histogram (averaged over all timesteps)."""
         n_agents = len(self.results)
-        fig, axs = plt.subplots(n_agents, 1, figsize=(10, 6 * n_agents), squeeze=False)
+        fig, axs = plt.subplots(n_agents, 1, figsize=(8, 6 * n_agents), squeeze=False)
         
         for i, (agent_name, data) in enumerate(self.results.items()):
             ax = axs[i, 0]
@@ -1549,14 +1686,14 @@ class Solver:
             std_q = np.std(q_data)
             
             # Plot histogram with uniform color
-            ax.hist(q_data, bins=50, color='steelblue', alpha=0.7, label='Control Distribution')
+            ax.hist(q_data, bins='auto', color='steelblue', alpha=0.7, label='Control Distribution')
             
             # Plot mean
             ax.axvline(mean_q, color='red', linestyle='dotted', linewidth=2, 
                       label=f'Mean: {mean_q:.4f}')
             
-            ax.set_xlabel("Control Value (q)", fontsize=18)
-            ax.set_ylabel("Frequency", fontsize=18)
+            ax.set_xlabel("Control Value (q)", fontsize=16)
+            ax.set_ylabel("Frequency", fontsize=16)
             ax.tick_params(axis='both', which='major', labelsize=16)
             
             # Create legend with std as separate entry
@@ -1564,7 +1701,7 @@ class Solver:
             # Add std as text-only legend entry
             handles.append(plt.Line2D([0], [0], color='none', label=f'Std: {std_q:.4f}'))
             
-            ax.legend(handles=handles, loc="upper left", fontsize=14)
+            ax.legend(handles=handles, loc="upper left", fontsize=16)
             ax.grid(True, linestyle='--', alpha=0.5)
         
         plt.tight_layout()
@@ -1582,6 +1719,7 @@ class Solver:
         2. Position-generation gap evolution over time
         3. Terminal cost evolution over time
         """
+        plt.rcParams.update({'font.size': 16})
         if not self.results:
             print("No results to plot.")
             return
@@ -1601,6 +1739,7 @@ class Solver:
         
         # Collect summary data for table
         summary_data = []
+        terminal_cost_analysis_stats = []  # Collect terminal cost stats for legend
         summary_headers = ['Agent', 'Final Terminal Cost\n(Mean ± Std)', 'Final Gap\n(Mean ± Std)', 'Max Terminal Cost']
         
         for agent_name, data in self.results.items():
@@ -1671,8 +1810,27 @@ class Solver:
             tc_time_std = terminal_costs_time.std(axis=1)
             
             # Plot 1: Final terminal cost histogram
-            ax1.hist(final_terminal_costs, bins=20, alpha=0.7, color=color, 
-                    label=f'{agent_name} (μ={np.mean(final_terminal_costs):.4f})')
+            # Transform data with log10 for proper histogram binning
+            # Add small epsilon to avoid log(0) issues
+            epsilon = 1e-8
+            terminal_costs_positive = final_terminal_costs[final_terminal_costs > epsilon]
+            
+            if len(terminal_costs_positive) > 0:
+                log_terminal_costs = np.log10(terminal_costs_positive + epsilon)
+                log_mean = np.log10(np.mean(final_terminal_costs) + epsilon)
+                
+                # Use regular histogram binning on log-transformed data
+                ax1.hist(log_terminal_costs, bins='auto', alpha=0.7, color=color, label=agent_name)
+                # Plot mean line on log-transformed axis
+                ax1.axvline(log_mean, color='red', linestyle='dotted', linewidth=2, 
+                           label=f'Mean: {np.mean(final_terminal_costs):.4f}')
+                
+                # Create legend with std as separate entry (like cost histogram)
+                handles, labels = ax1.get_legend_handles_labels()
+                # Add std as text-only legend entry
+                handles.append(plt.Line2D([0], [0], color='none', label=f'Std: {np.std(final_terminal_costs):.4f}'))
+                
+                ax1.legend(handles=handles, loc="upper right")
             
             # Plot 3: Terminal cost evolution
             ax3.plot(timesteps, tc_time_mean, color=color, linewidth=2, label=agent_name)
@@ -1688,23 +1846,25 @@ class Solver:
             ])
         
         # Customize subplots
-        ax1.set_title('Final Terminal Cost Distribution', fontsize=12, fontweight='bold')
-        ax1.set_xlabel('Terminal Cost')
-        ax1.set_ylabel('Frequency')
-        ax1.legend()
+        ax1.set_title('Final Terminal Cost Distribution', fontsize=16, fontweight='bold')
+        ax1.set_xlabel('log₁₀(Terminal Cost)', fontsize=16)
+        ax1.set_ylabel('Frequency', fontsize=16)
+        ax1.tick_params(axis='both', which='major', labelsize=16)
         ax1.grid(True, alpha=0.3)
         
-        ax2.set_title('Position-Generation Gap Evolution', fontsize=12, fontweight='bold')
-        ax2.set_xlabel('Time')
-        ax2.set_ylabel('Gap: G(t) - X(t)')
+        ax2.set_title('Position-Generation Gap Evolution', fontsize=16, fontweight='bold')
+        ax2.set_xlabel('Time', fontsize=16)
+        ax2.set_ylabel('Gap: G(t) - X(t)', fontsize=16)
+        ax2.tick_params(axis='both', which='major', labelsize=16)
         ax2.axhline(y=0, color='black', linestyle='--', alpha=0.5, label='Perfect Execution')
-        ax2.legend()
+        ax2.legend(fontsize=16)
         ax2.grid(True, alpha=0.3)
         
-        ax3.set_title('Terminal Cost Evolution Over Time', fontsize=12, fontweight='bold')
-        ax3.set_xlabel('Time')
-        ax3.set_ylabel('Terminal Cost: 0.5η(D-X)²')
-        ax3.legend()
+        ax3.set_title('Terminal Cost Evolution Over Time', fontsize=16, fontweight='bold')
+        ax3.set_xlabel('Time', fontsize=16)
+        ax3.set_ylabel('Terminal Cost: 0.5η(D-X)²', fontsize=16)
+        ax3.tick_params(axis='both', which='major', labelsize=16)
+        ax3.legend(fontsize=16)
         ax3.grid(True, alpha=0.3)
         
         # Create summary table
@@ -1712,9 +1872,9 @@ class Solver:
             table = ax4.table(cellText=summary_data, colLabels=summary_headers,
                              loc='center', cellLoc='center')
             table.auto_set_font_size(False)
-            table.set_fontsize(10)
+            table.set_fontsize(14)
             table.scale(1.2, 2.0)
-            ax4.set_title('Terminal Cost Summary Statistics', fontsize=12, fontweight='bold', pad=20)
+            ax4.set_title('Terminal Cost Summary Statistics', fontsize=16, fontweight='bold', pad=20)
         
         plt.tight_layout()
         
@@ -1730,6 +1890,7 @@ class Solver:
         Create four simple plots comparing learned Y and Q values against analytical solutions.
         Each plot shows one variable varying over its full interval while keeping others constant.
         """
+        plt.rcParams.update({'font.size': 16})
         if not self.results:
             print("No results to plot.")
             return
@@ -1753,7 +1914,7 @@ class Solver:
         print("Generating learned vs analytical comparison plots...")
         
         # Set up the plot with 4 subplots
-        fig, axes = plt.subplots(2, 2, figsize=(15, 12))
+        fig, axes = plt.subplots(2, 2, figsize=(16, 12))
         axes = axes.flatten()
         
         # Fixed values for non-varying variables
@@ -1861,11 +2022,11 @@ class Solver:
             ax2.plot(varying_vals, analytical_Q, 'r--', label='Analytical q', linewidth=2)
             
             # Formatting
-            ax.set_xlabel(f'{var_name}')
-            ax.set_ylabel('Y values', color='b')
-            ax2.set_ylabel('q values', color='r')
-            ax.tick_params(axis='y', labelcolor='b')
-            ax2.tick_params(axis='y', labelcolor='r')
+            ax.set_xlabel(f'{var_name}', fontsize=16)
+            ax.set_ylabel('Y values', color='b', fontsize=16)
+            ax2.set_ylabel('q values', color='r', fontsize=16)
+            ax.tick_params(axis='both', which='major', labelsize=16, labelcolor='b')
+            ax2.tick_params(axis='both', which='major', labelsize=16, labelcolor='r')
             
             # Set title with fixed values
             if var_name == 't':
@@ -1877,12 +2038,12 @@ class Solver:
             else:  # G
                 title = f'Y & q vs {var_name} (t={t_val}, X={X_val}, P={P_val})'
             
-            ax.set_title(title)
+            ax.set_title(title, fontsize=16)
             
             # Combine legends
             lines1, labels1 = ax.get_legend_handles_labels()
             lines2, labels2 = ax2.get_legend_handles_labels()
-            ax.legend(lines1 + lines2, labels1 + labels2, loc='best')
+            ax.legend(lines1 + lines2, labels1 + labels2, loc='best', fontsize=16)
         
         plt.tight_layout()
         

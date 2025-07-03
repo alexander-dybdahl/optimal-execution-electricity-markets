@@ -50,6 +50,7 @@ class DeepAgent(nn.Module):
         self.architecture = model_cfg["architecture"]
         self.Y_layers = model_cfg["Y_layers"]      # e.g., [64, 64, 64]
         self.adaptive_factor = model_cfg["adaptive_factor"]
+        self.adaptive_step_size = model_cfg["adaptive_step_size"]
         self.strong_grad_output = model_cfg["strong_grad_output"]  # whether to use strong output gradient
         self.scale_output = model_cfg["scale_output"]  # how much to scale the output of the network
         self.careful_init = model_cfg["careful_init"]  # whether to use careful initialization
@@ -1049,10 +1050,10 @@ class DeepAgent(nn.Module):
         # === Initialize scheduler ===
         scheduler = (
             torch.optim.lr_scheduler.ReduceLROnPlateau(
-                optimizer, mode="min", factor=self.adaptive_factor, patience=200
+                optimizer, mode="min", factor=self.adaptive_factor, patience=self.adaptive_step_size
             )
             if adaptive
-            else torch.optim.lr_scheduler.StepLR(optimizer, step_size=5000, gamma=0.5)
+            else torch.optim.lr_scheduler.StepLR(optimizer, step_size=self.adaptive_step_size, gamma=self.adaptive_factor)
         )
         
         # === Load scheduler state if provided ===

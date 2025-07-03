@@ -13,13 +13,17 @@
   "plot_trading_comparison": true,
   "plot_trading_heatmap": false,
   "plot_terminal_cost_analysis": false,
-  "plot_risk_metrics": true,
+  "plot_risk_metrics": false,
   "plot_controls": false,
   "plot_losses": false,
+  "agents": [
+    "Analytical",
+    "NN",
+    "TWAP"
+  ],
   "comparison": true,
   "plot_learned_vs_analytical": false,
-  "agents": ["Analytical", "NN", "TWAP", "IOBE"],
-  "n_simulations": 1024,
+  "n_simulations": 1000000,
   "seed": 42,
-  "max_batch_size": 2500
+  "max_batch_size": 10000
 }
