@@ -387,15 +387,10 @@ class Solver:
             std_cost = np.std(costs)
 
             # Plot histogram with uniform color
-            ax.hist(costs, bins='auto', color='steelblue', label=agent_name)
+            ax.hist(costs, bins='auto', color='steelblue', alpha=0.7, label=agent_name)
 
             # Plot mean line
             ax.axvline(mean_cost, color='red', linestyle='--', linewidth=3, label=f'Mean: {mean_cost:.4f}')
-
-            # Trim extremes by setting x-axis limits to 2.5th and 97.5th percentiles
-            x_min = np.percentile(costs, 2.5)
-            x_max = np.percentile(costs, 97.5)
-            ax.set_xlim(x_min, x_max)
 
             ax.set_xlabel("Cost Objective", fontsize=24)
             ax.set_ylabel("Frequency", fontsize=24)
@@ -428,14 +423,8 @@ class Solver:
         for costs in self.costs.values():
             all_costs.extend(costs)
         
-        # Determine common bins for all histograms, trimmed to remove extremes
-        all_costs_array = np.array(all_costs)
-        x_min_global = np.percentile(all_costs_array, 2.5)
-        x_max_global = np.percentile(all_costs_array, 97.5)
-        
-        # Filter costs to the trimmed range for better binning
-        trimmed_costs = all_costs_array[(all_costs_array >= x_min_global) & (all_costs_array <= x_max_global)]
-        bins = np.histogram_bin_edges(trimmed_costs, bins='auto')
+        # Determine common bins for all histograms
+        bins = np.histogram_bin_edges(all_costs, bins='auto')
         
         # Plot each agent's histogram on the same plot with high transparency
         mean_values = []
@@ -450,9 +439,6 @@ class Solver:
             
             # Plot mean line
             ax.axvline(mean_cost, color=color, linestyle='--', linewidth=3, alpha=0.8)
-        
-        # Set x-axis limits to trim extremes
-        ax.set_xlim(x_min_global, x_max_global)
         
         # Add mean values as text annotations with proper spacing
         text_x_pos = 0.02  # 2% from left edge
