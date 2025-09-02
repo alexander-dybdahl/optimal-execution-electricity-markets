@@ -1,198 +1,199 @@
-# Optimal Execution in Electricity Markets with Deep BSDEs
+# Optimal Execution in Electricity Markets using Deep BSDEs
 
-This project implements a Deep BSDE (Backward Stochastic Differential Equation) solver for modeling optimal execution strategies in electricity markets. It is written in PyTorch and structured for modularity, simulation, and visual diagnostics.
+This repository implements a Deep BSDE-based control solver for optimal execution problems in electricity markets. The solver learns a closed-loop feedback control policy for a stochastic system whose dynamics are influenced by control through the drift term, a key structural feature in execution models. The method is based on stochastic optimal control, combining the Hamilton–Jacobi–Bellman (HJB) equation with its equivalent reformulation as a system of Forward–Backward Stochastic Differential Equations (FBSDEs). Training is guided by a physics-informed loss and simulation-based control cost, and is implemented in PyTorch for efficient experimentation.
 
----
+## Problem Formulation
+
+We consider the stochastic control problem of minimizing expected total cost:
+
+\[
+\min_{q \in \mathcal{A}} \ \mathbb{E} \left[ \int_0^T f(t, y_t, q_t) \, dt + h(y_T) \right],
+\]
+
+subject to the stochastic dynamics:
+
+\[
+dy_t = b(t, q_t)\, dt + \sigma(t)\, dW_t, \quad y_0 = y(0),
+\]
+
+where:
+- \( y_t \in \mathbb{R}^n \) is the state vector (e.g., price, inventory, forecast error),
+- \( q_t \in \mathbb{R} \) is the control process (trading rate),
+- \( b(t, q) \) is the drift depending directly on control \( q \),
+- \( \sigma(t) \) is the time-dependent volatility matrix,
+- \( W_t \in \mathbb{R}^m \) is a Brownian motion.
+
+The value function \( V(t, y) \) satisfies the HJB equation. Under sufficient regularity, this equation admits a probabilistic representation as a solution to a coupled FBSDE system. The control \( q^\theta(t, y) \) is obtained from the gradient of the neural approximation \( Y^\theta \approx V \) by minimizing the Hamiltonian in feedback form.
+
+## Methodology
+
+The core approach combines:
+- Deep neural network approximation of \( V(t, y) \) using an NAIS-LSTM + NAISNet architecture
+- Closed-loop control via \( q^\theta(t, y) \) derived from minimizing the Hamiltonian
+- PINN-based residual losses enforcing the HJB equation structure
+- Forward-backward simulation of trajectories using the learned policy
+
+The solver supports time-dependent volatilities, control-dependent drift, and volume uncertainty. The full objective includes:
+- BSDE alignment loss
+- Terminal state constraints
+- Control cost penalty
+- (Optional) HJB residual enforcement
 
 ## Project Structure
 
 ```
-optimal-execution-electricity-markets/
-├── config/              # JSON configurations
-│   ├── hjb_config.json
-│   └── run_config.json
-├── core/                # Base BSDE logic
-│   └── base_bsde.py
-├── models/              # HJB model and saved weights
-│   ├── hjb_bsde.py
-│   └── hjb_model.pth
-├── notebooks/           # Jupyter notebooks (optional use)
-├── old/                 # Archived experiments/code
-├── utils/               # Helper utilities
-│   ├── load_config.py
+.
+├── agents/                      # Execution agents (analytical, deep, immediate)
+│   ├── analyticalagent.py
+│   ├── deepagent.py
+│   ├── immediateagent.py
+│   └── timeweightedagent.py
+│
+├── config/                     # Config files (training, evaluation, dynamics)
+│   ├── train_config.json
+│   ├── eval_config.json
+│   └── dynamics_configs/
+│       ├── full_config.json
+│       ├── full_config_SP01.json
+│       └── ...
+│
+├── core/
+│   └── solver.py               # Core logic of Deep BSDE solver
+│
+├── dynamics/                   # Problem-specific dynamics classes
+│   ├── full_dynamics.py
+│   ├── simple_dynamics.py
+│   └── aid_dynamics.py
+│
+├── utils/                      # Utility modules
+│   ├── nnet.py
 │   ├── plots.py
-│   └── tools.py
-├── run.py               # Main entry point
-├── README.md
-├── pyproject.toml       # Poetry environment
-└── poetry.lock
+│   ├── simulator.py
+│   └── ...
+│
+├── saved_models/               # Trained model checkpoints
+├── saved_evaluations/          # Evaluation outputs
+├── train.py                    # Training entry point
+├── evaluate.py                 # Evaluation entry point
+├── slurm_job.sh                # SLURM job script for HPC
+├── pyproject.toml              # Poetry environment file
+└── README.md
 ```
-
----
-
-## Installation
-
-Install dependencies with [Poetry](https://python-poetry.org/):
-
-```bash
-git clone https://github.com/your-username/optimal-execution-electricity-markets.git
-cd optimal-execution-electricity-markets
-poetry install
-poetry shell
-```
-
----
-
-## Features
-
-- Deep BSDE training and simulation
-- Modular architecture for multiple models
-- JSON-based configuration
-- CLI interface via argparse
-- Jupyter notebook compatibility
-- Plotting utilities for diagnostics
-
----
 
 ## Configuration
 
-Two config files are used:
+Training is configured through `config/train_config.json`, e.g.:
 
-- `config/hjb_config.json` – model-specific settings
-- `config/run_config.json` – runtime settings
-
-Example `hjb_config.json`:
-```json
-{
-  "T": 1.0,
-  "N": 40,
-  "dim": 4,
-  "dim_W": 3,
-  "y0": [0.0, 0.0, 0.0, 0.0],
-  "xi": 0.0,
-  "gamma": 0.2,
-  "eta": 0.1,
-  "mu_P": 0.0,
-  "rho": -0.5,
-  "vol_P": 0.2,
-  "vol_D": 0.1,
-  "vol_B": 0.1,
-  "dt": 0.025
-}
 ```
-
-Example `run_config.json`:
-```json
 {
-  "epochs": 1000,
-  "lr": 1e-3,
-  "save_path": "models/hjb_model.pth",
-  "n_paths": 1000,
-  "batch_size": 256,
   "device": "cuda",
-  "train": true,
-  "load_if_exists": true,
-  "verbose": true
+  "architecture": "naislstm",
+  "activation": "GELU",
+  "epochs": 100000,
+  "batch_size": 256,
+  "lr": 1e-2,
+  "network_type": "dY",
+  "lambda_cost": 1e4,
+  "lambda_T": 1,
+  "lambda_Y": 1,
+  ...
 }
 ```
 
----
+Evaluation is configured via `config/eval_config.json`, e.g.:
 
-## Running
-
-Run the training and simulation:
-
-```bash
-python run.py
+```
+{
+  "device": "cuda",
+  "model_dir": "saved_models/full_naislstm_GELU",
+  "dynamics_path": "config/dynamics_configs/full_config.json",
+  "n_simulations": 256,
+  "plot_controls": true,
+  "plot_trading_comparison": true
+}
 ```
 
-Override config defaults with command-line arguments:
+The model-specific problem configuration is stored in `dynamics_configs/full_config.json`, specifying initial conditions, volatility structure, impact parameters, etc.
 
-```bash
-python run.py --epochs 500 --train True --verbose False
+## Running the Code
+
+### Training
+
+```
+python train.py --config config/train_config.json
 ```
 
-See all options:
+### Evaluation
 
-```bash
-python run.py --help
+```
+python evaluate.py --config config/eval_config.json
 ```
 
-## Running distributed computation
+### On HPC (NTNU Idun)
 
-On Idun (HPC cluster on NTNU) start a VS Code server with the following environment setup:
+Load environment and submit job:
 
-```bash
+```
 module load Python/3.11.5-GCCcore-13.2.0
 curl -sSL https://install.python-poetry.org | python3 -
 export PATH="$HOME/.local/bin:$PATH"
 poetry install
 source $(poetry env info --path)/bin/activate
-```
-
-Add your project directory:
-
-/cluster/home/<ntnu_username>
-
-Run the training and simulation:
-
-```bash
 sbatch slurm_job.sh
 ```
 
-It will then queue the job, to view all your jobs running or in a queue (this includes the job where you are running VS Code - don't stop this job):
+Monitor queue:
 
-```bash
-squeue -u <ntnu_username>
+```
+squeue -u <username>
 ```
 
-Override distributed config defaults in the slurm_job.sh file. These settings might be the reason for why your job is in the queue for a long time.
+View live logs:
 
-To cancel a job with a specific PID number (this can be found using the above):
-
-```bash
-scancel <PID>
+```
+less +F slurm-<jobid>.out
 ```
 
-To view the log of your job live when it is running:
+Cancel job:
 
-```bash
-less +F slurm-<PID>.out
 ```
-
-This log can also be found in the project directory, but this can be delayed.
+scancel <jobid>
+```
 
 ## Output
 
-The script produces:
+Evaluation produces:
+- Optimal control paths \( q(t) \)
+- Value process \( Y(t) \)
+- Trajectory distributions (inventory, prices, demand, imbalance)
+- Terminal cost histograms and validation errors
+- Comparison against analytical benchmarks (if available)
 
-- Trained model (`models/hjb_model.pth`)
-- Simulation of optimal execution paths
-- Visual plots using `matplotlib`:
-  - Trading rate `q(t)`
-  - Value function `Y(t)`
-  - Terminal states: `X(T)`, `D(T)`, `B(T)`, `I(T)`
+## Interactive Use
 
----
-
-## Jupyter Usage
-
-To explore interactively:
+To run experiments in a Jupyter notebook:
 
 ```python
-from models.hjb_bsde import HJBDeepBSDE
-from utils.load_config import load_model_config, load_run_config
+from agents.deepagent import DeepAgent
+from utils.load_config import load_train_config
 
-cfg = load_model_config("config/hjb_config.json")
-run_cfg = load_run_config()
-model = HJBDeepBSDE(run_cfg, cfg)
+cfg = load_train_config("config/train_config.json")
+agent = DeepAgent(cfg)
+agent.simulate(n_paths=512)
+agent.plot_controls()
 ```
-
-Then run `simulate_paths` and plot diagnostics.
-
----
 
 ## Notes
 
-- Run scripts from the **project root** (where `run.py` lives).
-- Use `poetry run` if you don't want to enter the virtual environment manually.
+- This solver operates in discrete time using a fixed number of time steps \( N \), and both the control and dynamics are evaluated on this grid.
+- The HJB formulation is derived in continuous time, but solved numerically using discretized FBSDEs.
+- The control policy is fully closed-loop, enabling generalization to unseen states via neural approximation.
+- The method supports Sobol sampling, second-order Taylor expansion, and careful initialization heuristics for stability.
+
+## References
+
+- Yong & Zhou (1999), *Stochastic Controls: Hamiltonian Systems and HJB Equations*
+- Han, E, Jentzen (2018), *Solving High-Dimensional PDEs via Deep Learning*, PNAS
+- Exarchos & Theodorou (2018), *Stochastic Optimal Control via FBSDEs and Importance Sampling*
+```
+
