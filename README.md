@@ -6,15 +6,15 @@ This repository implements a Deep BSDE-based control solver for optimal executio
 
 We consider the stochastic control problem of minimizing expected total cost:
 
-\[
+\begin{equation}
 \min_{q \in \mathcal{A}} \ \mathbb{E} \left[ \int_0^T f(t, y_t, q_t) \, dt + h(y_T) \right],
-\]
+\end{equation}
 
 subject to the stochastic dynamics:
 
-\[
+\begin{equation}
 dy_t = b(t, q_t)\, dt + \sigma(t)\, dW_t, \quad y_0 = y(0),
-\]
+\end{equation}
 
 where:
 - \( y_t \in \mathbb{R}^n \) is the state vector (e.g., price, inventory, forecast error),
