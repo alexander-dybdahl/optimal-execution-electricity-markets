@@ -6,30 +6,30 @@ This repository implements a Deep BSDE-based control solver for optimal executio
 
 We consider the stochastic control problem of minimizing expected total cost:
 
-\begin{equation}
+$$
 \min_{q \in \mathcal{A}} \ \mathbb{E} \left[ \int_0^T f(t, y_t, q_t) \, dt + h(y_T) \right],
-\end{equation}
+$$
 
 subject to the stochastic dynamics:
 
-\begin{equation}
+$$
 dy_t = b(t, q_t)\, dt + \sigma(t)\, dW_t, \quad y_0 = y(0),
-\end{equation}
+$$
 
 where:
-- \( y_t \in \mathbb{R}^n \) is the state vector (e.g., price, inventory, forecast error),
-- \( q_t \in \mathbb{R} \) is the control process (trading rate),
-- \( b(t, q) \) is the drift depending directly on control \( q \),
-- \( \sigma(t) \) is the time-dependent volatility matrix,
-- \( W_t \in \mathbb{R}^m \) is a Brownian motion.
+- $ y_t \in \mathbb{R}^n $ is the state vector (e.g., price, inventory, forecast error),
+- $ q_t \in \mathbb{R} $ is the control process (trading rate),
+- $ b(t, q) $ is the drift depending directly on control $ q $,
+- $ \sigma(t) $ is the time-dependent volatility matrix,
+- $ W_t \in \mathbb{R}^m $ is a Brownian motion.
 
-The value function \( V(t, y) \) satisfies the HJB equation. Under sufficient regularity, this equation admits a probabilistic representation as a solution to a coupled FBSDE system. The control \( q^\theta(t, y) \) is obtained from the gradient of the neural approximation \( Y^\theta \approx V \) by minimizing the Hamiltonian in feedback form.
+The value function $ V(t, y) $ satisfies the HJB equation. Under sufficient regularity, this equation admits a probabilistic representation as a solution to a coupled FBSDE system. The control $ q^\theta(t, y) $ is obtained from the gradient of the neural approximation $ Y^\theta \approx V $ by minimizing the Hamiltonian in feedback form.
 
 ## Methodology
 
 The core approach combines:
-- Deep neural network approximation of \( V(t, y) \) using an NAIS-LSTM + NAISNet architecture
-- Closed-loop control via \( q^\theta(t, y) \) derived from minimizing the Hamiltonian
+- Deep neural network approximation of $ V(t, y) $ using an NAIS-LSTM + NAISNet architecture
+- Closed-loop control via $ q^\theta(t, y) $ derived from minimizing the Hamiltonian
 - PINN-based residual losses enforcing the HJB equation structure
 - Forward-backward simulation of trajectories using the learned policy
 
@@ -163,8 +163,8 @@ scancel <jobid>
 ## Output
 
 Evaluation produces:
-- Optimal control paths \( q(t) \)
-- Value process \( Y(t) \)
+- Optimal control paths $ q(t) $
+- Value process $ Y(t) $
 - Trajectory distributions (inventory, prices, demand, imbalance)
 - Terminal cost histograms and validation errors
 - Comparison against analytical benchmarks (if available)
@@ -185,7 +185,7 @@ agent.plot_controls()
 
 ## Notes
 
-- This solver operates in discrete time using a fixed number of time steps \( N \), and both the control and dynamics are evaluated on this grid.
+- This solver operates in discrete time using a fixed number of time steps $ N $, and both the control and dynamics are evaluated on this grid.
 - The HJB formulation is derived in continuous time, but solved numerically using discretized FBSDEs.
 - The control policy is fully closed-loop, enabling generalization to unseen states via neural approximation.
 - The method supports Sobol sampling, second-order Taylor expansion, and careful initialization heuristics for stability.
