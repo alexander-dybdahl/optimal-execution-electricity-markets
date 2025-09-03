@@ -192,8 +192,8 @@ agent.plot_controls()
 
 ## References
 
-- Yong & Zhou (1999), *Stochastic Controls: Hamiltonian Systems and HJB Equations*
-- Han, E, Jentzen (2018), *Solving High-Dimensional PDEs via Deep Learning*, PNAS
-- Exarchos & Theodorou (2018), *Stochastic Optimal Control via FBSDEs and Importance Sampling*
-```
+1. Han, Jiequn; Jentzen, Arnulf; E, Weinan (2018). Solving high-dimensional partial differential equations using deep learning. Proceedings of the National Academy of Sciences 115(34), 8505–8510. DOI: 10.1073/pnas.1718942115. Preprint: arXiv:1707.02568
 
+2. Pereira, Marcus A.; Wang, Ziyi; Exarchos, Ioannis; Theodorou, Evangelos A. (2019). Learning Deep Stochastic Optimal Control Policies using Forward-Backward SDEs. arXiv:1902.03986
+
+3. Raissi, Maziar; Perdikaris, Paris; Karniadakis, George E. (2019). Physics-informed neural networks: A deep learning framework for solving forward and inverse problems involving nonlinear partial differential equations. Journal of Computational Physics 378, 686–707. DOI: 10.1016/j.jcp.2018.10.045
