@@ -1,6 +1,5 @@
 import torch
 import numpy as np
-import torch.nn as nn
 from scipy.integrate import quad
 from scipy.interpolate import interp1d
 
