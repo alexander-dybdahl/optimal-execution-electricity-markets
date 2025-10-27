@@ -4,7 +4,6 @@ import sys
 from argparse import ArgumentParser
 from utils.logger import Logger
 
-import numpy as np
 import torch
 import torch.distributed as dist
 from torch.nn.parallel import DistributedDataParallel as DDP
